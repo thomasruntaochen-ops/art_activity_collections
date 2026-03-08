@@ -1,0 +1,99 @@
+Metadata-Version: 2.4
+Name: art-activity-collection
+Version: 0.1.0
+Summary: Collect and serve free youth art activities
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn[standard]>=0.30.0
+Requires-Dist: sqlalchemy>=2.0.30
+Requires-Dist: pydantic>=2.8.0
+Requires-Dist: pydantic-settings>=2.3.0
+Requires-Dist: pymysql>=1.1.1
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: beautifulsoup4>=4.12.3
+Provides-Extra: crawler
+Requires-Dist: playwright>=1.46.0; extra == "crawler"
+Requires-Dist: tenacity>=8.5.0; extra == "crawler"
+Provides-Extra: llm
+Requires-Dist: openai>=1.40.0; extra == "llm"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3.0; extra == "dev"
+Requires-Dist: ruff>=0.5.0; extra == "dev"
+
+# Art Activity Collection
+
+Pipeline and API to collect free kids/teens art activities from museum and art center websites, store them in MySQL, and expose searchable data for web/app frontends.
+
+## Stack
+- Python 3.11+
+- FastAPI
+- SQLAlchemy
+- MySQL 8
+- Optional Playwright for dynamic pages
+- Optional LLM extraction fallback
+
+## Project Structure
+- `src/api`: FastAPI routes
+- `src/core`: settings and shared config
+- `src/db`: database engine/session
+- `src/models`: SQLAlchemy models
+- `src/schemas`: API and ingestion schemas
+- `src/services`: domain services
+- `src/crawlers`: source adapters + extraction pipeline
+- `db`: schema and migrations
+- `scripts`: utility scripts (seed/run jobs)
+
+## Quick Start
+1. Create a virtual environment and install dependencies.
+2. Copy `.env.example` to `.env` and update values.
+3. Create MySQL database:
+Homebrew service:
+    brew update
+    brew install mysql
+    brew services start mysql
+Test direct connection: 
+    mysql -h 127.0.0.1 -P 3306 -u root -p
+Ensure DB exists and schema is loaded (run in project root):
+    mysql -u root -p -e 'CREATE DATABASE IF NOT EXISTS art_activity_collection;'
+    mysql -u root -p art_activity_collection < db/schema.sql
+  
+4. Apply migration in `db/migrations/001_init.sql`.
+   - If your DB already exists from older schema, also run:
+   - `mysql -u root -p art_activity_collection < db/migrations/002_add_activity_location_text.sql`
+   - `mysql -u root -p art_activity_collection < db/migrations/003_add_venue_indexes.sql`
+5. Run API:
+   - `uvicorn src.main:app --reload`
+6. Run frontend:
+   - `cd frontend`
+   - `npm install`
+   - `cp .env.local.example .env.local`
+   - `npm run dev`
+
+## Current Status
+This scaffold includes:
+- Free-only activity schema
+- Optional LLM extraction metadata fields
+- Basic activity query endpoint
+- Crawler adapter interface and hardcoded extractor baseline
+
+## MET Source Parser
+- Source URL: `https://www.metmuseum.org/events?audience=teens&price=free&type=workshopsClasses`
+- Dry run from latest saved HTML in `data/html/met` (print parsed rows only):
+  - `python3 scripts/run_met_parser.py`
+- Parse from saved HTML file (offline):
+  - `python3 scripts/run_met_parser.py --input-html data/html/met/<file>.html`
+- Parse from latest saved HTML and dump text:
+  - `python3 scripts/run_met_parser.py --dump-text`
+- Commit parsed rows to MySQL:
+  - `python3 scripts/run_met_parser.py --commit`
+
+## MoMA Source Parser
+- Teens URL: `https://www.moma.org/calendar/?happening_filter=For+teens&date=2026-02-24`
+- Kids URL: `https://www.moma.org/calendar/?happening_filter=For+kids&date=2026-02-24`
+- Remove all existing MoMA entries from DB:
+  - `python3 scripts/run_moma_parser.py --clear`
+- Parse directly from MoMA URLs (dry run):
+  - `python3 scripts/run_moma_parser.py`
+- Parse directly from MoMA URLs and commit to MySQL:
+  - `python3 scripts/run_moma_parser.py --commit`

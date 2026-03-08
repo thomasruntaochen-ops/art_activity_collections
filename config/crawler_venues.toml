@@ -1,0 +1,39 @@
+version = 1
+
+# Edit this file to control which venue crawlers run.
+# - Set `enabled = false` to disable a venue (or comment out the whole venue block).
+# - Use `batch_id` to group venues for staggered cron runs.
+# - `use_base_url = true` means this crawler can load remote raw HTML from RAWHTML_BASE_URL.
+
+[[venues]]
+venue = "met"
+enabled = true
+parser_script_name = "scripts/run_met_parser.py"
+batch_id = "batch_a"
+use_base_url = true
+local_cache_glob = "data/rawhtml/met/*.html"
+args = ["--commit"]
+
+[[venues]]
+venue = "moma"
+enabled = true
+parser_script_name = "scripts/run_moma_parser.py"
+batch_id = "batch_a"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "whitney"
+enabled = true
+parser_script_name = "scripts/run_whitney_parser.py"
+batch_id = "batch_a"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "mfa"
+enabled = true
+parser_script_name = "scripts/run_mfa_parser.py"
+batch_id = "batch_a"
+use_base_url = false
+args = ["--commit"]

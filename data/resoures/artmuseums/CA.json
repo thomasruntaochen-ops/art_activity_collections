@@ -1,0 +1,100 @@
+{
+  "Bakersfield Museum of Art": {
+    "city": "Bakersfield",
+    "event_links": [
+      "https://www.bmoa.org/saturday-studio",
+      "https://www.bmoa.org/familyday",
+      "https://www.bmoa.org/artists-on-artists",
+      "https://www.bmoa.org/spring-workshops"
+    ]
+  },
+  "Berkeley Art Museum and Pacific Film Archive": {
+    "city": "Berkeley",
+    "event_links": [
+      "https://bampfa.org/calendar/"
+    ]
+  },
+  "Crocker Art Museum": {
+    "city": "Sacramento",
+    "event_links": [
+      "https://www.crockerart.org/events"
+    ]
+  },
+  "Fresno Art Museum": {
+    "city": "Fresno",
+    "event_links": [
+      "https://fresnoartmuseum.org/events"
+    ]
+  },
+  "Hammer Museum": {
+    "city": "Los Angeles",
+    "event_links": [
+      "https://hammer.ucla.edu/programs-events?category[5326]=5326&category[5346]=5346&category[5341]=5341&category[5331]=5331"
+    ]
+  },
+  "Institute of Contemporary Art, Los Angeles": {
+    "city": "Los Angeles",
+    "event_links": [
+      "https://www.theicala.org/en/calendar"
+    ]
+  },
+  "J. Paul Getty Museum": {
+    "city": "Los Angeles",
+    "event_links": [
+      "https://www.getty.edu/calendar/?category=talks&category=family&category=art-making&category=special-events"
+    ]
+  },
+  "Los Angeles County Museum of Art": {
+    "city": "Los Angeles",
+    "event_links": [
+      "https://www.lacma.org/event"
+    ]
+  },
+  "Norton Simon Museum": {
+    "city": "Pasadena",
+    "event_links": [
+      "https://www.nortonsimon.org/calendar/family-youth-and-teens",
+      "https://www.nortonsimon.org/calendar/lectures",
+      "https://www.nortonsimon.org/calendar/adult-art-classes"
+    ]
+  },
+  "Orange County Museum of Art": {
+    "city": "Costa Mesa",
+    "event_links": [
+      "https://ocma.art/calendar/"
+    ]
+  },
+  "Palm Springs Art Museum": {
+    "city": "Palm Springs",
+    "event_links": [
+      "https://www.psmuseum.org/events/artful-events",
+      "https://www.psmuseum.org/events/fplus",
+      "https://www.psmuseum.org/events/programs-events"
+    ]
+  },
+  "San Jose Museum of Art": {
+    "city": "San Jose",
+    "event_links": [
+      "https://sjmusart.org/calendar"
+    ]
+  },
+  "Santa Barbara Museum of Art": {
+    "city": "Santa Barbara",
+    "event_links": [
+      "https://www.sbma.net/events?field_event_type_target_id%5B24%5D=24&field_event_type_target_id%5B21%5D=21&field_event_type_target_id%5B28%5D=28&field_event_type_target_id%5B29%5D=29"
+    ]
+  },
+  "The Museum of Contemporary Art, Los Angeles": {
+    "city": "Los Angeles",
+    "event_links": [
+      "https://www.moca.org/together-thursdays",
+      "https://www.moca.org/programs?category=25"
+    ]
+  },
+  "The San Diego Museum of Art": {
+    "city": "San Diego",
+    "event_links": [
+      "https://www.sdmart.org/events/"
+    ]
+  }
+}

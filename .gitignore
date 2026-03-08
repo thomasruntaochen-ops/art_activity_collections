@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.DS_Store
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+data/html/
+data/rawhtml/
+PackageInstall.md
