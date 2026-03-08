@@ -1,5 +1,6 @@
 import asyncio
 import re
+import shutil
 import subprocess
 from datetime import datetime
 from urllib.parse import parse_qs, unquote, urljoin, urlparse
@@ -394,6 +395,10 @@ def _text_from_node(node) -> str | None:
 
 
 def _fetch_with_curl(url: str) -> str:
+    if shutil.which("curl") is None:
+        raise RuntimeError(
+            "curl fallback failed: 'curl' is not installed in this runtime"
+        )
     result = subprocess.run(
         ["curl", "-L", "--max-time", "30", url],
         capture_output=True,
