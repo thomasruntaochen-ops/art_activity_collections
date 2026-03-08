@@ -1,0 +1,69 @@
+{
+  "Amon Carter Museum of American Art": {
+    "city": "Fort Worth",
+    "event_links": [
+      "https://www.cartermuseum.org/events-calendar"
+    ]
+  },
+  "Blanton Museum of Art": {
+    "city": "Austin",
+    "event_links": [
+      "https://blantonmuseum.org/programs/"
+    ]
+  },
+  "Crow Museum of Asian Art of The University of Texas at Dallas": {
+    "city": "Dallas",
+    "event_links": [
+      "https://crowmuseum.org/events/"
+    ]
+  },
+  "Dallas Museum of Art": {
+    "city": "Dallas",
+    "event_links": [
+      "https://dma.org/calendar",
+      "https://dma.org/programs"
+    ]
+  },
+  "Kimbell Art Museum": {
+    "city": "Fort Worth",
+    "event_links": [
+      "https://kimbellart.org/calendar"
+    ]
+  },
+  "Longview Museum of Fine Arts": {
+    "city": "Longview",
+    "event_links": [
+      "https://www.lmfa.org/lmfa-calendar/"
+    ]
+  },
+  "McNay Art Museum": {
+    "city": "San Antonio",
+    "event_links": [
+      "https://www.mcnayart.org/events/"
+    ]
+  },
+  "Museum of Fine Arts, Houston": {
+    "city": "Houston",
+    "event_links": [
+      "https://www.mfah.org/events"
+    ]
+  },
+  "Nasher Sculpture Center": {
+    "city": "Dallas",
+    "event_links": [
+      "https://www.nashersculpturecenter.org/programs-events/calendar"
+    ]
+  },
+  "San Antonio Museum of Art": {
+    "city": "San Antonio",
+    "event_links": [
+      "https://www.samuseum.org/events/"
+    ]
+  },
+  "The Modern Art Museum of Fort Worth": {
+    "city": "Fort Worth",
+    "event_links": [
+      "https://www.themodern.org/programs"
+    ]
+  }
+}

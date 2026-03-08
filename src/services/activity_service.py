@@ -100,33 +100,43 @@ def get_filter_suggestions(
     return [value for value in db.scalars(stmt) if value]
 
 
-def get_filter_options(db: Session) -> dict[str, list[str]]:
+def get_filter_options(
+    db: Session,
+    *,
+    state: str | None = None,
+    city: str | None = None,
+) -> dict[str, list[str]]:
     """Return dropdown option values constrained to current activity data."""
     base_conditions = (
         Activity.is_free.is_(True),
         Activity.status.in_(("active", "needs_review")),
         Activity.venue_id.is_not(None),
     )
+    filters = list(base_conditions)
+    if state:
+        filters.append(Venue.state == state.strip().upper())
+    if city:
+        filters.append(Venue.city == city.strip())
 
     venue_stmt = (
         select(Venue.name)
         .distinct()
         .join(Activity, Activity.venue_id == Venue.id)
-        .where(*base_conditions, Venue.name.is_not(None))
+        .where(*filters, Venue.name.is_not(None))
         .order_by(Venue.name.asc())
     )
     state_stmt = (
         select(Venue.state)
         .distinct()
         .join(Activity, Activity.venue_id == Venue.id)
-        .where(*base_conditions, Venue.state.is_not(None))
+        .where(*filters, Venue.state.is_not(None))
         .order_by(Venue.state.asc())
     )
     city_stmt = (
         select(Venue.city)
         .distinct()
         .join(Activity, Activity.venue_id == Venue.id)
-        .where(*base_conditions, Venue.city.is_not(None))
+        .where(*filters, Venue.city.is_not(None))
         .order_by(Venue.city.asc())
     )
 

@@ -24,3 +24,33 @@ sources:
     adapter_type: mfa_programs_pages
     crawl_frequency: daily
     active: true
+  - name: ocma_calendar
+    base_url: https://ocma.art/calendar/
+    adapter_type: ocma_calendar
+    crawl_frequency: daily
+    active: false
+  - name: bampfa_calendar
+    base_url: https://bampfa.org/visit/calendar
+    adapter_type: bampfa_calendar
+    crawl_frequency: daily
+    active: false
+  - name: bmoa_events
+    base_url: https://www.bmoa.org/events
+    adapter_type: bmoa_events
+    crawl_frequency: daily
+    active: false
+  - name: crocker_events
+    base_url: https://www.crockerart.org/events
+    adapter_type: crocker_events
+    crawl_frequency: daily
+    active: false
+  - name: fresno_workshops
+    base_url: https://fresnoartmuseum.org/workshop
+    adapter_type: fresno_workshops
+    crawl_frequency: daily
+    active: false
+  - name: lacma_events
+    base_url: https://www.lacma.org/event
+    adapter_type: lacma_events
+    crawl_frequency: daily
+    active: false

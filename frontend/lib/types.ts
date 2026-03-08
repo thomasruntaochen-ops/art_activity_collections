@@ -37,3 +37,8 @@ export type ActivityFilterOptions = {
   states: string[];
   cities: string[];
 };
+
+export type ActivityFilterOptionFilters = {
+  city?: string;
+  state?: string;
+};

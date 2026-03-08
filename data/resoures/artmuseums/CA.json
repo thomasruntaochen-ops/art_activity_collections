@@ -6,25 +6,29 @@
       "https://www.bmoa.org/familyday",
       "https://www.bmoa.org/artists-on-artists",
       "https://www.bmoa.org/spring-workshops"
-    ]
+    ],
+    "parser_script": "scripts/run_bmoa_parser.py"
   },
   "Berkeley Art Museum and Pacific Film Archive": {
     "city": "Berkeley",
     "event_links": [
       "https://bampfa.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_bampfa_parser.py"
   },
   "Crocker Art Museum": {
     "city": "Sacramento",
     "event_links": [
       "https://www.crockerart.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_crocker_parser.py"
   },
   "Fresno Art Museum": {
     "city": "Fresno",
     "event_links": [
       "https://fresnoartmuseum.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_fresno_parser.py"
   },
   "Hammer Museum": {
     "city": "Los Angeles",
@@ -48,7 +52,8 @@
     "city": "Los Angeles",
     "event_links": [
       "https://www.lacma.org/event"
-    ]
+    ],
+    "parser_script": "scripts/run_lacma_parser.py"
   },
   "Norton Simon Museum": {
     "city": "Pasadena",
@@ -62,7 +67,8 @@
     "city": "Costa Mesa",
     "event_links": [
       "https://ocma.art/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_ocma_parser.py"
   },
   "Palm Springs Art Museum": {
     "city": "Palm Springs",

@@ -76,9 +76,11 @@ def get_activity_suggestions(
 
 @router.get("/activities/filter-options", response_model=ActivityFilterOptions)
 def get_activity_filter_options(
+    state: str | None = Query(default=None, min_length=2, max_length=2),
+    city: str | None = None,
     db: Session = Depends(get_db),
 ) -> ActivityFilterOptions:
-    options = get_filter_options(db)
+    options = get_filter_options(db, state=state, city=city)
     return ActivityFilterOptions(
         venues=options["venues"],
         states=options["states"],

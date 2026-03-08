@@ -14,8 +14,25 @@ function formatAgeRange(min: number | null, max: number | null): string {
 }
 
 function formatDate(value: string): string {
+  const midnightMatch = value.match(/T00:00(?::00(?:\.0+)?)?(?:Z|[+-]\d{2}:\d{2})?$/);
   const date = new Date(value);
-  return date.toLocaleString();
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  if (midnightMatch) {
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export function ActivityTable({ activities }: Props) {
