@@ -46,7 +46,8 @@
     "city": "Los Angeles",
     "event_links": [
       "https://www.getty.edu/calendar/?category=talks&category=family&category=art-making&category=special-events"
-    ]
+    ],
+    "parser_script": "scripts/run_getty_parser.py"
   },
   "Los Angeles County Museum of Art": {
     "city": "Los Angeles",
@@ -76,7 +77,8 @@
       "https://www.psmuseum.org/events/artful-events",
       "https://www.psmuseum.org/events/fplus",
       "https://www.psmuseum.org/events/programs-events"
-    ]
+    ],
+    "parser_script": "scripts/run_psmuseum_parser.py"
   },
   "San Jose Museum of Art": {
     "city": "San Jose",

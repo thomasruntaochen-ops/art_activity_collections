@@ -85,3 +85,19 @@ parser_script_name = "scripts/run_lacma_parser.py"
 batch_id = "batch_b"
 use_base_url = false
 args = ["--commit"]
+
+[[venues]]
+venue = "getty"
+enabled = true
+parser_script_name = "scripts/run_getty_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "psmuseum"
+enabled = true
+parser_script_name = "scripts/run_psmuseum_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]

@@ -5,7 +5,25 @@ import { ActivityTable } from "../components/activity-table";
 import { fetchActivities, fetchFilterOptions } from "../lib/api";
 import { Activity, ActivityFilterOptions } from "../lib/types";
 
+function formatDateInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
 export default function HomePage() {
+  const [dateBounds, setDateBounds] = useState<{
+    defaultFrom: string;
+    defaultTo: string;
+    minFrom: string;
+  } | null>(null);
   const [age, setAge] = useState<string>("");
   const [dropIn, setDropIn] = useState<string>("");
   const [venue, setVenue] = useState<string>("");
@@ -27,6 +45,18 @@ export default function HomePage() {
   const optionsRequestIdRef = useRef(0);
 
   const summary = useMemo(() => `Showing ${activities.length} activity rows`, [activities.length]);
+
+  useEffect(() => {
+    const today = new Date();
+    const nextBounds = {
+      defaultFrom: formatDateInput(today),
+      defaultTo: formatDateInput(addDays(today, 30)),
+      minFrom: formatDateInput(addDays(today, -3)),
+    };
+    setDateBounds(nextBounds);
+    setDateFrom(nextBounds.defaultFrom);
+    setDateTo(nextBounds.defaultTo);
+  }, []);
 
   useEffect(() => {
     const loadInitialOptions = async () => {
@@ -181,7 +211,16 @@ export default function HomePage() {
 
         <label>
           Date From
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <input
+            type="date"
+            min={dateBounds?.minFrom}
+            value={dateFrom}
+            onChange={(e) =>
+              setDateFrom(
+                dateBounds && e.target.value < dateBounds.minFrom ? dateBounds.minFrom : e.target.value,
+              )
+            }
+          />
         </label>
 
         <label>
