@@ -1,0 +1,4 @@
+interface:
+  display_name: "Parse Museum Activity"
+  short_description: "Implement state museum parsers in small batches"
+  default_prompt: "Use $parse-museum-activity to implement parser code for a limited museum batch from a state JSON file."

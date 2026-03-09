@@ -87,6 +87,14 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "moca_la"
+enabled = true
+parser_script_name = "scripts/run_moca_la_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "getty"
 enabled = true
 parser_script_name = "scripts/run_getty_parser.py"
@@ -95,9 +103,49 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "hammer"
+enabled = true
+parser_script_name = "scripts/run_hammer_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "nortonsimon"
+enabled = true
+parser_script_name = "scripts/run_nortonsimon_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "psmuseum"
 enabled = true
 parser_script_name = "scripts/run_psmuseum_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "sdmart"
+enabled = true
+parser_script_name = "scripts/run_sdmart_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "sjma"
+enabled = true
+parser_script_name = "scripts/run_sjma_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "sbma"
+enabled = true
+parser_script_name = "scripts/run_sbma_parser.py"
 batch_id = "batch_b"
 use_base_url = false
 args = ["--commit"]

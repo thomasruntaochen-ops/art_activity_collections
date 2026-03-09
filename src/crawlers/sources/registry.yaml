@@ -54,13 +54,43 @@ sources:
     adapter_type: lacma_events
     crawl_frequency: daily
     active: false
+  - name: moca_programs
+    base_url: https://www.moca.org/programs?category=25
+    adapter_type: moca_programs
+    crawl_frequency: daily
+    active: false
   - name: getty_calendar
     base_url: https://www.getty.edu/calendar/?category=talks&category=family&category=art-making&category=special-events
     adapter_type: getty_calendar
     crawl_frequency: daily
     active: false
+  - name: hammer_programs
+    base_url: https://hammer.ucla.edu/programs-events?category[5326]=5326&category[5346]=5346&category[5341]=5341&category[5331]=5331
+    adapter_type: hammer_programs
+    crawl_frequency: daily
+    active: false
+  - name: nortonsimon_calendar
+    base_url: https://www.nortonsimon.org/calendar
+    adapter_type: nortonsimon_calendar
+    crawl_frequency: daily
+    active: false
   - name: psmuseum_events
     base_url: https://www.psmuseum.org/events/programs-events
     adapter_type: psmuseum_events
+    crawl_frequency: daily
+    active: false
+  - name: sdmart_events
+    base_url: https://www.sdmart.org/events/
+    adapter_type: sdmart_events
+    crawl_frequency: daily
+    active: false
+  - name: sjma_calendar
+    base_url: https://sjmusart.org/calendar
+    adapter_type: sjma_calendar
+    crawl_frequency: daily
+    active: false
+  - name: sbma_events
+    base_url: https://www.sbma.net/events?field_event_type_target_id%5B24%5D=24&field_event_type_target_id%5B21%5D=21&field_event_type_target_id%5B28%5D=28&field_event_type_target_id%5B29%5D=29
+    adapter_type: sbma_events
     crawl_frequency: daily
     active: false

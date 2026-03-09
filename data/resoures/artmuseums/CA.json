@@ -34,7 +34,8 @@
     "city": "Los Angeles",
     "event_links": [
       "https://hammer.ucla.edu/programs-events?category[5326]=5326&category[5346]=5346&category[5341]=5341&category[5331]=5331"
-    ]
+    ],
+    "parser_script": "scripts/run_hammer_parser.py"
   },
   "Institute of Contemporary Art, Los Angeles": {
     "city": "Los Angeles",
@@ -59,10 +60,9 @@
   "Norton Simon Museum": {
     "city": "Pasadena",
     "event_links": [
-      "https://www.nortonsimon.org/calendar/family-youth-and-teens",
-      "https://www.nortonsimon.org/calendar/lectures",
-      "https://www.nortonsimon.org/calendar/adult-art-classes"
-    ]
+      "https://www.nortonsimon.org/calendar?&category=0&sort=3&view=3&search="
+    ],
+    "parser_script": "scripts/run_nortonsimon_parser.py"
   },
   "Orange County Museum of Art": {
     "city": "Costa Mesa",
@@ -84,25 +84,29 @@
     "city": "San Jose",
     "event_links": [
       "https://sjmusart.org/calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_sjma_parser.py"
   },
   "Santa Barbara Museum of Art": {
     "city": "Santa Barbara",
     "event_links": [
       "https://www.sbma.net/events?field_event_type_target_id%5B24%5D=24&field_event_type_target_id%5B21%5D=21&field_event_type_target_id%5B28%5D=28&field_event_type_target_id%5B29%5D=29"
-    ]
+    ],
+    "parser_script": "scripts/run_sbma_parser.py"
   },
   "The Museum of Contemporary Art, Los Angeles": {
     "city": "Los Angeles",
     "event_links": [
       "https://www.moca.org/together-thursdays",
       "https://www.moca.org/programs?category=25"
-    ]
+    ],
+    "parser_script": "scripts/run_moca_la_parser.py"
   },
   "The San Diego Museum of Art": {
     "city": "San Diego",
     "event_links": [
       "https://www.sdmart.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_sdmart_parser.py"
   }
 }
