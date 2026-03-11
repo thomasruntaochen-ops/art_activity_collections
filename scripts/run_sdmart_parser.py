@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
-import json
 import sys
-from dataclasses import asdict
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
@@ -22,8 +20,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.crawlers.adapters.sdmart import SDMART_EVENTS_URL  # noqa: E402
 from src.crawlers.adapters.sdmart import fetch_sdmart_events_page  # noqa: E402
 from src.crawlers.adapters.sdmart import parse_sdmart_events_html  # noqa: E402
-from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse  # noqa: E402
-from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats  # noqa: E402
+from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
+from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
 from src.db.session import SessionLocal  # noqa: E402
 from src.models.activity import Activity  # noqa: E402
 from src.models.activity import Source  # noqa: E402
@@ -31,15 +29,6 @@ from src.models.activity import Source  # noqa: E402
 
 DEFAULT_CACHE_DIR = Path("data") / "html" / "sdmart"
 SDMART_SOURCE_URL_PREFIX = "https://www.sdmart.org/%"
-
-
-def _json_ready(row: dict) -> dict:
-    out = dict(row)
-    for key in ("start_at", "end_at"):
-        value = out.get(key)
-        if isinstance(value, datetime):
-            out[key] = value.isoformat()
-    return out
 
 
 def _write_html_cache(html: str, cache_dir: Path) -> Path:
@@ -220,26 +209,12 @@ async def main() -> None:
         )
         print(f"Saved SDMA text dump to: {dump_path}")
 
-    parsed = parse_sdmart_events_html(html=html, list_url=args.url)
-    parsed.sort(key=lambda row: (row.start_at, row.title, row.source_url))
+    clear_completed = False
 
-    print(f"Parsed rows: {len(parsed)}")
-    for row in parsed:
-        print(json.dumps(_json_ready(asdict(row)), ensure_ascii=True))
-
-    if not args.commit:
-        print("Dry run only. Pass --commit to write to DB.")
-        return
-
-    abort_commit_on_empty_parse(
-        parser_name="sdmart",
-        commit_requested=args.commit,
-        parsed_count=len(parsed),
-        source_url=args.url,
-        details={"cache_dir": str(args.cache_dir)},
-    )
-
-    if args.clear:
+    def _clear_before_commit() -> None:
+        nonlocal clear_completed
+        if clear_completed or not args.clear:
+            return
         deleted = clear_sdmart_entries()
         print(
             "Deleted SDMA rows before repopulation: "
@@ -248,18 +223,45 @@ async def main() -> None:
             f"ingestion_runs={deleted['ingestion_runs']}, "
             f"sources={deleted['sources']}"
         )
+        clear_completed = True
 
-    deduped, stats = upsert_extracted_activities_with_stats(
-        args.url,
-        parsed,
-        adapter_type="sdmart_events",
+    def _parse_html(payload: str):
+        parsed = parse_sdmart_events_html(html=payload, list_url=args.url)
+        parsed.sort(key=lambda row: (row.start_at, row.title, row.source_url))
+        return parsed
+
+    async def _load_cached_html() -> str:
+        return html
+
+    summary = await run_targets(
+        targets=[
+            TargetRunSpec(
+                name="sdmart",
+                source_url=args.url,
+                load_payload=_load_cached_html,
+                parse_payload=_parse_html,
+                parser_name="sdmart",
+                adapter_type="sdmart_events",
+                parsed_label="rows",
+                before_commit=_clear_before_commit if args.clear else None,
+                empty_parse_details={"cache_dir": str(args.cache_dir)},
+            )
+        ],
+        commit=args.commit,
     )
+
+    if not args.commit:
+        print("Dry run only. Pass --commit to write to DB.")
+        return
+
+    outcome = summary.outcomes[0]
+    assert outcome.stats is not None
     print(
         "Committed SDMA rows: "
-        f"input={stats.input_rows}, deduped={stats.deduped_rows}, "
-        f"inserted={stats.inserted}, updated={stats.updated}, unchanged={stats.unchanged}"
+        f"input={outcome.stats.input_rows}, deduped={outcome.stats.deduped_rows}, "
+        f"inserted={outcome.stats.inserted}, updated={outcome.stats.updated}, unchanged={outcome.stats.unchanged}"
     )
-    print(f"Rows retained after dedupe: {len(deduped)}")
+    print(f"Rows retained after dedupe: {len(outcome.written)}")
 
 
 if __name__ == "__main__":

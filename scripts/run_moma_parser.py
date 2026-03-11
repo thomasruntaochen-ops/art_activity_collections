@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
-import json
 import sys
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -20,24 +19,15 @@ from src.crawlers.adapters.moma import (
     fetch_moma_events_page,
     parse_moma_events_html,
 )
-from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse
-from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats
+from src.crawlers.pipeline.script_runner import EmptyCommitGuard
+from src.crawlers.pipeline.script_runner import TargetRunSpec
+from src.crawlers.pipeline.script_runner import run_targets
 from src.db.session import SessionLocal
 from src.models.activity import Activity, Source
 
 
 DEFAULT_CACHE_DIR = Path("data") / "html" / "moma"
 MOMA_SOURCE_URL_PREFIX = "https://www.moma.org/%"
-
-
-def _json_ready(row: dict) -> dict:
-    out = dict(row)
-    for key in ("start_at", "end_at"):
-        value = out.get(key)
-        if isinstance(value, datetime):
-            out[key] = value.isoformat()
-    return out
-
 
 def _write_html_cache(html: str, cache_dir: Path, *, audience: str) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -96,6 +86,16 @@ async def _load_html(
         print(f"Saved {audience} raw HTML cache to: {cache_path}")
 
     return html, None
+
+
+def _serialize_moma_row(row, *, audience: str) -> dict:
+    item = asdict(row)
+    for key in ("start_at", "end_at"):
+        value = item.get(key)
+        if isinstance(value, datetime):
+            item[key] = value.isoformat()
+    item["audience"] = audience
+    return item
 
 
 def clear_moma_entries() -> dict[str, int]:
@@ -218,11 +218,23 @@ async def main() -> None:
     if args.audience in ("kids", "both"):
         audience_targets.append(("kids", args.kids_url, args.input_kids_html))
 
-    all_rows = []
-    parsed_batches: list[tuple[str, str, list]] = []
-    total_inserted = 0
-    total_updated = 0
-    total_unchanged = 0
+    clear_completed = False
+
+    def _clear_before_commit() -> None:
+        nonlocal clear_completed
+        if clear_completed or not args.clear:
+            return
+        deleted = clear_moma_entries()
+        print(
+            "Deleted MoMA rows before repopulation: "
+            f"activity_tags={deleted['activity_tags']}, "
+            f"activities={deleted['activities']}, "
+            f"ingestion_runs={deleted['ingestion_runs']}, "
+            f"sources={deleted['sources']}"
+        )
+        clear_completed = True
+
+    run_specs: list[TargetRunSpec] = []
 
     for audience, url, input_html in audience_targets:
         html, source_html_path = await _load_html(
@@ -242,63 +254,62 @@ async def main() -> None:
             )
             print(f"Saved {audience} text dump to: {dump_path}")
 
-        parsed = parse_moma_events_html(html=html, audience=audience, list_url=url)
-        all_rows.extend(parsed)
-        parsed_batches.append((audience, url, parsed))
+        async def _load_cached_html(*, payload: str = html) -> str:
+            return payload
 
-        print(f"Parsed {audience} rows: {len(parsed)}")
-        for row in parsed:
-            item = _json_ready(asdict(row))
-            item["audience"] = audience
-            print(json.dumps(item, ensure_ascii=True))
+        run_specs.append(
+            TargetRunSpec(
+                name=audience,
+                source_url=url,
+                load_payload=_load_cached_html,
+                parse_payload=lambda payload, target_audience=audience, target_url=url: parse_moma_events_html(
+                    html=payload,
+                    audience=target_audience,
+                    list_url=target_url,
+                ),
+                parser_name=f"moma_{audience}",
+                adapter_type="moma_calendar_audience",
+                parsed_label=f"{audience} rows",
+                before_commit=_clear_before_commit if args.clear else None,
+                serialize_row=lambda row, target_audience=audience: _serialize_moma_row(
+                    row,
+                    audience=target_audience,
+                ),
+            )
+        )
 
-    print(f"Total parsed rows: {len(all_rows)}")
+    summary = await run_targets(
+        targets=run_specs,
+        commit=args.commit,
+        empty_commit_guard=EmptyCommitGuard(
+            parser_name="moma",
+            details={"audience_mode": args.audience, "cache_dir": str(args.cache_dir)},
+        ),
+    )
+
+    print(f"Total parsed rows: {summary.total_parsed}")
     if not args.commit:
         print("Dry run only. Pass --commit to write to DB.")
         return
 
-    abort_commit_on_empty_parse(
-        parser_name="moma",
-        commit_requested=args.commit,
-        parsed_count=len(all_rows),
-        details={"audience_mode": args.audience, "cache_dir": str(args.cache_dir)},
-    )
-
-    if args.clear:
-        deleted = clear_moma_entries()
+    for outcome in summary.outcomes:
+        assert outcome.stats is not None
         print(
-            "Deleted MoMA rows before repopulation: "
-            f"activity_tags={deleted['activity_tags']}, "
-            f"activities={deleted['activities']}, "
-            f"ingestion_runs={deleted['ingestion_runs']}, "
-            f"sources={deleted['sources']}"
-        )
-
-    for audience, url, parsed in parsed_batches:
-        _, stats = upsert_extracted_activities_with_stats(
-            source_url=url,
-            extracted=parsed,
-            adapter_type="moma_calendar_audience",
-        )
-        total_inserted += stats.inserted
-        total_updated += stats.updated
-        total_unchanged += stats.unchanged
-        print(
-            f"MySQL write summary ({audience}): "
-            f"input={stats.input_rows}, "
-            f"deduped_input={stats.deduped_rows}, "
-            f"inserted={stats.inserted}, "
-            f"updated={stats.updated}, "
-            f"unchanged={stats.unchanged}, "
-            f"written={stats.written_rows}"
+            f"MySQL write summary ({outcome.spec.name}): "
+            f"input={outcome.stats.input_rows}, "
+            f"deduped_input={outcome.stats.deduped_rows}, "
+            f"inserted={outcome.stats.inserted}, "
+            f"updated={outcome.stats.updated}, "
+            f"unchanged={outcome.stats.unchanged}, "
+            f"written={outcome.stats.written_rows}"
         )
 
     print(
         "MySQL write totals (all audiences): "
-        f"inserted={total_inserted}, "
-        f"updated={total_updated}, "
-        f"unchanged={total_unchanged}, "
-        f"written={total_inserted + total_updated}"
+        f"inserted={summary.total_inserted}, "
+        f"updated={summary.total_updated}, "
+        f"unchanged={summary.total_unchanged}, "
+        f"written={summary.total_inserted + summary.total_updated}"
     )
 
 

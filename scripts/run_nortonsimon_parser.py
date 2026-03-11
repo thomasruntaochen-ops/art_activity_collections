@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
-import json
 import sys
-from dataclasses import asdict
-from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -16,17 +13,8 @@ from src.crawlers.adapters.nortonsimon import NORTON_SIMON_FAMILY_URL  # noqa: E
 from src.crawlers.adapters.nortonsimon import NORTON_SIMON_LECTURES_URL  # noqa: E402
 from src.crawlers.adapters.nortonsimon import fetch_nortonsimon_events_json  # noqa: E402
 from src.crawlers.adapters.nortonsimon import parse_nortonsimon_events_json  # noqa: E402
-from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse  # noqa: E402
-from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats  # noqa: E402
-
-
-def _json_ready(row: dict) -> dict:
-    out = dict(row)
-    for key in ("start_at", "end_at"):
-        value = out.get(key)
-        if isinstance(value, datetime):
-            out[key] = value.isoformat()
-    return out
+from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
+from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
 
 
 async def _load_payload(*, list_url: str, input_json: str | None) -> str:
@@ -74,43 +62,41 @@ async def main() -> None:
     if args.section in ("classes", "all"):
         targets.append(("classes", args.classes_url, args.input_classes_json))
 
-    all_rows = []
-    total_inserted = 0
-    total_updated = 0
-    total_unchanged = 0
-
+    run_specs: list[TargetRunSpec] = []
     for name, list_url, input_json in targets:
-        payload = await _load_payload(list_url=list_url, input_json=input_json)
-        parsed = parse_nortonsimon_events_json(payload, list_url=list_url)
-        print(f"Parsed {len(parsed)} Norton Simon {name} activities")
-        for row in parsed:
-            print(json.dumps(_json_ready(asdict(row)), ensure_ascii=False))
+        async def load_payload(*, target_url: str = list_url, target_input: str | None = input_json) -> str:
+            return await _load_payload(list_url=target_url, input_json=target_input)
 
-        all_rows.extend(parsed)
-        abort_commit_on_empty_parse(
-            parser_name=f"nortonsimon_{name}",
-            commit_requested=args.commit,
-            parsed_count=len(parsed),
-            source_url=list_url,
+        run_specs.append(
+            TargetRunSpec(
+                name=name,
+                source_url=list_url,
+                load_payload=load_payload,
+                parse_payload=lambda payload, target_url=list_url: parse_nortonsimon_events_json(
+                    payload,
+                    list_url=target_url,
+                ),
+                parser_name=f"nortonsimon_{name}",
+                adapter_type="nortonsimon_calendar",
+                parsed_label=f"Norton Simon {name} activities",
+            )
         )
 
-        if args.commit:
-            _, stats = upsert_extracted_activities_with_stats(
-                list_url,
-                parsed,
-                adapter_type="nortonsimon_calendar",
-            )
-            total_inserted += stats.inserted
-            total_updated += stats.updated
-            total_unchanged += stats.unchanged
+    summary = await run_targets(
+        targets=run_specs,
+        commit=args.commit,
+        json_ensure_ascii=False,
+    )
 
     if args.commit:
         print(
             "Upsert complete: "
-            f"inserted={total_inserted} updated={total_updated} unchanged={total_unchanged}"
+            f"inserted={summary.total_inserted} "
+            f"updated={summary.total_updated} "
+            f"unchanged={summary.total_unchanged}"
         )
     else:
-        print(f"Total parsed Norton Simon activities: {len(all_rows)}")
+        print(f"Total parsed Norton Simon activities: {summary.total_parsed}")
 
 
 if __name__ == "__main__":

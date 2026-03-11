@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
-import json
 import sys
-from dataclasses import asdict
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
@@ -24,8 +22,8 @@ from src.crawlers.adapters.psmuseum import PSMUSEUM_FPLUS_URL  # noqa: E402
 from src.crawlers.adapters.psmuseum import PSMUSEUM_PROGRAMS_URL  # noqa: E402
 from src.crawlers.adapters.psmuseum import fetch_psmuseum_page  # noqa: E402
 from src.crawlers.adapters.psmuseum import parse_psmuseum_events_html  # noqa: E402
-from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse  # noqa: E402
-from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats  # noqa: E402
+from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
+from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
 from src.db.session import SessionLocal  # noqa: E402
 from src.models.activity import Activity  # noqa: E402
 from src.models.activity import Source  # noqa: E402
@@ -55,15 +53,6 @@ def _row_priority(row) -> tuple[int, int, int]:
     has_end_at = int(row.end_at is not None)
     description_length = len(row.description or "")
     return (has_non_midnight_time, has_end_at, description_length)
-
-
-def _json_ready(row: dict) -> dict:
-    out = dict(row)
-    for key in ("start_at", "end_at"):
-        value = out.get(key)
-        if isinstance(value, datetime):
-            out[key] = value.isoformat()
-    return out
 
 
 def _write_html_cache(html: str, cache_dir: Path, *, slug: str) -> Path:
@@ -230,7 +219,7 @@ async def main() -> None:
     if args.clear and args.commit:
         print("Clear requested with --commit; deletion is deferred until non-empty parse is validated.")
 
-    all_rows = []
+    loaded_pages: list[tuple[str, str, str, Path | None]] = []
     for slug, url in PAGE_SPECS:
         html, source_html_path = await _load_html(
             slug=slug,
@@ -247,31 +236,14 @@ async def main() -> None:
                 source_html_path=source_html_path,
             )
             print(f"Saved Palm Springs text dump to: {dump_path}")
+        loaded_pages.append((slug, url, html, source_html_path))
 
-        parsed = parse_psmuseum_events_html(html=html, list_url=url)
-        print(f"Parsed {len(parsed)} rows from {url}")
-        all_rows.extend(parsed)
+    clear_completed = False
 
-    deduped = _dedupe_rows(all_rows)
-    deduped.sort(key=lambda row: (row.start_at, row.title, row.source_url))
-
-    print(f"Parsed rows: {len(deduped)}")
-    for row in deduped:
-        print(json.dumps(_json_ready(asdict(row)), ensure_ascii=True))
-
-    if not args.commit:
-        print("Dry run only. Pass --commit to write to DB.")
-        return
-
-    abort_commit_on_empty_parse(
-        parser_name="psmuseum",
-        commit_requested=args.commit,
-        parsed_count=len(deduped),
-        source_url=PSMUSEUM_PROGRAMS_URL,
-        details={"cache_dir": str(args.cache_dir)},
-    )
-
-    if args.clear:
+    def _clear_before_commit() -> None:
+        nonlocal clear_completed
+        if clear_completed or not args.clear:
+            return
         deleted = clear_psmuseum_entries()
         print(
             "Deleted Palm Springs rows before repopulation: "
@@ -280,20 +252,52 @@ async def main() -> None:
             f"ingestion_runs={deleted['ingestion_runs']}, "
             f"sources={deleted['sources']}"
         )
+        clear_completed = True
 
-    _, stats = upsert_extracted_activities_with_stats(
-        source_url=PSMUSEUM_PROGRAMS_URL,
-        extracted=deduped,
-        adapter_type="psmuseum_events",
+    def _parse_loaded_pages(payload: list[tuple[str, str, str, Path | None]]):
+        all_rows = []
+        for _, url, html, _ in payload:
+            parsed = parse_psmuseum_events_html(html=html, list_url=url)
+            print(f"Parsed {len(parsed)} rows from {url}")
+            all_rows.extend(parsed)
+        deduped = _dedupe_rows(all_rows)
+        deduped.sort(key=lambda row: (row.start_at, row.title, row.source_url))
+        return deduped
+
+    async def _load_cached_pages() -> list[tuple[str, str, str, Path | None]]:
+        return loaded_pages
+
+    summary = await run_targets(
+        targets=[
+            TargetRunSpec(
+                name="psmuseum",
+                source_url=PSMUSEUM_PROGRAMS_URL,
+                load_payload=_load_cached_pages,
+                parse_payload=_parse_loaded_pages,
+                parser_name="psmuseum",
+                adapter_type="psmuseum_events",
+                parsed_label="rows",
+                before_commit=_clear_before_commit if args.clear else None,
+                empty_parse_details={"cache_dir": str(args.cache_dir)},
+            )
+        ],
+        commit=args.commit,
     )
+
+    if not args.commit:
+        print("Dry run only. Pass --commit to write to DB.")
+        return
+
+    outcome = summary.outcomes[0]
+    assert outcome.stats is not None
     print(
         "MySQL write summary: "
-        f"input={stats.input_rows}, "
-        f"deduped_input={stats.deduped_rows}, "
-        f"inserted={stats.inserted}, "
-        f"updated={stats.updated}, "
-        f"unchanged={stats.unchanged}, "
-        f"written={stats.written_rows}"
+        f"input={outcome.stats.input_rows}, "
+        f"deduped_input={outcome.stats.deduped_rows}, "
+        f"inserted={outcome.stats.inserted}, "
+        f"updated={outcome.stats.updated}, "
+        f"unchanged={outcome.stats.unchanged}, "
+        f"written={outcome.stats.written_rows}"
     )
 
 

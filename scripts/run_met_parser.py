@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
-import json
 import os
 import sys
-from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError
@@ -17,8 +15,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.crawlers.adapters.met import MET_TEENS_FREE_WORKSHOPS_URL, parse_met_events_html
-from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse
-from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats
+from src.crawlers.pipeline.script_runner import TargetRunSpec
+from src.crawlers.pipeline.script_runner import run_targets
 
 
 DEFAULT_CACHE_DIR = PROJECT_ROOT / "data" / "rawhtml" / "met"
@@ -26,15 +24,6 @@ RAWHTML_BASE_URL_ENV = "RAWHTML_BASE_URL"
 DEFAULT_REMOTE_BASE_URL = os.getenv(RAWHTML_BASE_URL_ENV, "").strip()
 REMOTE_SUBDIR = "met"
 REMOTE_FILENAME = "latest_events.html"
-
-
-def _json_ready(row: dict) -> dict:
-    out = dict(row)
-    for key in ("start_at", "end_at"):
-        value = out.get(key)
-        if isinstance(value, datetime):
-            out[key] = value.isoformat()
-    return out
 
 
 def _write_text_dump(html: str, dump_dir: Path, *, source_html_path: Path | None = None) -> Path:
@@ -173,37 +162,42 @@ async def main() -> None:
         dump_path = _write_text_dump(html, Path(args.cache_dir), source_html_path=input_path)
         print(f"Saved text dump to: {dump_path}")
 
-    parsed = parse_met_events_html(html=html, list_url=args.url)
+    async def _load_cached_html() -> str:
+        return html
 
-    print(f"Parsed rows: {len(parsed)}")
-    for row in parsed:
-        print(json.dumps(_json_ready(asdict(row)), ensure_ascii=True))
+    summary = await run_targets(
+        targets=[
+            TargetRunSpec(
+                name="met",
+                source_url=args.url,
+                load_payload=_load_cached_html,
+                parse_payload=lambda payload: parse_met_events_html(html=payload, list_url=args.url),
+                parser_name="met",
+                adapter_type="met_events_filtered",
+                parsed_label="rows",
+                empty_parse_details={
+                    "cache_dir": str(args.cache_dir),
+                    "input_html": str(input_path),
+                },
+            )
+        ],
+        commit=args.commit,
+    )
 
     if not args.commit:
         print("Dry run only. Pass --commit to write to DB.")
         return
 
-    abort_commit_on_empty_parse(
-        parser_name="met",
-        commit_requested=args.commit,
-        parsed_count=len(parsed),
-        source_url=args.url,
-        details={"cache_dir": str(args.cache_dir), "input_html": str(input_path)},
-    )
-
-    _, stats = upsert_extracted_activities_with_stats(
-        source_url=args.url,
-        extracted=parsed,
-        adapter_type="met_events_filtered",
-    )
+    outcome = summary.outcomes[0]
+    assert outcome.stats is not None
     print(
         "MySQL write summary: "
-        f"input={stats.input_rows}, "
-        f"deduped_input={stats.deduped_rows}, "
-        f"inserted={stats.inserted}, "
-        f"updated={stats.updated}, "
-        f"unchanged={stats.unchanged}, "
-        f"written={stats.written_rows}"
+        f"input={outcome.stats.input_rows}, "
+        f"deduped_input={outcome.stats.deduped_rows}, "
+        f"inserted={outcome.stats.inserted}, "
+        f"updated={outcome.stats.updated}, "
+        f"unchanged={outcome.stats.unchanged}, "
+        f"written={outcome.stats.written_rows}"
     )
 
 

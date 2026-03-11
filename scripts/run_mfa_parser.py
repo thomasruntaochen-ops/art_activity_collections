@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
-import json
 import sys
-from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,23 +20,15 @@ from src.crawlers.adapters.mfa import (  # noqa: E402
     fetch_mfa_events_page,
     parse_mfa_events_html,
 )
-from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse  # noqa: E402
-from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats  # noqa: E402
+from src.crawlers.pipeline.script_runner import EmptyCommitGuard  # noqa: E402
+from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
+from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
 from src.db.session import SessionLocal  # noqa: E402
 from src.models.activity import Activity, Source  # noqa: E402
 
 
 DEFAULT_CACHE_DIR = Path("data") / "html" / "mfa"
 MFA_SOURCE_URL_PREFIX = "https://www.mfa.org/%"
-
-
-def _json_ready(row: dict) -> dict:
-    out = dict(row)
-    for key in ("start_at", "end_at"):
-        value = out.get(key)
-        if isinstance(value, datetime):
-            out[key] = value.isoformat()
-    return out
 
 
 def _write_html_cache(html: str, cache_dir: Path, *, page: int) -> Path:
@@ -214,11 +204,23 @@ async def main() -> None:
         print("Clear requested with --commit; deletion is deferred until non-empty parse is validated.")
 
     urls = build_mfa_program_urls(start_page=args.start_page, end_page=args.end_page)
-    all_rows = []
-    parsed_batches: list[tuple[int, str, list]] = []
-    total_inserted = 0
-    total_updated = 0
-    total_unchanged = 0
+    clear_completed = False
+
+    def _clear_before_commit() -> None:
+        nonlocal clear_completed
+        if clear_completed or not args.clear:
+            return
+        deleted = clear_mfa_entries()
+        print(
+            "Deleted MFA rows before repopulation: "
+            f"activity_tags={deleted['activity_tags']}, "
+            f"activities={deleted['activities']}, "
+            f"ingestion_runs={deleted['ingestion_runs']}, "
+            f"sources={deleted['sources']}"
+        )
+        clear_completed = True
+
+    run_specs: list[TargetRunSpec] = []
 
     for index, url in enumerate(urls):
         page = args.start_page + index
@@ -242,67 +244,85 @@ async def main() -> None:
             )
             print(f"Saved page {page} text dump to: {dump_path}")
 
-        parsed = parse_mfa_events_html(html=html, list_url=url)
-        all_rows.extend(parsed)
-        parsed_batches.append((page, url, parsed))
+        async def _load_cached_html(*, payload: str = html) -> str:
+            return payload
 
-        print(f"Parsed page {page} rows: {len(parsed)}")
-        for row in parsed:
-            item = _json_ready(asdict(row))
-            item["page"] = page
-            print(json.dumps(item, ensure_ascii=True))
+        run_specs.append(
+            TargetRunSpec(
+                name=f"page {page}",
+                source_url=url,
+                load_payload=_load_cached_html,
+                parse_payload=lambda payload, target_url=url: parse_mfa_events_html(
+                    html=payload,
+                    list_url=target_url,
+                ),
+                parser_name=f"mfa_page_{page}",
+                adapter_type="mfa_programs_pages",
+                parsed_label=f"page {page} rows",
+                before_commit=_clear_before_commit if args.clear else None,
+                serialize_row=lambda row, target_page=page: {
+                    **{
+                        key: value
+                        for key, value in {
+                            "source_url": row.source_url,
+                            "title": row.title,
+                            "description": row.description,
+                            "venue_name": row.venue_name,
+                            "location_text": row.location_text,
+                            "city": row.city,
+                            "state": row.state,
+                            "activity_type": row.activity_type,
+                            "age_min": row.age_min,
+                            "age_max": row.age_max,
+                            "drop_in": row.drop_in,
+                            "registration_required": row.registration_required,
+                            "start_at": row.start_at.isoformat() if row.start_at else None,
+                            "end_at": row.end_at.isoformat() if row.end_at else None,
+                            "timezone": row.timezone,
+                            "free_verification_status": row.free_verification_status,
+                        }.items()
+                    },
+                    "page": target_page,
+                },
+            )
+        )
 
-    print(f"Total parsed rows: {len(all_rows)}")
+    summary = await run_targets(
+        targets=run_specs,
+        commit=args.commit,
+        empty_commit_guard=EmptyCommitGuard(
+            parser_name="mfa",
+            details={
+                "start_page": args.start_page,
+                "end_page": args.end_page,
+                "cache_dir": str(args.cache_dir),
+            },
+        ),
+    )
+
+    print(f"Total parsed rows: {summary.total_parsed}")
     if not args.commit:
         print("Dry run only. Pass --commit to write to DB.")
         return
 
-    abort_commit_on_empty_parse(
-        parser_name="mfa",
-        commit_requested=args.commit,
-        parsed_count=len(all_rows),
-        details={
-            "start_page": args.start_page,
-            "end_page": args.end_page,
-            "cache_dir": str(args.cache_dir),
-        },
-    )
-
-    if args.clear:
-        deleted = clear_mfa_entries()
+    for outcome in summary.outcomes:
+        assert outcome.stats is not None
         print(
-            "Deleted MFA rows before repopulation: "
-            f"activity_tags={deleted['activity_tags']}, "
-            f"activities={deleted['activities']}, "
-            f"ingestion_runs={deleted['ingestion_runs']}, "
-            f"sources={deleted['sources']}"
-        )
-
-    for page, url, parsed in parsed_batches:
-        _, stats = upsert_extracted_activities_with_stats(
-            source_url=url,
-            extracted=parsed,
-            adapter_type="mfa_programs_pages",
-        )
-        total_inserted += stats.inserted
-        total_updated += stats.updated
-        total_unchanged += stats.unchanged
-        print(
-            f"MySQL write summary (page {page}): "
-            f"input={stats.input_rows}, "
-            f"deduped_input={stats.deduped_rows}, "
-            f"inserted={stats.inserted}, "
-            f"updated={stats.updated}, "
-            f"unchanged={stats.unchanged}, "
-            f"written={stats.written_rows}"
+            f"MySQL write summary ({outcome.spec.name}): "
+            f"input={outcome.stats.input_rows}, "
+            f"deduped_input={outcome.stats.deduped_rows}, "
+            f"inserted={outcome.stats.inserted}, "
+            f"updated={outcome.stats.updated}, "
+            f"unchanged={outcome.stats.unchanged}, "
+            f"written={outcome.stats.written_rows}"
         )
 
     print(
         "MySQL write totals (all pages): "
-        f"inserted={total_inserted}, "
-        f"updated={total_updated}, "
-        f"unchanged={total_unchanged}, "
-        f"written={total_inserted + total_updated}"
+        f"inserted={summary.total_inserted}, "
+        f"updated={summary.total_updated}, "
+        f"unchanged={summary.total_unchanged}, "
+        f"written={summary.total_inserted + summary.total_updated}"
     )
 
 

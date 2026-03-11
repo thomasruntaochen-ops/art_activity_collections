@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
-import json
 import sys
-from dataclasses import asdict
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
@@ -22,8 +20,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.crawlers.adapters.sjma import SJMA_CALENDAR_URL  # noqa: E402
 from src.crawlers.adapters.sjma import fetch_sjma_calendar_bundle  # noqa: E402
 from src.crawlers.adapters.sjma import parse_sjma_events_html  # noqa: E402
-from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse  # noqa: E402
-from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats  # noqa: E402
+from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
+from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
 from src.db.session import SessionLocal  # noqa: E402
 from src.models.activity import Activity  # noqa: E402
 from src.models.activity import Source  # noqa: E402
@@ -31,15 +29,6 @@ from src.models.activity import Source  # noqa: E402
 
 DEFAULT_CACHE_DIR = Path("data") / "html" / "sjma"
 SJMA_SOURCE_URL_PREFIX = "https://sjmusart.org/%"
-
-
-def _json_ready(row: dict) -> dict:
-    out = dict(row)
-    for key in ("start_at", "end_at"):
-        value = out.get(key)
-        if isinstance(value, datetime):
-            out[key] = value.isoformat()
-    return out
 
 
 def _write_html_cache(html: str, cache_dir: Path, *, suffix: str) -> Path:
@@ -225,27 +214,12 @@ async def main() -> None:
         )
         print(f"Saved SJMA text dump to: {dump_path}")
 
-    parsed = parse_sjma_events_html(
-        html=html,
-        list_url=args.url,
-        detail_html_by_url=detail_html_by_url,
-    )
+    clear_completed = False
 
-    print(f"Parsed {len(parsed)} SJMA activities")
-    for row in parsed:
-        print(json.dumps(_json_ready(asdict(row)), ensure_ascii=False))
-
-    abort_commit_on_empty_parse(
-        parser_name="sjma",
-        commit_requested=args.commit,
-        parsed_count=len(parsed),
-        source_url=args.url,
-    )
-
-    if not args.commit:
-        return
-
-    if args.clear:
+    def _clear_before_commit() -> None:
+        nonlocal clear_completed
+        if clear_completed or not args.clear:
+            return
         deleted = clear_sjma_entries()
         print(
             "Deleted SJMA rows before repopulating: "
@@ -254,16 +228,41 @@ async def main() -> None:
             f"ingestion_runs={deleted['ingestion_runs']}, "
             f"sources={deleted['sources']}"
         )
+        clear_completed = True
 
-    _, stats = upsert_extracted_activities_with_stats(
-        args.url,
-        parsed,
-        adapter_type="sjma_calendar",
+    async def _load_cached_bundle() -> tuple[str, dict[str, str]]:
+        return html, detail_html_by_url
+
+    summary = await run_targets(
+        targets=[
+            TargetRunSpec(
+                name="sjma",
+                source_url=args.url,
+                load_payload=_load_cached_bundle,
+                parse_payload=lambda payload: parse_sjma_events_html(
+                    html=payload[0],
+                    list_url=args.url,
+                    detail_html_by_url=payload[1],
+                ),
+                parser_name="sjma",
+                adapter_type="sjma_calendar",
+                parsed_label="SJMA activities",
+                before_commit=_clear_before_commit if args.clear else None,
+            )
+        ],
+        commit=args.commit,
+        json_ensure_ascii=False,
     )
+
+    if not args.commit:
+        return
+
+    outcome = summary.outcomes[0]
+    assert outcome.stats is not None
     print(
         "Upsert complete: "
-        f"input={stats.input_rows} deduped={stats.deduped_rows} "
-        f"inserted={stats.inserted} updated={stats.updated} unchanged={stats.unchanged}"
+        f"input={outcome.stats.input_rows} deduped={outcome.stats.deduped_rows} "
+        f"inserted={outcome.stats.inserted} updated={outcome.stats.updated} unchanged={outcome.stats.unchanged}"
     )
 
 
