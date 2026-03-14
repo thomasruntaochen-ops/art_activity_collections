@@ -1,0 +1,107 @@
+{
+  "Bruce Museum": {
+    "city": "Greenwich",
+    "event_links": [
+      "https://brucemuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_bruce_parser.py"
+  },
+  "Fairfield University Art Museum": {
+    "city": "Fairfield",
+    "event_links": [
+      "https://www.fairfield.edu/museum/calendar/"
+    ],
+    "parser_script": "scripts/run_fairfield_parser.py"
+  },
+  "Florence Griswold Museum": {
+    "city": "Old Lyme",
+    "event_links": [
+      "https://florencegriswoldmuseum.org/calendar/"
+    ],
+    "failed_test_comment": "Calendar HTML is blocked by Cloudflare from this environment, and wp-json/tribe/events/v1/events returned 0 upcoming events for 2026-03-11 onward, so a dry run would parse 0 rows."
+  },
+  "Hill-Stead Museum": {
+    "city": "Farmington",
+    "event_links": [
+      "https://hillstead.org/events/"
+    ],
+    "fail_implement": "Calendar HTML and wp-json/tribe/events API are both blocked by a Cloudflare managed challenge from this environment, so there is no stable official HTML or JSON payload to parse."
+  },
+  "Housatonic Museum of Art": {
+    "city": "Bridgeport",
+    "event_links": [
+      "https://www.housatonicmuseum.org/what-s-on"
+    ],
+    "failed_test_comment": "Official What’s On pages currently expose exhibitions, receptions, a podcast entry, and past virtual talk pages, but no upcoming qualifying talks, workshops, or family art activities, so a dry run would parse 0 rows."
+  },
+  "Lyman Allyn Art Museum": {
+    "city": "New London",
+    "event_links": [
+      "https://www.lymanallyn.org/events-list"
+    ],
+    "parser_script": "scripts/run_lyman_allyn_parser.py"
+  },
+  "Mattatuck Museum": {
+    "city": "Waterbury",
+    "event_links": [
+      "https://www.mattmuseum.org/calendar"
+    ],
+    "fail_implement": "Calendar month, list, and root pages are all blocked by a Cloudflare managed challenge from this environment, so there is no stable official HTML or JSON payload to parse."
+  },
+  "MoCA CT": {
+    "city": "Westport",
+    "event_links": [
+      "https://mocact.org/events/#calendar"
+    ],
+    "failed_test_comment": "Official upcoming calendar entries are currently paid Art Adventures classes, paid talk/conversation events, or excluded formats such as opening receptions, film screenings, performances, and members-only tours, so a dry run would parse 0 free qualifying rows."
+  },
+  "Mystic Museum of Art": {
+    "city": "Mystic",
+    "event_links": [
+      "https://mysticmuseumofart.org/events/"
+    ],
+    "fail_implement": "Official events and event_programs pages are blocked by a Cloudflare managed challenge from this environment, so there is no stable official HTML or JSON payload to parse."
+  },
+  "New Britain Museum of American Art": {
+    "city": "New Britain",
+    "event_links": [
+      "https://secure.nbmaa.org/events"
+    ],
+    "fail_implement": "Official Tessitura API is reachable, but qualifying detail pages are intermittently replaced by an Imperva/Incapsula managed-challenge interstitial, so repeated dry runs are unstable and can drop from non-empty to 0 rows without code changes."
+  },
+  "Slater Memorial Museum": {
+    "city": "Norwich",
+    "event_links": [
+      "https://www.slatermuseum.org/events"
+    ],
+    "failed_test_comment": "Official events and event-series pages are reachable and the recurring Lecture Series is described as free with no registration, but the currently accessible March 2026 calendar only shows a lecture on 2026-03-11 plus excluded storytime/show items, so from 2026-03-13 onward a dry run would parse 0 qualifying rows."
+  },
+  "The Aldrich Contemporary Art Museum": {
+    "city": "Ridgefield",
+    "event_links": [
+      "https://thealdrich.org/calendar"
+    ],
+    "failed_test_comment": "Official events page is server-rendered and readable, but the future free items currently exposed are Third Saturdays free-admission listings, Story Time for Kids entries, and All Ages Discovery Tour entries, while sampled Public Programs such as Sensory Saturday, Care and Connection, and Clay Stories are paid, so a dry run would parse 0 qualifying free rows."
+  },
+  "Wadsworth Atheneum Museum of Art": {
+    "city": "Hartford",
+    "event_links": [
+      "https://www.thewadsworth.org/events/"
+    ],
+    "fail_implement": "Official events page is gated by a Cloudflare managed challenge, so no stable event HTML or JSON payload is available from this environment."
+  },
+  "William Benton Museum of Art": {
+    "city": "Storrs",
+    "event_links": [
+      "https://benton.uconn.edu/calendar/"
+    ],
+    "parser_script": "scripts/run_benton_parser.py"
+  },
+  "Yale University Art Gallery": {
+    "city": "New Haven",
+    "event_links": [
+      "https://artgallery.yale.edu/visit/calendar"
+    ],
+    "parser_script": "scripts/run_yuag_parser.py"
+  }
+}

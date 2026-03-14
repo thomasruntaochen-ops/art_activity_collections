@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "art-activity-collection"
 version = "0.1.0"
-description = "Collect and serve free youth art activities"
+description = "Collect and serve youth art activities with price classification"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

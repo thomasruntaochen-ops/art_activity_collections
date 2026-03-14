@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS activities (
   age_min INT NULL,
   age_max INT NULL,
 
-  is_free BOOLEAN NOT NULL DEFAULT TRUE,
+  is_free BOOLEAN NULL DEFAULT NULL,
   free_verification_status ENUM('confirmed','inferred','uncertain') NOT NULL DEFAULT 'inferred',
 
   drop_in BOOLEAN NULL,
@@ -73,7 +73,6 @@ CREATE TABLE IF NOT EXISTS activities (
   last_seen_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
 
-  CONSTRAINT chk_activities_is_free_true CHECK (is_free = TRUE),
   CONSTRAINT fk_activities_source FOREIGN KEY (source_id) REFERENCES sources(id),
   CONSTRAINT fk_activities_venue FOREIGN KEY (venue_id) REFERENCES venues(id),
 

@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
 SJMA_CALENDAR_URL = "https://sjmusart.org/calendar"
@@ -210,9 +211,6 @@ def parse_sjma_events_html(
             continue
 
         admission_text = detail["admission"] if detail is not None else None
-        if _has_positive_price(admission_text):
-            continue
-
         detail_description = detail["description"] if detail is not None else None
         text_blob = " ".join(
             part for part in [title, abstract or "", detail_description or "", admission_text or ""] if part
@@ -236,7 +234,9 @@ def parse_sjma_events_html(
         )
         age_min, age_max = _parse_age_range(title=title, description=description)
         registration_required = _is_registration_required(text_blob)
-        free_status = _infer_free_status(admission_text=admission_text, text_blob=text_blob)
+        is_free, free_status = infer_price_classification(
+            " | ".join(part for part in [admission_text, text_blob] if part)
+        )
 
         key = (source_url, title, start_at)
         if key in seen:
@@ -260,6 +260,7 @@ def parse_sjma_events_html(
                 start_at=start_at,
                 end_at=end_at,
                 timezone=LA_TIMEZONE,
+                is_free=is_free,
                 free_verification_status=free_status,
             )
         )
@@ -393,12 +394,6 @@ def _to_24h(hour: int, minute: int, meridiem: str | None) -> tuple[int, int]:
     return hour, minute
 
 
-def _has_positive_price(admission_text: str | None) -> bool:
-    if not admission_text:
-        return False
-    return "$" in admission_text and "$0" not in admission_text
-
-
 def _should_exclude_event(text: str) -> bool:
     normalized = text.lower()
     return any(keyword in normalized for keyword in HARD_EXCLUDED_KEYWORDS + SOFT_EXCLUDED_KEYWORDS)
@@ -412,14 +407,6 @@ def _should_include_event(text: str) -> bool:
 def _is_registration_required(text: str) -> bool:
     normalized = text.lower()
     return any(keyword in normalized for keyword in ("register", "registration", "tickets", "ticket", "application"))
-
-
-def _infer_free_status(*, admission_text: str | None, text_blob: str) -> str:
-    if admission_text and "free" in admission_text.lower():
-        return "confirmed"
-    if "free" in text_blob.lower():
-        return "confirmed"
-    return "inferred"
 
 
 def _infer_activity_type(text: str) -> str:

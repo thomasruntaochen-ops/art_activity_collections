@@ -3,13 +3,15 @@
     "city": "Fort Worth",
     "event_links": [
       "https://www.cartermuseum.org/events-calendar?e_type[74]=74&e_type[73]=73&e_type[39]=39&e_type[40]=40"
-    ]
+    ],
+    "parser_script": "scripts/run_amon_carter_parser.py"
   },
   "Blanton Museum of Art": {
     "city": "Austin",
     "event_links": [
       "https://blantonmuseum.org/programs/"
-    ]
+    ],
+    "parser_script": "scripts/run_blanton_parser.py"
   },
   "Crow Museum of Asian Art of The University of Texas at Dallas": {
     "city": "Dallas",
@@ -20,8 +22,7 @@
   "Dallas Museum of Art": {
     "city": "Dallas",
     "event_links": [
-      "https://dma.org/calendar",
-      "https://dma.org/programs"
+      "https://dma.org/visit/calendar"
     ]
   },
   "Kimbell Art Museum": {
@@ -34,13 +35,15 @@
     "city": "Longview",
     "event_links": [
       "https://www.lmfa.org/lmfa-calendar/"
-    ]
+    ],
+    "failed_test_comment": "Dry run parsed 0 rows because the LMFA calendar currently exposes only concert and ArtWalk stec_event entries, while Clay Club and Summer Classes pages do not expose reliable upcoming occurrence dates in HTML."
   },
   "McNay Art Museum": {
     "city": "San Antonio",
     "event_links": [
       "https://www.mcnayart.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_mcnay_parser.py"
   },
   "Museum of Fine Arts, Houston": {
     "city": "Houston",
@@ -58,12 +61,14 @@
     "city": "San Antonio",
     "event_links": [
       "https://www.samuseum.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_samuseum_parser.py"
   },
   "The Modern Art Museum of Fort Worth": {
     "city": "Fort Worth",
     "event_links": [
       "https://www.themodern.org/programs"
-    ]
+    ],
+    "parser_script": "scripts/run_themodern_parser.py"
   }
 }

@@ -9,6 +9,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
 SDMART_EVENTS_URL = "https://www.sdmart.org/events/"
@@ -183,8 +184,6 @@ def _build_row_from_event_obj(
         return None
 
     offer_price = _extract_offer_price(event_obj.get("offers"))
-    if offer_price is not None and offer_price > 0:
-        return None
 
     location_text = _extract_location_text(event_obj.get("location"))
     full_description = _join_non_empty(
@@ -194,7 +193,6 @@ def _build_row_from_event_obj(
         ]
     )
 
-    free_status = "confirmed" if offer_price == 0 or "free" in text_blob else "inferred"
     return ExtractedActivity(
         source_url=source_url,
         title=title,
@@ -211,7 +209,7 @@ def _build_row_from_event_obj(
         start_at=start_at,
         end_at=end_at,
         timezone=LA_TIMEZONE,
-        free_verification_status=free_status,
+        **price_classification_kwargs_from_amount(offer_price, text=text_blob),
     )
 
 

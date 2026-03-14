@@ -32,6 +32,7 @@ def extract_from_event_page(source_url: str, html: str) -> list[ExtractedActivit
         start_at=datetime.utcnow(),
         end_at=None,
         timezone="America/Los_Angeles",
+        is_free=None,
         free_verification_status="inferred",
     )
     return [result]

@@ -1,0 +1,108 @@
+{
+  "Brooklyn Museum": {
+    "city": "Brooklyn",
+    "event_links": [
+      "https://www.brooklynmuseum.org/event-series"
+    ],
+    "fail_implement": "no activities found"
+  },
+  "Buffalo AKG Art Museum": {
+    "city": "Buffalo",
+    "event_links": [
+      "https://buffaloakg.org/find-event"
+    ]
+  },
+  "El Museo del Barrio": {
+    "city": "New York",
+    "event_links": [
+      "https://elmuseo.org/events/"
+    ]
+  },
+  "Everson Museum of Art": {
+    "city": "Syracuse",
+    "event_links": [
+      "https://everson.org/eversonevents"
+    ]
+  },
+  "Katonah Museum of Art": {
+    "city": "Katonah",
+    "event_links": [
+      "https://www.katonahmuseum.org/events"
+    ]
+  },
+  "Memorial Art Gallery": {
+    "city": "Rochester",
+    "event_links": [
+      "https://mag.rochester.edu/programs/"
+    ]
+  },
+  "Nassau County Museum of Art": {
+    "city": "Roslyn Harbor",
+    "event_links": [
+      "https://nassaumuseum.org/calendar/"
+    ]
+  },
+  "Neue Galerie New York": {
+    "city": "New York",
+    "event_links": [
+      "https://www.neuegalerie.org/programs/firstfridays",
+      "https://www.neuegalerie.org/programs/cabaret"
+    ],
+    "fail_implement": "no activities found"
+  },
+  "Parrish Art Museum": {
+    "city": "Water Mill",
+    "event_links": [
+      "https://parrishart.org/education/childrens-workshops/"
+    ]
+  },
+  "Solomon R. Guggenheim Museum": {
+    "city": "New York",
+    "event_links": [
+      "https://www.guggenheim.org/calendar/day?q=conversations-and-talks,courses-and-workshops,for-kids-teens-and-family"
+    ]
+  },
+  "The Frick Collection": {
+    "city": "New York",
+    "event_links": [
+      "https://www.frick.org/programs"
+    ]
+  },
+  "The Heckscher Museum of Art": {
+    "city": "Huntington",
+    "event_links": [
+      "https://www.heckscher.org/the-mix/"
+    ]
+  },
+  "The Jewish Museum": {
+    "city": "New York",
+    "event_links": [
+      "https://thejewishmuseum.org/calendar"
+    ]
+  },
+  "The Metropolitan Museum of Art": {
+    "city": "New York",
+    "event_links": [
+      "https://www.metmuseum.org/events/programs/met-live-arts",
+      "https://www.metmuseum.org/events/programs/met-live-arts/date-night"
+    ]
+  },
+  "The Museum of Modern Art": {
+    "city": "New York",
+    "event_links": [
+      "https://www.moma.org/calendar/"
+    ]
+  },
+  "The Noguchi Museum": {
+    "city": "Long Island City",
+    "event_links": [
+      "https://www.noguchi.org/museum/calendar/"
+    ]
+  },
+  "Whitney Museum of American Art": {
+    "city": "New York",
+    "event_links": [
+      "https://whitney.org/events"
+    ]
+  }
+}

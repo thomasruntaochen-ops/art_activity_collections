@@ -15,11 +15,11 @@ def list_activities(
     state: str | None,
     date_from: datetime | None,
     date_to: datetime | None,
+    free_only: bool,
 ) -> list[Activity]:
-    stmt: Select[tuple[Activity]] = select(Activity).where(
-        Activity.is_free.is_(True),
-        Activity.status.in_(("active", "needs_review")),
-    )
+    stmt: Select[tuple[Activity]] = select(Activity).where(Activity.status.in_(("active", "needs_review")))
+    if free_only:
+        stmt = stmt.where(Activity.is_free.is_(True))
     stmt = stmt.options(selectinload(Activity.venue))
     has_venue_filters = bool(venue or city or state)
     if has_venue_filters:
@@ -105,13 +105,12 @@ def get_filter_options(
     *,
     state: str | None = None,
     city: str | None = None,
+    free_only: bool = True,
 ) -> dict[str, list[str]]:
     """Return dropdown option values constrained to current activity data."""
-    base_conditions = (
-        Activity.is_free.is_(True),
-        Activity.status.in_(("active", "needs_review")),
-        Activity.venue_id.is_not(None),
-    )
+    base_conditions = [Activity.status.in_(("active", "needs_review")), Activity.venue_id.is_not(None)]
+    if free_only:
+        base_conditions.append(Activity.is_free.is_(True))
     filters = list(base_conditions)
     if state:
         filters.append(Venue.state == state.strip().upper())

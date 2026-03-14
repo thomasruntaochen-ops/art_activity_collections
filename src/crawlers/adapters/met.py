@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 MET_TEENS_FREE_WORKSHOPS_URL = (
@@ -215,11 +216,6 @@ def parse_met_events_html(
                 price_line = nxt
             j += 1
 
-        # Free-only rule: if the page includes non-free noise, keep free rows only.
-        if price_line and "free" not in price_line.lower():
-            i = j
-            continue
-
         start_at = _parse_start_datetime(cursor_date, time_line, now=now)
         age_min, age_max = _parse_age_range(title, description)
 
@@ -251,7 +247,7 @@ def parse_met_events_html(
                 start_at=start_at,
                 end_at=None,
                 timezone=NY_TIMEZONE,
-                free_verification_status="confirmed" if price_line else "inferred",
+                **price_classification_kwargs(price_line, default_is_free=True),
             )
         )
 
@@ -272,12 +268,9 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
         except json.JSONDecodeError:
             continue
 
-        # Keep free-only records and ensure audience includes teens.
         paid = str(source_obj.get("paid", "")).lower()
         is_paid = bool(source_obj.get("isPaid"))
         audiences = [str(v).lower() for v in source_obj.get("audiences", [])]
-        if is_paid or (paid and paid != "free"):
-            continue
         if not any("teen" in audience for audience in audiences):
             continue
 
@@ -320,6 +313,12 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
         if key in seen_keys:
             continue
         seen_keys.add(key)
+        if is_paid or (paid and paid != "free"):
+            price_kwargs = {"is_free": False, "free_verification_status": "confirmed"}
+        elif paid == "free":
+            price_kwargs = {"is_free": True, "free_verification_status": "confirmed"}
+        else:
+            price_kwargs = {"is_free": True, "free_verification_status": "inferred"}
 
         rows.append(
             ExtractedActivity(
@@ -338,7 +337,7 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
-                free_verification_status="confirmed",
+                **price_kwargs,
             )
         )
 

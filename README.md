@@ -1,6 +1,6 @@
 # Art Activity Collection
 
-Pipeline and API to collect free kids/teens art activities from museum and art center websites, store them in MySQL, and expose searchable data for web/app frontends.
+Pipeline and API to collect kids/teens art activities from museum and art center websites, store them in MySQL with free/paid/unknown price state, and expose searchable data for web/app frontends.
 
 ## Stack
 - Python 3.11+
@@ -38,6 +38,10 @@ Ensure DB exists and schema is loaded (run in project root):
   
 4. If you already have an older database and need incremental updates, run migrations in order:
    - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/001_init.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/002_add_activity_location_text.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/003_add_venue_indexes.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/004_add_activity_query_indexes.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/005_allow_paid_and_unknown_activity_price.sql`
    - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/002_add_activity_location_text.sql`
    - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/003_add_venue_indexes.sql`
    - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/004_add_activity_query_indexes.sql`

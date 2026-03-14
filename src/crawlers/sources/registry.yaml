@@ -94,3 +94,53 @@ sources:
     adapter_type: sbma_events
     crawl_frequency: daily
     active: false
+  - name: amon_carter_events
+    base_url: https://www.cartermuseum.org/events-calendar?e_type%5B74%5D=74&e_type%5B73%5D=73&e_type%5B39%5D=39&e_type%5B40%5D=40
+    adapter_type: amon_carter_events
+    crawl_frequency: daily
+    active: false
+  - name: blanton_programs
+    base_url: https://blantonmuseum.org/programs/
+    adapter_type: blanton_programs
+    crawl_frequency: daily
+    active: false
+  - name: mcnay_events
+    base_url: https://www.mcnayart.org/events/
+    adapter_type: mcnay_events
+    crawl_frequency: daily
+    active: false
+  - name: sama_events
+    base_url: https://www.samuseum.org/events/
+    adapter_type: sama_events
+    crawl_frequency: daily
+    active: false
+  - name: themodern_programs
+    base_url: https://www.themodern.org/programs
+    adapter_type: themodern_programs
+    crawl_frequency: daily
+    active: false
+  - name: bruce_events
+    base_url: https://brucemuseum.org/events/
+    adapter_type: bruce_events
+    crawl_frequency: daily
+    active: false
+  - name: yuag_calendar
+    base_url: https://artgallery.yale.edu/visit/calendar
+    adapter_type: yuag_calendar
+    crawl_frequency: daily
+    active: false
+  - name: fairfield_calendar
+    base_url: https://events.fairfield.edu/department/fairfield_university_art_museum/calendar
+    adapter_type: fairfield_calendar
+    crawl_frequency: daily
+    active: false
+  - name: lyman_allyn_events
+    base_url: https://www.lymanallyn.org/events/
+    adapter_type: lyman_allyn_events
+    crawl_frequency: daily
+    active: false
+  - name: benton_calendar
+    base_url: https://benton.uconn.edu/calendar/
+    adapter_type: benton_calendar
+    crawl_frequency: daily
+    active: false

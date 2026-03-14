@@ -65,7 +65,7 @@ class Activity(Base):
     age_min: Mapped[int | None]
     age_max: Mapped[int | None]
 
-    is_free: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_free: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
     free_verification_status: Mapped[FreeVerificationStatus] = mapped_column(
         SqlEnum(FreeVerificationStatus), nullable=False, default=FreeVerificationStatus.inferred
     )

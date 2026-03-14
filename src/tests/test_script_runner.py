@@ -25,6 +25,7 @@ def _sample_row(title: str = "Sample Workshop") -> ExtractedActivity:
         start_at=datetime(2026, 3, 10, 12, 0),
         end_at=datetime(2026, 3, 10, 13, 0),
         timezone="America/Los_Angeles",
+        is_free=True,
         free_verification_status="inferred",
     )
 

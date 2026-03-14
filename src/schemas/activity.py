@@ -20,6 +20,7 @@ class ActivityRead(BaseModel):
     start_at: datetime
     end_at: datetime | None
     timezone: str
+    is_free: bool | None
     free_verification_status: str
     extraction_method: str
     status: str

@@ -32,6 +32,14 @@ def _to_free_status(value: str) -> FreeVerificationStatus:
         return FreeVerificationStatus.inferred
 
 
+def _resolve_is_free(item: ExtractedActivity, free_status: FreeVerificationStatus) -> bool | None:
+    if item.is_free is not None:
+        return item.is_free
+    if free_status == FreeVerificationStatus.uncertain:
+        return None
+    return True
+
+
 def _normalize_optional_text(value: str | None) -> str | None:
     if value is None:
         return None
@@ -68,6 +76,7 @@ def _has_meaningful_activity_change(
     item: ExtractedActivity,
     *,
     venue_id: int | None,
+    is_free: bool | None,
     free_status: FreeVerificationStatus,
 ) -> bool:
     return any(
@@ -82,6 +91,7 @@ def _has_meaningful_activity_change(
             current.timezone != item.timezone,
             current.location_text != item.location_text,
             current.venue_id != venue_id,
+            current.is_free != is_free,
             current.free_verification_status != free_status,
         )
     )
@@ -196,6 +206,7 @@ def upsert_extracted_activities_with_stats(
             venue_key = _venue_key_for(item.venue_name, item.location_text, item.city, item.state)
             venue = venues_by_key.get(venue_key) if venue_key is not None else None
             free_status = _to_free_status(item.free_verification_status)
+            is_free = _resolve_is_free(item, free_status)
             if current is None:
                 db.add(
                     Activity(
@@ -213,6 +224,7 @@ def upsert_extracted_activities_with_stats(
                         timezone=item.timezone,
                         location_text=item.location_text,
                         venue_id=venue.id if venue else None,
+                        is_free=is_free,
                         free_verification_status=free_status,
                         first_seen_at=now,
                         last_seen_at=now,
@@ -227,6 +239,7 @@ def upsert_extracted_activities_with_stats(
                 current,
                 item,
                 venue_id=venue_id,
+                is_free=is_free,
                 free_status=free_status,
             ):
                 unchanged += 1
@@ -242,6 +255,7 @@ def upsert_extracted_activities_with_stats(
             current.timezone = item.timezone
             current.location_text = item.location_text
             current.venue_id = venue_id
+            current.is_free = is_free
             current.free_verification_status = free_status
             current.last_seen_at = now
             current.updated_at = now

@@ -42,7 +42,7 @@ args = ["--commit"]
 venue = "ocma"
 enabled = true
 parser_script_name = "scripts/run_ocma_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -50,7 +50,7 @@ args = ["--commit"]
 venue = "bampfa"
 enabled = true
 parser_script_name = "scripts/run_bampfa_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -58,7 +58,7 @@ args = ["--commit"]
 venue = "bmoa"
 enabled = true
 parser_script_name = "scripts/run_bmoa_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -66,7 +66,7 @@ args = ["--commit"]
 venue = "crocker"
 enabled = true
 parser_script_name = "scripts/run_crocker_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -74,7 +74,7 @@ args = ["--commit"]
 venue = "fresno"
 enabled = true
 parser_script_name = "scripts/run_fresno_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -82,7 +82,7 @@ args = ["--commit"]
 venue = "lacma"
 enabled = true
 parser_script_name = "scripts/run_lacma_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -90,7 +90,7 @@ args = ["--commit"]
 venue = "moca_la"
 enabled = true
 parser_script_name = "scripts/run_moca_la_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -98,7 +98,7 @@ args = ["--commit"]
 venue = "getty"
 enabled = true
 parser_script_name = "scripts/run_getty_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -106,7 +106,7 @@ args = ["--commit"]
 venue = "hammer"
 enabled = true
 parser_script_name = "scripts/run_hammer_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -114,7 +114,7 @@ args = ["--commit"]
 venue = "nortonsimon"
 enabled = true
 parser_script_name = "scripts/run_nortonsimon_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -122,7 +122,7 @@ args = ["--commit"]
 venue = "psmuseum"
 enabled = true
 parser_script_name = "scripts/run_psmuseum_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -130,7 +130,7 @@ args = ["--commit"]
 venue = "sdmart"
 enabled = true
 parser_script_name = "scripts/run_sdmart_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -138,7 +138,7 @@ args = ["--commit"]
 venue = "sjma"
 enabled = true
 parser_script_name = "scripts/run_sjma_parser.py"
-batch_id = "batch_b"
+batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
@@ -146,6 +146,86 @@ args = ["--commit"]
 venue = "sbma"
 enabled = true
 parser_script_name = "scripts/run_sbma_parser.py"
+batch_id = "batch_a"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "amon_carter"
+enabled = true
+parser_script_name = "scripts/run_amon_carter_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "blanton"
+enabled = true
+parser_script_name = "scripts/run_blanton_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "mcnay"
+enabled = true
+parser_script_name = "scripts/run_mcnay_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "samuseum"
+enabled = true
+parser_script_name = "scripts/run_samuseum_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "themodern"
+enabled = true
+parser_script_name = "scripts/run_themodern_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "bruce"
+enabled = true
+parser_script_name = "scripts/run_bruce_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "yuag"
+enabled = true
+parser_script_name = "scripts/run_yuag_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "fairfield"
+enabled = true
+parser_script_name = "scripts/run_fairfield_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "lyman_allyn"
+enabled = true
+parser_script_name = "scripts/run_lyman_allyn_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "benton"
+enabled = true
+parser_script_name = "scripts/run_benton_parser.py"
 batch_id = "batch_b"
 use_base_url = false
 args = ["--commit"]
