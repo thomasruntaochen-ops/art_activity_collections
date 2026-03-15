@@ -124,6 +124,11 @@ sources:
     adapter_type: bruce_events
     crawl_frequency: daily
     active: false
+  - name: wadsworth_events
+    base_url: https://www.thewadsworth.org/visit/events/
+    adapter_type: wadsworth_events
+    crawl_frequency: daily
+    active: false
   - name: yuag_calendar
     base_url: https://artgallery.yale.edu/visit/calendar
     adapter_type: yuag_calendar
@@ -134,9 +139,34 @@ sources:
     adapter_type: fairfield_calendar
     crawl_frequency: daily
     active: false
+  - name: florence_griswold_events
+    base_url: https://flogris.org/calendar/
+    adapter_type: florence_griswold_events
+    crawl_frequency: daily
+    active: false
+  - name: mocact_events
+    base_url: https://mocact.org/events/#calendar
+    adapter_type: mocact_events
+    crawl_frequency: daily
+    active: false
+  - name: aldrich_calendar
+    base_url: https://thealdrich.org/calendar
+    adapter_type: aldrich_calendar
+    crawl_frequency: daily
+    active: false
   - name: lyman_allyn_events
     base_url: https://www.lymanallyn.org/events/
     adapter_type: lyman_allyn_events
+    crawl_frequency: daily
+    active: false
+  - name: nbmaa_events
+    base_url: https://secure.nbmaa.org/events
+    adapter_type: nbmaa_events
+    crawl_frequency: daily
+    active: false
+  - name: slater_events
+    base_url: https://www.slatermuseum.org/events
+    adapter_type: slater_events
     crawl_frequency: daily
     active: false
   - name: benton_calendar

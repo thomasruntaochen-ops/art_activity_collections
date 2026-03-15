@@ -18,21 +18,21 @@
     "event_links": [
       "https://florencegriswoldmuseum.org/calendar/"
     ],
-    "failed_test_comment": "Calendar HTML is blocked by Cloudflare from this environment, and wp-json/tribe/events/v1/events returned 0 upcoming events for 2026-03-11 onward, so a dry run would parse 0 rows."
+    "parser_script": "scripts/run_florence_griswold_parser.py"
   },
   "Hill-Stead Museum": {
     "city": "Farmington",
     "event_links": [
       "https://hillstead.org/events/"
     ],
-    "fail_implement": "Calendar HTML and wp-json/tribe/events API are both blocked by a Cloudflare managed challenge from this environment, so there is no stable official HTML or JSON payload to parse."
+    "fail_implement": "As of March 15, 2026, both direct HTTP requests and a Playwright browser session still land on Cloudflare \"Just a moment...\" verification pages for the official /events listing and /wp-json/tribe/events/v1/events API, so there is no stable official HTML or JSON payload to parse from this environment."
   },
   "Housatonic Museum of Art": {
     "city": "Bridgeport",
     "event_links": [
       "https://www.housatonicmuseum.org/what-s-on"
     ],
-    "failed_test_comment": "Official What’s On pages currently expose exhibitions, receptions, a podcast entry, and past virtual talk pages, but no upcoming qualifying talks, workshops, or family art activities, so a dry run would parse 0 rows."
+    "failed_test_comment": "As of March 15, 2026, the official What’s On page lists upcoming exhibitions and opening receptions on March 11, 2026 and May 5, 2026, plus a January 13, 2026 podcast entry, but no upcoming qualifying talks, workshops, classes, or family art activities, so a dry run would still parse 0 rows."
   },
   "Lyman Allyn Art Museum": {
     "city": "New London",
@@ -53,7 +53,7 @@
     "event_links": [
       "https://mocact.org/events/#calendar"
     ],
-    "failed_test_comment": "Official upcoming calendar entries are currently paid Art Adventures classes, paid talk/conversation events, or excluded formats such as opening receptions, film screenings, performances, and members-only tours, so a dry run would parse 0 free qualifying rows."
+    "parser_script": "scripts/run_mocact_parser.py"
   },
   "Mystic Museum of Art": {
     "city": "Mystic",
@@ -67,28 +67,28 @@
     "event_links": [
       "https://secure.nbmaa.org/events"
     ],
-    "fail_implement": "Official Tessitura API is reachable, but qualifying detail pages are intermittently replaced by an Imperva/Incapsula managed-challenge interstitial, so repeated dry runs are unstable and can drop from non-empty to 0 rows without code changes."
+    "parser_script": "scripts/run_nbmaa_parser.py"
   },
   "Slater Memorial Museum": {
     "city": "Norwich",
     "event_links": [
       "https://www.slatermuseum.org/events"
     ],
-    "failed_test_comment": "Official events and event-series pages are reachable and the recurring Lecture Series is described as free with no registration, but the currently accessible March 2026 calendar only shows a lecture on 2026-03-11 plus excluded storytime/show items, so from 2026-03-13 onward a dry run would parse 0 qualifying rows."
+    "parser_script": "scripts/run_slater_parser.py"
   },
   "The Aldrich Contemporary Art Museum": {
     "city": "Ridgefield",
     "event_links": [
       "https://thealdrich.org/calendar"
     ],
-    "failed_test_comment": "Official events page is server-rendered and readable, but the future free items currently exposed are Third Saturdays free-admission listings, Story Time for Kids entries, and All Ages Discovery Tour entries, while sampled Public Programs such as Sensory Saturday, Care and Connection, and Clay Stories are paid, so a dry run would parse 0 qualifying free rows."
+    "parser_script": "scripts/run_aldrich_parser.py"
   },
   "Wadsworth Atheneum Museum of Art": {
     "city": "Hartford",
     "event_links": [
-      "https://www.thewadsworth.org/events/"
+      "https://www.thewadsworth.org/visit/events/"
     ],
-    "fail_implement": "Official events page is gated by a Cloudflare managed challenge, so no stable event HTML or JSON payload is available from this environment."
+    "parser_script": "scripts/run_wadsworth_parser.py"
   },
   "William Benton Museum of Art": {
     "city": "Storrs",

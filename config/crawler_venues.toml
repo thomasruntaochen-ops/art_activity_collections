@@ -199,6 +199,14 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "wadsworth"
+enabled = true
+parser_script_name = "scripts/run_wadsworth_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "yuag"
 enabled = true
 parser_script_name = "scripts/run_yuag_parser.py"
@@ -215,10 +223,50 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "florence_griswold"
+enabled = true
+parser_script_name = "scripts/run_florence_griswold_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "mocact"
+enabled = true
+parser_script_name = "scripts/run_mocact_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "aldrich"
+enabled = true
+parser_script_name = "scripts/run_aldrich_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "lyman_allyn"
 enabled = true
 parser_script_name = "scripts/run_lyman_allyn_parser.py"
 batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "nbmaa"
+enabled = false
+parser_script_name = "scripts/run_nbmaa_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "slater"
+enabled = true
+parser_script_name = "scripts/run_slater_parser.py"
+batch_id = "batch_c"
 use_base_url = false
 args = ["--commit"]
 

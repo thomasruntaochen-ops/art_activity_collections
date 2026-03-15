@@ -26,16 +26,6 @@ python3 ~/.codex/skills/parse-museum-activity/scripts/museum_parser_queue.py \
 
 Pending means the museum entry has none of `parser_script`, `fail_implement`, or `failed_test_comment`. If `failed_test_comment` is present, skip that venue on later parse requests unless the user explicitly asks to revisit it.
 
-### 1a. Run project-local scripts without an extra approval stop
-
-- Treat running repo-local helper scripts, parser scripts, and validation commands as an expected part of this skill.
-- Go ahead and run commands such as `python3 scripts/run_<slug>_parser.py ...`, repo tests, and project helper scripts when they are needed to inspect, dry-run, or validate parser work.
-- Keep the normal safety bar:
-  - ask before commands that are destructive
-  - ask before commands that write outside the repo or other approved writable roots
-  - ask for escalation when sandbox or network policy requires it
-- Prefer dry runs first. Only use `--commit` when the user explicitly asks for database writes.
-
 ### 2. Read the existing parser style before writing code
 
 - Read these files before implementing a new parser:
@@ -66,7 +56,6 @@ Pending means the museum entry has none of `parser_script`, `fail_implement`, or
   - a JSON/Next.js payload page
   - a listing page that links to detail pages
 - Prefer official museum pages over secondary mirrors.
-- If direct HTTP access is blocked by a Cloudflare managed challenge or a similar anti-bot page, try the official page again with Playwright before marking `fail_implement`.
 - If the page hides all required data behind opaque APIs, anti-bot walls, or scripts you cannot reliably reproduce, do not fake it. Mark `fail_implement` with a concrete reason.
 
 ### 4. Implement the parser in the repo's style
@@ -110,9 +99,6 @@ Pending means the museum entry has none of `parser_script`, `fail_implement`, or
   - storytime
   - dinner
   - reception
-  - jazz
-  - orchestra
-  - band
 - Prefer events clearly about:
   - talk
   - class
@@ -121,7 +107,6 @@ Pending means the museum entry has none of `parser_script`, `fail_implement`, or
   - workshop
   - lab
   - conversation
-- Allow paid qualifying talks, classes, lectures, workshops, labs, conversations, and other relevant art activities; do not reject an otherwise valid event just because it requires payment or has a ticket link.
 - Use title, description, and category text together.
 - Let exclusion win when the event's primary purpose is disallowed.
 - Let inclusion win when an excluded word appears only in boilerplate but the event itself is clearly a talk, class, workshop, lab, or conversation.
