@@ -81,6 +81,7 @@ Optional:
 - `CRAWLER_CONFIG_PATH=config/crawler_venues.toml` (default config file for venue list)
 - `CRAWLER_BATCH_ID=` (optional batch selector; runs only matching venues in config)
 - `CRAWLER_COMMAND=` (optional manual override; if set, bypasses config-driven runner)
+- `CRAWLER_FAIL_FAST=false` (optional; when `true`, stop the batch on the first venue failure)
 - `CRAWLER_ALERT_WEBHOOK_URL=` (optional; receives JSON alert when a parser returns zero rows on `--commit`)
 - `RAWHTML_BASE_URL=` (optional shared remote base URL for raw HTML, e.g. `<base>/met/latest_events.html`)
 
@@ -109,6 +110,8 @@ Safety behavior (all parser scripts):
 - When `--commit` is set and total parsed rows are `0`, DB commit is aborted and process exits non-zero.
 - If `CRAWLER_ALERT_WEBHOOK_URL` is set, the parser posts an alert payload to that webhook.
 - MET parser auto-loads from `RAWHTML_BASE_URL/met/latest_events.html` when `RAWHTML_BASE_URL` is set.
+- Batch runner continues to later venues after an individual venue failure, then exits non-zero at the end if any venue failed.
+- Set `CRAWLER_FAIL_FAST=true` to restore first-failure abort behavior for debugging.
 - Run a manual webhook test from Railway/local:
   - `python scripts/test_crawler_alert.py`
 

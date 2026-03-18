@@ -105,6 +105,12 @@ def main() -> int:
         action="store_true",
         help="Print selected venues and exit without running parser scripts.",
     )
+    parser.add_argument(
+        "--fail-fast",
+        action="store_true",
+        default=os.getenv("CRAWLER_FAIL_FAST", "").strip().lower() == "true",
+        help="Abort the batch on the first venue failure. Defaults to CRAWLER_FAIL_FAST env.",
+    )
     args = parser.parse_args()
 
     config_path = Path(args.config)
@@ -145,6 +151,8 @@ def main() -> int:
         print(f"[crawler-batch] list-only selected venues: {names}")
         return 0
 
+    failed_venues: list[tuple[str, int]] = []
+
     for item in selected:
         venue = str(item["venue"])
         should_run, reason = _should_run_venue(item, rawhtml_base_url)
@@ -155,7 +163,15 @@ def main() -> int:
 
         exit_code = _run_venue(python_bin=args.python_bin, item=item)
         if exit_code != 0:
-            return exit_code
+            failed_venues.append((venue, exit_code))
+            if args.fail_fast:
+                print("[crawler-batch] Aborting batch because --fail-fast is enabled")
+                return exit_code
+
+    if failed_venues:
+        summary = ", ".join(f"{venue}={code}" for venue, code in failed_venues)
+        print(f"[crawler-batch] Completed with venue failures: {summary}")
+        return 1
 
     print("[crawler-batch] Completed selected venues")
     return 0
