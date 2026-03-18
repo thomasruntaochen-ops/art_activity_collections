@@ -31,6 +31,7 @@ packages = [
     ("pymysql", "pymysql"),
     ("httpx", "httpx"),
     ("bs4", "beautifulsoup4"),
+    ("playwright", "playwright"),
 ]
 
 print(f"- python: {platform.python_version()}")
@@ -50,6 +51,19 @@ for module_name, label in packages:
         print(f"- {label}: OK ({version})")
     except Exception as exc:
         print(f"- {label}: MISSING ({exc})")
+
+try:
+    chromium_check = subprocess.run(
+        [sys.executable, "-m", "playwright", "install", "--dry-run", "chromium"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    status = "OK" if chromium_check.returncode == 0 else "MISSING"
+    detail = chromium_check.stdout.strip() or chromium_check.stderr.strip() or "no output"
+    print(f"- playwright-browser-chromium: {status} ({detail.splitlines()[0]})")
+except Exception as exc:
+    print(f"- playwright-browser-chromium: MISSING ({exc})")
 PY
 
 if [[ "${RUN_CRAWLER:-false}" != "true" ]]; then
