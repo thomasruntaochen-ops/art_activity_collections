@@ -105,7 +105,7 @@ def get_filter_options(
     *,
     state: str | None = None,
     city: str | None = None,
-    free_only: bool = True,
+    free_only: bool = False,
 ) -> dict[str, list[str]]:
     """Return dropdown option values constrained to current activity data."""
     base_conditions = [Activity.status.in_(("active", "needs_review")), Activity.venue_id.is_not(None)]

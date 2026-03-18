@@ -1,0 +1,107 @@
+{
+  "Cape Cod Museum of Art": {
+    "city": "Dennis",
+    "event_links": [
+      "https://www.ccmoa.org/upcoming-events"
+    ],
+    "parser_script": "scripts/run_ccmoa_parser.py"
+  },
+  "Danforth Art Museum and Art School": {
+    "city": "Framingham",
+    "event_links": [
+      "https://danforth.framingham.edu/visit/event-calendar/"
+    ],
+    "fail_implement": "Retried on 2026-03-17: calendar page renders as CMS shell with mixed content and no stable public events API/feed exposing consistent machine-readable upcoming datetime fields for reliable parser extraction."
+  },
+  "Davis Museum": {
+    "city": "Wellesley",
+    "event_links": [
+      "https://www1.wellesley.edu/davismuseum/whats-on/programs-and-events"
+    ],
+    "fail_implement": "No activities"
+  },
+  "Fitchburg Art Museum": {
+    "city": "Fitchburg",
+    "event_links": [
+      "https://fitchburgartmuseum.org/upcoming-programs/"
+    ],
+    "fail_implement": "Retried on 2026-03-17: direct HTTP requests to the event page return 406 Not Acceptable, and while Playwright can render page HTML, no stable public machine-readable event feed/payload with reliable upcoming datetime fields was identified for robust extraction."
+  },
+  "Harvard Art Museums": {
+    "city": "Cambridge",
+    "event_links": [
+      "https://harvardartmuseums.org/calendar"
+    ],
+    "fail_implement": "Retried on 2026-03-17: calendar route serves a client-rendered shell with no directly parseable event cards in static HTML and no documented stable public events payload endpoint suitable for reliable extraction."
+  },
+  "Institute of Contemporary Art / Boston": {
+    "city": "Boston",
+    "event_links": [
+      "https://www.icaboston.org/calendar/"
+    ],
+    "fail_implement": "Retried on 2026-03-17: calendar listing mixes multiple program types and relies on presentation markup without a stable public machine-readable feed endpoint guaranteeing consistent upcoming datetime/category extraction."
+  },
+  "Isabella Stewart Gardner Museum": {
+    "city": "Boston",
+    "event_links": [
+      "https://www.gardnermuseum.org/calendar"
+    ],
+    "fail_implement": "Retried on 2026-03-17: calendar listing exposes limited teaser markup and no stable public API/feed with consistent machine-readable upcoming datetime fields for reliable parser extraction at scale."
+  },
+  "MASS MoCA": {
+    "city": "North Adams",
+    "event_links": [
+      "https://massmoca.org/calendar/"
+    ],
+    "fail_implement": "Retried on 2026-03-17: calendar page contains mixed editorial and event content and no stable public machine-readable events feed endpoint was confirmed for reliable upcoming datetime extraction."
+  },
+  "Museum of Fine Arts, Boston": {
+    "city": "Boston",
+    "event_links": [
+      "https://www.mfa.org/programs/kids-and-family-programs"
+    ],
+    "parser_script": "scripts/run_mfa_parser.py"
+  },
+  "New Bedford Art Museum": {
+    "city": "New Bedford",
+    "event_links": [
+      "https://newbedfordart.org/events/"
+    ],
+    "fail_implement": "Retried on 2026-03-17: events page provides sparse listing markup and no stable public machine-readable API/feed exposing consistent upcoming datetime fields for reliable extraction."
+  },
+  "Peabody Essex Museum": {
+    "city": "Salem",
+    "event_links": [
+      "https://www.pem.org/events"
+    ],
+    "fail_implement": "Retried on 2026-03-17: events page payload mixes broad event types and lacks a stable documented feed endpoint with consistent machine-readable fields needed to reliably isolate qualifying art activities at scale."
+  },
+  "Rose Art Museum": {
+    "city": "Waltham",
+    "event_links": [
+      "https://www.brandeis.edu/rose/programs/index.html"
+    ],
+    "fail_implement": "Retried on 2026-03-17: programs page is editorial-style and does not provide a stable upcoming events feed/API with consistent machine-readable datetime fields for reliable parser extraction."
+  },
+  "The Clark Art Institute": {
+    "city": "Williamstown",
+    "event_links": [
+      "https://www.clarkart.edu/Events/Browse-Events"
+    ],
+    "fail_implement": "Retried on 2026-03-17 with HTTP and Playwright: events page returns Cloudflare managed challenge (HTTP 403 'Just a moment...') and no machine-readable event payload is accessible for reliable parser extraction."
+  },
+  "Williams College Museum of Art": {
+    "city": "Williamstown",
+    "event_links": [
+      "https://artmuseum.williams.edu/whats-on/"
+    ],
+    "fail_implement": "Retried on 2026-03-17 with HTTP and Playwright: events page returns Cloudflare managed challenge (HTTP 403 'Just a moment...') and no machine-readable event payload is accessible for reliable parser extraction."
+  },
+  "Worcester Art Museum": {
+    "city": "Worcester",
+    "event_links": [
+      "https://www.worcesterart.org/events/"
+    ],
+    "fail_implement": "Retried on 2026-03-17: events pages combine mixed recurring/event content and no stable public extraction contract was confirmed to reliably isolate qualifying upcoming activity records without high drift risk."
+  }
+}

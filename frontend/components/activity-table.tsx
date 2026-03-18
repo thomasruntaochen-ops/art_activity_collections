@@ -6,6 +6,18 @@ type Props = {
   activities: Activity[];
 };
 
+let entityDecoder: HTMLTextAreaElement | null = null;
+
+function decodeHtmlEntities(value: string): string {
+  if (!value.includes("&")) return value;
+  if (typeof document === "undefined") return value;
+  if (entityDecoder === null) {
+    entityDecoder = document.createElement("textarea");
+  }
+  entityDecoder.innerHTML = value;
+  return entityDecoder.value;
+}
+
 function formatAgeRange(min: number | null, max: number | null): string {
   if (min === null && max === null) return "Any";
   if (min !== null && max !== null) return `${min}-${max}`;
@@ -61,7 +73,7 @@ export function ActivityTable({ activities }: Props) {
         <tbody>
           {activities.map((activity) => (
             <tr key={activity.id}>
-              <td>{activity.title}</td>
+              <td>{decodeHtmlEntities(activity.title)}</td>
               <td>{formatDate(activity.start_at)}</td>
               <td>{activity.venue_name ?? "-"}</td>
               <td>{activity.location_text ?? "-"}</td>

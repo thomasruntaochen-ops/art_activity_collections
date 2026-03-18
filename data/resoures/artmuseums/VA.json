@@ -1,0 +1,142 @@
+{
+  "Art Museums of Colonial Williamsburg": {
+    "city": "Williamsburg",
+    "event_links": [
+      "https://www.colonialwilliamsburg.org/discover/historic-area/art-museums-of-colonial-williamsburg/"
+    ],
+    "fail_implement": "No activities"
+  },
+  "Barry Art Museum": {
+    "city": "Norfolk",
+    "event_links": [
+      "https://barryartmuseum.odu.edu/calendar/"
+    ],
+    "fail_implement": "Museum temporary close. Retry later"
+  },
+  "Chrysler Museum of Art": {
+    "city": "Norfolk",
+    "event_links": [
+      "https://chrysler.org/events/"
+    ],
+    "parser_script": "scripts/run_va_tribe_bundle_parser.py"
+  },
+  "Gari Melchers Home and Studio": {
+    "city": "Falmouth",
+    "event_links": [
+      "https://www.umw.edu/events/department/gari-melchers-home-and-studio-at-belmont/"
+    ],
+    "fail_implement": "No activities"
+  },
+  "Hampton University Museum": {
+    "city": "Hampton",
+    "event_links": [
+      "https://home.hamptonu.edu/msm/events/"
+    ],
+    "fail_implement": "No activities"
+  },
+  "Hermitage Museum & Gardens": {
+    "city": "Norfolk",
+    "event_links": [
+      "https://thehermitagemuseum.org/public-programs/"
+    ],
+    "fail_implement": "No activities"
+  },
+  "Institute for Contemporary Art at Virginia Commonwealth University": {
+    "city": "Richmond",
+    "event_links": [
+      "https://icavcu.org/events/"
+    ],
+    "parser_script": "scripts/run_va_html_bundle_parser.py"
+  },
+  "Kluge-Ruhe Aboriginal Art Collection of the University of Virginia": {
+    "city": "Charlottesville",
+    "event_links": [
+      "https://kluge-ruhe.org/calendar/"
+    ],
+    "parser_script": "scripts/run_va_html_bundle_parser.py"
+  },
+  "Longwood Center for the Visual Arts": {
+    "city": "Farmville",
+    "event_links": [
+      "https://lcva.longwood.edu/events/"
+    ],
+    "fail_implement": "No activities"
+  },
+  "Maier Museum of Art at Randolph College": {
+    "city": "Lynchburg",
+    "event_links": [
+      "https://maiermuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_va_tribe_bundle_parser.py"
+  },
+  "Muscarelle Museum of Art": {
+    "city": "Williamsburg",
+    "event_links": [
+      "https://muscarelle.wm.edu/events/"
+    ],
+    "parser_script": "scripts/run_va_html_bundle_parser.py"
+  },
+  "Museum of Contemporary Art Arlington": {
+    "city": "Arlington",
+    "event_links": [
+      "https://mocaarlington.org/events/"
+    ],
+    "parser_script": "scripts/run_va_html_bundle_parser.py"
+  },
+  "Piedmont Arts": {
+    "city": "Martinsville",
+    "event_links": [
+      "https://www.piedmontarts.org/events.cfm"
+    ],
+    "parser_script": "scripts/run_va_html_bundle_parser.py"
+  },
+  "Taubman Museum of Art": {
+    "city": "Roanoke",
+    "event_links": [
+      "https://www.taubmanmuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_va_tribe_bundle_parser.py"
+  },
+  "The Branch Museum of Design": {
+    "city": "Richmond",
+    "event_links": [
+      "https://branchmuseum.org/makers-studio/"
+    ],
+    "parser_script": "scripts/run_va_tribe_bundle_parser.py"
+  },
+  "The Fralin Museum of Art at the University of Virginia": {
+    "city": "Charlottesville",
+    "event_links": [
+      "https://uvafralinartmuseum.virginia.edu/events"
+    ],
+    "fail_implement": "Event pages are blocked by Cloudflare challenge (HTTP 403 Just-a-moment) for automated HTTP/JSON access, so no stable machine-readable calendar payload is reachable."
+  },
+  "Virginia Museum of Contemporary Art": {
+    "city": "Virginia Beach",
+    "event_links": [
+      "https://virginiamoca.org/event-calendar/"
+    ],
+    "parser_script": "scripts/run_va_tribe_bundle_parser.py"
+  },
+  "Virginia Museum of Fine Arts": {
+    "city": "Richmond",
+    "event_links": [
+      "https://www.vmfa.museum/calendar/?type%5B%5D=talks,workshop"
+    ],
+    "fail_implement": "Calendar URL returns HTTP 202 interstitial/challenge content instead of event listing data, and no stable public JSON endpoint was found for talks/workshops."
+  },
+  "Virginia Quilt Museum": {
+    "city": "Dayton",
+    "event_links": [
+      "https://www.vaquiltmuseum.org/events"
+    ],
+    "parser_script": "scripts/run_va_html_bundle_parser.py"
+  },
+  "William King Museum of Art": {
+    "city": "Abingdon",
+    "event_links": [
+      "https://williamkingmuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_va_tribe_bundle_parser.py"
+  }
+}

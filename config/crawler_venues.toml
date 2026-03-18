@@ -31,6 +31,62 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "buffalo_akg"
+enabled = true
+parser_script_name = "scripts/run_buffalo_akg_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "elmuseo"
+enabled = true
+parser_script_name = "scripts/run_elmuseo_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "everson"
+enabled = false
+parser_script_name = "scripts/run_everson_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "katonah"
+enabled = false
+parser_script_name = "scripts/run_katonah_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "mag"
+enabled = false
+parser_script_name = "scripts/run_mag_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "parrish"
+enabled = false
+parser_script_name = "scripts/run_parrish_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "noguchi"
+enabled = false
+parser_script_name = "scripts/run_noguchi_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "mfa"
 enabled = true
 parser_script_name = "scripts/run_mfa_parser.py"
@@ -275,5 +331,69 @@ venue = "benton"
 enabled = true
 parser_script_name = "scripts/run_benton_parser.py"
 batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "grounds_for_sculpture"
+enabled = true
+parser_script_name = "scripts/run_grounds_for_sculpture_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "noyes"
+enabled = true
+parser_script_name = "scripts/run_noyes_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "princeton"
+enabled = true
+parser_script_name = "scripts/run_princeton_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "newark"
+enabled = true
+parser_script_name = "scripts/run_newark_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "zimmerli"
+enabled = true
+parser_script_name = "scripts/run_zimmerli_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "va_tribe_bundle"
+enabled = true
+parser_script_name = "scripts/run_va_tribe_bundle_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "va_html_bundle"
+enabled = true
+parser_script_name = "scripts/run_va_html_bundle_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "ccmoa"
+enabled = true
+parser_script_name = "scripts/run_ccmoa_parser.py"
+batch_id = "batch_c"
 use_base_url = false
 args = ["--commit"]

@@ -19,6 +19,41 @@ sources:
     adapter_type: whitney_teen_workshops
     crawl_frequency: daily
     active: true
+  - name: buffalo_akg_events
+    base_url: https://buffaloakg.org/find-event
+    adapter_type: buffalo_akg_events
+    crawl_frequency: daily
+    active: false
+  - name: elmuseo_events
+    base_url: https://elmuseo.org/events/list/
+    adapter_type: elmuseo_events
+    crawl_frequency: daily
+    active: false
+  - name: everson_events
+    base_url: https://everson.org/eversonevents/
+    adapter_type: everson_events
+    crawl_frequency: daily
+    active: false
+  - name: katonah_events
+    base_url: https://www.katonahmuseum.org/events/
+    adapter_type: katonah_events
+    crawl_frequency: daily
+    active: false
+  - name: mag_events
+    base_url: https://mag.rochester.edu/programs/
+    adapter_type: mag_events
+    crawl_frequency: daily
+    active: false
+  - name: parrish_events
+    base_url: https://parrishart.org/education/childrens-workshops/
+    adapter_type: parrish_events
+    crawl_frequency: daily
+    active: false
+  - name: noguchi_events
+    base_url: https://www.noguchi.org/museum/calendar/
+    adapter_type: noguchi_events
+    crawl_frequency: daily
+    active: false
   - name: mfa_programs_pages
     base_url: https://www.mfa.org/programs?page=0
     adapter_type: mfa_programs_pages
@@ -172,5 +207,95 @@ sources:
   - name: benton_calendar
     base_url: https://benton.uconn.edu/calendar/
     adapter_type: benton_calendar
+    crawl_frequency: daily
+    active: false
+  - name: grounds_for_sculpture_calendar
+    base_url: https://www.groundsforsculpture.org/Calendar/
+    adapter_type: grounds_for_sculpture_calendar
+    crawl_frequency: daily
+    active: false
+  - name: noyes_events
+    base_url: https://noyesmuseum.org/all-noyes-events
+    adapter_type: noyes_events
+    crawl_frequency: daily
+    active: false
+  - name: princeton_events
+    base_url: https://artmuseum.princeton.edu/exhibitions-events/events
+    adapter_type: princeton_events
+    crawl_frequency: daily
+    active: false
+  - name: newark_events
+    base_url: https://newarkmuseumart.org/events/
+    adapter_type: newark_events
+    crawl_frequency: daily
+    active: false
+  - name: zimmerli_events
+    base_url: https://zimmerli.rutgers.edu/events
+    adapter_type: zimmerli_events
+    crawl_frequency: daily
+    active: false
+  - name: chrysler_events
+    base_url: https://chrysler.org/events/
+    adapter_type: chrysler_events
+    crawl_frequency: daily
+    active: false
+  - name: maier_events
+    base_url: https://maiermuseum.org/events/
+    adapter_type: maier_events
+    crawl_frequency: daily
+    active: false
+  - name: taubman_events
+    base_url: https://www.taubmanmuseum.org/events/
+    adapter_type: taubman_events
+    crawl_frequency: daily
+    active: false
+  - name: branch_events
+    base_url: https://branchmuseum.org/makers-studio/
+    adapter_type: branch_events
+    crawl_frequency: daily
+    active: false
+  - name: virginia_moca_events
+    base_url: https://virginiamoca.org/event-calendar/
+    adapter_type: virginia_moca_events
+    crawl_frequency: daily
+    active: false
+  - name: william_king_events
+    base_url: https://williamkingmuseum.org/events/
+    adapter_type: william_king_events
+    crawl_frequency: daily
+    active: false
+  - name: icavcu_events
+    base_url: https://icavcu.org/events/
+    adapter_type: icavcu_events
+    crawl_frequency: daily
+    active: false
+  - name: kluge_ruhe_events
+    base_url: https://kluge-ruhe.org/calendar/
+    adapter_type: kluge_ruhe_events
+    crawl_frequency: daily
+    active: false
+  - name: muscarelle_events
+    base_url: https://muscarelle.wm.edu/events/
+    adapter_type: muscarelle_events
+    crawl_frequency: daily
+    active: false
+  - name: moca_arlington_events
+    base_url: https://mocaarlington.org/events/
+    adapter_type: moca_arlington_events
+    crawl_frequency: daily
+    active: false
+  - name: piedmont_arts_events
+    base_url: https://www.piedmontarts.org/events.cfm
+    adapter_type: piedmont_arts_events
+    crawl_frequency: daily
+    active: false
+  - name: va_quilt_events
+    base_url: https://www.vaquiltmuseum.org/events
+    adapter_type: va_quilt_events
+    crawl_frequency: daily
+    active: false
+  - name: ccmoa_events
+    base_url: https://www.ccmoa.org/upcoming-events
+    adapter_type: ccmoa_events
     crawl_frequency: daily
     active: false

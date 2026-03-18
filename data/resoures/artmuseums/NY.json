@@ -10,37 +10,43 @@
     "city": "Buffalo",
     "event_links": [
       "https://buffaloakg.org/find-event"
-    ]
+    ],
+    "parser_script": "scripts/run_buffalo_akg_parser.py"
   },
   "El Museo del Barrio": {
     "city": "New York",
     "event_links": [
       "https://elmuseo.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_elmuseo_parser.py"
   },
   "Everson Museum of Art": {
     "city": "Syracuse",
     "event_links": [
       "https://everson.org/eversonevents"
-    ]
+    ],
+    "parser_script": "scripts/run_everson_parser.py"
   },
   "Katonah Museum of Art": {
     "city": "Katonah",
     "event_links": [
       "https://www.katonahmuseum.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_katonah_parser.py"
   },
   "Memorial Art Gallery": {
     "city": "Rochester",
     "event_links": [
       "https://mag.rochester.edu/programs/"
-    ]
+    ],
+    "parser_script": "scripts/run_mag_parser.py"
   },
   "Nassau County Museum of Art": {
     "city": "Roslyn Harbor",
     "event_links": [
       "https://nassaumuseum.org/calendar/"
-    ]
+    ],
+    "fail_implement": "Calendar page is taxonomy-style and lacks a stable public events JSON/feed endpoint with machine-readable upcoming date/time fields; available WP REST routes expose posts but not a reliable event post type."
   },
   "Neue Galerie New York": {
     "city": "New York",
@@ -53,56 +59,66 @@
   "Parrish Art Museum": {
     "city": "Water Mill",
     "event_links": [
-      "https://parrishart.org/education/childrens-workshops/"
-    ]
+      "https://parrishart.org/education/childrens-workshops/",
+      "https://parrishart.org/programs-events/friday-nights/"
+    ],
+    "parser_script": "scripts/run_parrish_parser.py"
   },
   "Solomon R. Guggenheim Museum": {
     "city": "New York",
     "event_links": [
       "https://www.guggenheim.org/calendar/day?q=conversations-and-talks,courses-and-workshops,for-kids-teens-and-family"
-    ]
+    ],
+    "fail_implement": "Provided calendar URL now returns HTTP 404 and page source does not expose stable upcoming event data (no JSON-LD event payload or public events feed) suitable for reliable parser extraction."
   },
   "The Frick Collection": {
     "city": "New York",
     "event_links": [
-      "https://www.frick.org/programs"
-    ]
+      "https://www.frick.org/calendar"
+    ],
+    "fail_implement": "Calendar page is a Drupal shell that embeds events via third-party Trumba calendar integration; static HTML does not provide a stable first-party machine-readable feed for reliable parser extraction."
   },
   "The Heckscher Museum of Art": {
     "city": "Huntington",
     "event_links": [
-      "https://www.heckscher.org/the-mix/"
-    ]
+      "https://www.heckscher.org/events/calendar/"
+    ],
+    "fail_implement": "Calendar page exposes category/navigation links but no stable public event API/feed with machine-readable upcoming date/time fields, so reliable automated extraction cannot be implemented from available source markup."
   },
   "The Jewish Museum": {
     "city": "New York",
     "event_links": [
       "https://thejewishmuseum.org/calendar"
-    ]
+    ],
+    "fail_implement": "Programs schedule is rendered as dynamic page content without a documented public events API/feed or stable pagination payload, making reliable long-range calendar extraction brittle from static HTML alone."
   },
   "The Metropolitan Museum of Art": {
     "city": "New York",
     "event_links": [
       "https://www.metmuseum.org/events/programs/met-live-arts",
       "https://www.metmuseum.org/events/programs/met-live-arts/date-night"
-    ]
+    ],
+    "parser_script": "scripts/run_met_parser.py"
   },
   "The Museum of Modern Art": {
     "city": "New York",
     "event_links": [
       "https://www.moma.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_moma_parser.py"
   },
   "The Noguchi Museum": {
     "city": "Long Island City",
     "event_links": [
       "https://www.noguchi.org/museum/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_noguchi_parser.py"
   },
   "Whitney Museum of American Art": {
     "city": "New York",
     "event_links": [
       "https://whitney.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_whitney_parser.py"
   }
 }

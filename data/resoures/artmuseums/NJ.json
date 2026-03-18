@@ -1,0 +1,51 @@
+{
+  "Grounds For Sculpture": {
+    "city": "Hamilton",
+    "event_links": [
+      "https://www.groundsforsculpture.org/Calendar/"
+    ],
+    "parser_script": "scripts/run_grounds_for_sculpture_parser.py"
+  },
+  "Hunterdon Art Museum": {
+    "city": "Clinton",
+    "event_links": [
+      "https://www.hunterdonartmuseum.org/events/"
+    ],
+    "fail_implement": "Retried on 2026-03-17: Cloudflare managed challenge blocks the site root, /events/, wp-json, probable events feed/API endpoints, and direct event-detail URLs with HTTP 403 'Just a moment...' pages; Playwright reaches the same challenge HTML, so no stable first-party event payload is available for reliable parsing."
+  },
+  "Montclair Art Museum": {
+    "city": "Montclair",
+    "event_links": [
+      "https://www.montclairartmuseum.org/events"
+    ],
+    "fail_implement": "Retried on 2026-03-17: Cloudflare managed challenge blocks the site root, /events, wp-json, probable events feed/API endpoints, and direct event-detail URLs with HTTP 403 'Just a moment...' pages; Playwright reaches the same challenge HTML, so no stable first-party event payload is available for reliable parsing."
+  },
+  "Noyes Museum of Art": {
+    "city": "Atlantic City",
+    "event_links": [
+      "https://noyesmuseum.org/all-noyes-events"
+    ],
+    "parser_script": "scripts/run_noyes_parser.py"
+  },
+  "Princeton University Art Museum": {
+    "city": "Princeton",
+    "event_links": [
+      "https://artmuseum.princeton.edu/exhibitions-events/events"
+    ],
+    "parser_script": "scripts/run_princeton_parser.py"
+  },
+  "The Newark Museum of Art": {
+    "city": "Newark",
+    "event_links": [
+      "https://newarkmuseumart.org/events/"
+    ],
+    "parser_script": "scripts/run_newark_parser.py"
+  },
+  "Zimmerli Art Museum": {
+    "city": "New Brunswick",
+    "event_links": [
+      "https://zimmerli.rutgers.edu/events"
+    ],
+    "parser_script": "scripts/run_zimmerli_parser.py"
+  }
+}

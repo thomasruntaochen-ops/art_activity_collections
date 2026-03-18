@@ -21,7 +21,7 @@ def get_activities(
     state: str | None = Query(default=None, min_length=2, max_length=2),
     date_from: datetime | None = None,
     date_to: datetime | None = None,
-    free_only: bool = True,
+    free_only: bool = False,
     db: Session = Depends(get_db),
 ) -> list[ActivityRead]:
     activities = list_activities(
@@ -81,7 +81,7 @@ def get_activity_suggestions(
 def get_activity_filter_options(
     state: str | None = Query(default=None, min_length=2, max_length=2),
     city: str | None = None,
-    free_only: bool = True,
+    free_only: bool = False,
     db: Session = Depends(get_db),
 ) -> ActivityFilterOptions:
     options = get_filter_options(db, state=state, city=city, free_only=free_only)
