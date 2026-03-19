@@ -1,4 +1,5 @@
 import asyncio
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -186,7 +187,30 @@ async def fetch_tribe_events_page(
                 break
 
             if response.status_code < 400:
-                return response.json()
+                try:
+                    payload = response.json()
+                except json.JSONDecodeError as exc:
+                    last_exception = exc
+                    if attempt < max_attempts:
+                        await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
+                        continue
+                    snippet = _debug_snippet(response.text)
+                    raise RuntimeError(
+                        "VA tribe endpoint returned a non-JSON success response: "
+                        f"url={response.url} status={response.status_code} "
+                        f"content_type={response.headers.get('content-type', '')!r} "
+                        f"snippet={snippet!r}"
+                    ) from exc
+
+                if not isinstance(payload, dict):
+                    snippet = _debug_snippet(response.text)
+                    raise RuntimeError(
+                        "VA tribe endpoint returned an unexpected JSON payload: "
+                        f"url={response.url} status={response.status_code} "
+                        f"payload_type={type(payload).__name__} snippet={snippet!r}"
+                    )
+
+                return payload
 
             if response.status_code in (429, 500, 502, 503, 504) and attempt < max_attempts:
                 await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
@@ -204,26 +228,34 @@ async def fetch_tribe_events_page(
 
 async def load_va_tribe_bundle_payload(
     *,
+    venues: list[VaTribeVenueConfig] | tuple[VaTribeVenueConfig, ...] | None = None,
     page_limit: int | None = None,
     per_page: int = 50,
-) -> dict[str, list[dict]]:
+) -> dict[str, dict[str, list[dict]] | dict[str, str]]:
     events_by_slug: dict[str, list[dict]] = {}
+    errors_by_slug: dict[str, str] = {}
+    venues_to_load = list(venues) if venues is not None else list(VA_TRIBE_VENUES)
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
-        for venue in VA_TRIBE_VENUES:
+        for venue in venues_to_load:
             events: list[dict] = []
             next_url = f"{venue.api_url}?per_page={per_page}"
             pages_seen = 0
-            while next_url:
-                if page_limit is not None and pages_seen >= max(page_limit, 1):
-                    break
-                payload = await fetch_tribe_events_page(next_url, client=client)
-                pages_seen += 1
-                events.extend(payload.get("events") or [])
-                next_url = payload.get("next_rest_url")
+            try:
+                while next_url:
+                    if page_limit is not None and pages_seen >= max(page_limit, 1):
+                        break
+                    payload = await fetch_tribe_events_page(next_url, client=client)
+                    pages_seen += 1
+                    events.extend(payload.get("events") or [])
+                    next_url = payload.get("next_rest_url")
+            except Exception as exc:
+                errors_by_slug[venue.slug] = str(exc)
+                print(f"[va-tribe-fetch] venue={venue.slug} failed: {exc}")
+                continue
             events_by_slug[venue.slug] = events
 
-    return events_by_slug
+    return {"events_by_slug": events_by_slug, "errors_by_slug": errors_by_slug}
 
 
 def parse_va_tribe_events(
@@ -418,3 +450,9 @@ def get_va_tribe_source_prefixes() -> tuple[str, ...]:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
     return tuple(prefixes)
+
+
+def _debug_snippet(value: str | None, *, limit: int = 200) -> str:
+    if not value:
+        return ""
+    return " ".join(value.split())[:limit]

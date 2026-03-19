@@ -145,15 +145,25 @@ async def main() -> None:
         )
         clear_completed = True
 
-    payload = await load_va_tribe_bundle_payload(page_limit=args.page_limit)
+    payload = await load_va_tribe_bundle_payload(
+        venues=selected_venues,
+        page_limit=args.page_limit,
+    )
+    events_by_slug = payload.get("events_by_slug") or {}
+    errors_by_slug = payload.get("errors_by_slug") or {}
 
     targets: list[TargetRunSpec] = []
     for venue in selected_venues:
+        if venue.slug in errors_by_slug:
+            continue
         targets.append(
             TargetRunSpec(
                 name=f"va_tribe_{venue.slug}",
                 source_url=venue.list_url,
-                load_payload=lambda slug=venue.slug: asyncio.sleep(0, result={"events": payload.get(slug) or []}),
+                load_payload=lambda slug=venue.slug: asyncio.sleep(
+                    0,
+                    result={"events": events_by_slug.get(slug) or []},
+                ),
                 parse_payload=lambda venue_payload, selected_venue=venue: parse_va_tribe_events(
                     venue_payload.get("events") or [],
                     venue=selected_venue,
@@ -166,12 +176,20 @@ async def main() -> None:
             )
         )
 
+    if errors_by_slug:
+        for slug, message in sorted(errors_by_slug.items()):
+            print(f"[va-tribe-fetch] skipped venue={slug}: {message}")
+
+    if not targets:
+        failed = ", ".join(f"{slug}: {message}" for slug, message in sorted(errors_by_slug.items()))
+        raise RuntimeError(f"Unable to fetch any VA Tribe venues. Failures: {failed}")
+
     summary = await run_targets(
         targets=targets,
         commit=args.commit,
         empty_commit_guard=EmptyCommitGuard(
             parser_name="run_va_tribe_bundle_parser",
-            details={"venues": [venue.slug for venue in selected_venues]},
+            details={"venues": [venue.slug for venue in selected_venues if venue.slug not in errors_by_slug]},
         ),
     )
 
@@ -183,6 +201,10 @@ async def main() -> None:
             f"updated={summary.total_updated} "
             f"unchanged={summary.total_unchanged}"
         )
+
+    if errors_by_slug:
+        failed = ", ".join(sorted(errors_by_slug))
+        raise SystemExit(f"Completed VA Tribe bundle with fetch failures: {failed}")
 
 
 if __name__ == "__main__":

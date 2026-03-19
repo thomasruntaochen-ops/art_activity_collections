@@ -48,7 +48,7 @@ args = ["--commit"]
 
 [[venues]]
 venue = "everson"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_everson_parser.py"
 batch_id = "batch_c"
 use_base_url = false
@@ -56,7 +56,7 @@ args = ["--commit"]
 
 [[venues]]
 venue = "katonah"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_katonah_parser.py"
 batch_id = "batch_c"
 use_base_url = false
@@ -64,7 +64,7 @@ args = ["--commit"]
 
 [[venues]]
 venue = "mag"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_mag_parser.py"
 batch_id = "batch_c"
 use_base_url = false
@@ -72,7 +72,7 @@ args = ["--commit"]
 
 [[venues]]
 venue = "parrish"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_parrish_parser.py"
 batch_id = "batch_c"
 use_base_url = false
@@ -80,7 +80,7 @@ args = ["--commit"]
 
 [[venues]]
 venue = "noguchi"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_noguchi_parser.py"
 batch_id = "batch_c"
 use_base_url = false
@@ -256,7 +256,7 @@ args = ["--commit"]
 
 [[venues]]
 venue = "wadsworth"
-enabled = true
+enabled = false
 parser_script_name = "scripts/run_wadsworth_parser.py"
 batch_id = "batch_c"
 use_base_url = false
@@ -376,7 +376,7 @@ args = ["--commit"]
 
 [[venues]]
 venue = "va_tribe_bundle"
-enabled = true
+enabled = false
 parser_script_name = "scripts/run_va_tribe_bundle_parser.py"
 batch_id = "batch_c"
 use_base_url = false
