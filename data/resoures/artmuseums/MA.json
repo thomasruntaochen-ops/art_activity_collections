@@ -32,14 +32,14 @@
     "event_links": [
       "https://harvardartmuseums.org/calendar"
     ],
-    "fail_implement": "Retried on 2026-03-18: calendar page still loads a client-heavy shell; hvrd.art/api resolves to an API-docs/GitHub Pages surface, and no anonymous public calendar payload with reliable upcoming datetime/category fields was confirmed."
+    "parser_script": "scripts/run_harvard_parser.py"
   },
   "Institute of Contemporary Art / Boston": {
     "city": "Boston",
     "event_links": [
       "https://www.icaboston.org/calendar/"
     ],
-    "fail_implement": "Retried on 2026-03-18: Drupal calendar HTML still mixes multiple program types and taxonomy filters, and no stable public JSON/feed endpoint with reliable upcoming datetime/category fields was identified for qualifying art-activity extraction without brittle DOM scraping."
+    "parser_script": "scripts/run_ica_boston_parser.py"
   },
   "Isabella Stewart Gardner Museum": {
     "city": "Boston",
@@ -53,7 +53,7 @@
     "event_links": [
       "https://massmoca.org/calendar/"
     ],
-    "fail_implement": "Retried on 2026-03-18: calendar page still mixes editorial/program content with WordPress event pages, and no stable machine-readable listing/feed was confirmed for reliable upcoming datetime extraction without brittle page-specific heuristics."
+    "parser_script": "scripts/run_massmoca_parser.py"
   },
   "Museum of Fine Arts, Boston": {
     "city": "Boston",
@@ -86,7 +86,7 @@
   "The Clark Art Institute": {
     "city": "Williamstown",
     "event_links": [
-      "https://www.clarkart.edu/Events/Browse-Events"
+      "https://events.clarkart.edu/"
     ],
     "parser_script": "scripts/run_clark_parser.py"
   },

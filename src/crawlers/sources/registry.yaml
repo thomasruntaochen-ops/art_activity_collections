@@ -75,7 +75,7 @@ sources:
     crawl_frequency: daily
     active: false
   - name: clark_events
-    base_url: https://www.clarkart.edu/Events/Browse-Events
+    base_url: https://events.clarkart.edu/
     adapter_type: clark_events
     crawl_frequency: daily
     active: false
@@ -87,6 +87,21 @@ sources:
   - name: fitchburg_programs
     base_url: https://fitchburgartmuseum.org/upcoming-programs/
     adapter_type: fitchburg_programs
+    crawl_frequency: daily
+    active: false
+  - name: ica_boston_calendar
+    base_url: https://www.icaboston.org/calendar/
+    adapter_type: ica_boston_calendar
+    crawl_frequency: daily
+    active: false
+  - name: harvard_calendar_listings
+    base_url: https://harvardartmuseums.org/calendar
+    adapter_type: harvard_calendar_listings
+    crawl_frequency: daily
+    active: false
+  - name: massmoca_events
+    base_url: https://massmoca.org/calendar/
+    adapter_type: massmoca_events
     crawl_frequency: daily
     active: false
   - name: ocma_calendar

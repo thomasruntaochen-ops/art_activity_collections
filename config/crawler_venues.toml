@@ -160,6 +160,33 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "ica_boston"
+state = "MA"
+enabled = true
+parser_script_name = "scripts/run_ica_boston_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "harvard"
+state = "MA"
+enabled = true
+parser_script_name = "scripts/run_harvard_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "massmoca"
+state = "MA"
+enabled = true
+parser_script_name = "scripts/run_massmoca_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "ocma"
 state = "CA"
 enabled = true

@@ -15,7 +15,7 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
-CLARK_EVENTS_URL = "https://www.clarkart.edu/Events/Browse-Events"
+CLARK_EVENTS_URL = "https://events.clarkart.edu/"
 CLARK_TIMEZONE = "America/New_York"
 CLARK_VENUE_NAME = "The Clark Art Institute"
 CLARK_CITY = "Williamstown"

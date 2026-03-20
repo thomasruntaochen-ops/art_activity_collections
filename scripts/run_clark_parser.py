@@ -24,7 +24,7 @@ from src.models.activity import Activity, Source  # noqa: E402
 
 
 DEFAULT_CACHE_DIR = Path("data") / "html" / "clark"
-CLARK_SOURCE_URL_PREFIX = "https://www.clarkart.edu/%"
+CLARK_SOURCE_URL_PREFIX = "https://events.clarkart.edu/%"
 
 
 def _write_html_cache(payload: dict, cache_dir: Path) -> list[Path]:
