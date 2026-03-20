@@ -1,0 +1,71 @@
+{
+  "American University Museum at the Katzen Arts Center": {
+    "city": "Washington",
+    "event_links": [
+      "https://www.american.edu/cas/museum/",
+      "https://www.american.edu/cas/katzen/exhibitions.cfm"
+    ]
+  },
+  "Hillwood Estate, Museum & Gardens": {
+    "city": "Washington",
+    "event_links": [
+      "https://secure.hillwoodmuseum.org/events"
+    ]
+  },
+  "Hirshhorn Museum and Sculpture Garden": {
+    "city": "Washington",
+    "event_links": [
+      "https://hirshhorn.si.edu/exhibitions-events/"
+    ]
+  },
+  "National Gallery of Art": {
+    "city": "Washington",
+    "event_links": [
+      "https://www.nga.gov/calendar.html"
+    ]
+  },
+  "National Museum of African Art": {
+    "city": "Washington",
+    "event_links": [
+      "https://africa.si.edu/organizer/national-museum-of-african-art/"
+    ]
+  },
+  "National Museum of Asian Art": {
+    "city": "Washington",
+    "event_links": [
+      "https://asia.si.edu/whats-on/events/"
+    ]
+  },
+  "National Museum of Women in the Arts": {
+    "city": "Washington",
+    "event_links": [
+      "https://nmwa.org/whats-on/calendar/"
+    ]
+  },
+  "National Portrait Gallery": {
+    "city": "Washington",
+    "event_links": [
+      "https://npg.si.edu/calendar"
+    ]
+  },
+  "Smithsonian American Art Museum": {
+    "city": "Washington",
+    "event_links": [
+      "https://americanart.si.edu/search/events",
+      "https://americanart.si.edu/visit/family-activities"
+    ]
+  },
+  "The Kreeger Museum": {
+    "city": "Washington",
+    "event_links": [
+      "https://www.kreegermuseum.org/programs/first-studio",
+      "https://www.kreegermuseum.org/programs/lichtmanseries/"
+    ]
+  },
+  "The Phillips Collection": {
+    "city": "Washington",
+    "event_links": [
+      "https://www.phillipscollection.org/events"
+    ]
+  }
+}

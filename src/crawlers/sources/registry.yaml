@@ -59,6 +59,36 @@ sources:
     adapter_type: mfa_programs_pages
     crawl_frequency: daily
     active: true
+  - name: danforth_events
+    base_url: https://danforth.framingham.edu/visit/event-calendar/
+    adapter_type: danforth_events
+    crawl_frequency: daily
+    active: false
+  - name: pem_events
+    base_url: https://www.pem.org/events
+    adapter_type: pem_events
+    crawl_frequency: daily
+    active: false
+  - name: worcester_events
+    base_url: https://www.worcesterart.org/events/
+    adapter_type: worcester_events
+    crawl_frequency: daily
+    active: false
+  - name: clark_events
+    base_url: https://www.clarkart.edu/Events/Browse-Events
+    adapter_type: clark_events
+    crawl_frequency: daily
+    active: false
+  - name: rose_programs
+    base_url: https://www.brandeis.edu/rose/programs/index.html
+    adapter_type: rose_programs
+    crawl_frequency: daily
+    active: false
+  - name: fitchburg_programs
+    base_url: https://fitchburgartmuseum.org/upcoming-programs/
+    adapter_type: fitchburg_programs
+    crawl_frequency: daily
+    active: false
   - name: ocma_calendar
     base_url: https://ocma.art/calendar/
     adapter_type: ocma_calendar

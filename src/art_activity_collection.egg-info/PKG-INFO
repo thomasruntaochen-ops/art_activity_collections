@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: art-activity-collection
 Version: 0.1.0
-Summary: Collect and serve free youth art activities
+Summary: Collect and serve youth art activities with price classification
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 Requires-Dist: fastapi>=0.115.0
@@ -10,6 +10,8 @@ Requires-Dist: sqlalchemy>=2.0.30
 Requires-Dist: pydantic>=2.8.0
 Requires-Dist: pydantic-settings>=2.3.0
 Requires-Dist: pymysql>=1.1.1
+Requires-Dist: PyJWT[crypto]>=2.9.0
+Requires-Dist: redis>=5.0.0
 Requires-Dist: httpx>=0.27.0
 Requires-Dist: beautifulsoup4>=4.12.3
 Provides-Extra: crawler
@@ -23,7 +25,7 @@ Requires-Dist: ruff>=0.5.0; extra == "dev"
 
 # Art Activity Collection
 
-Pipeline and API to collect free kids/teens art activities from museum and art center websites, store them in MySQL, and expose searchable data for web/app frontends.
+Pipeline and API to collect kids/teens art activities from museum and art center websites, store them in MySQL with free/paid/unknown price state, and expose searchable data for web/app frontends.
 
 ## Stack
 - Python 3.11+
@@ -43,6 +45,7 @@ Pipeline and API to collect free kids/teens art activities from museum and art c
 - `src/crawlers`: source adapters + extraction pipeline
 - `db`: schema and migrations
 - `scripts`: utility scripts (seed/run jobs)
+- `RAILWAY_CONFIG.md`: Railway service/variable checklist
 
 ## Quick Start
 1. Create a virtual environment and install dependencies.
@@ -55,13 +58,18 @@ Homebrew service:
 Test direct connection: 
     mysql -h 127.0.0.1 -P 3306 -u root -p
 Ensure DB exists and schema is loaded (run in project root):
-    mysql -u root -p -e 'CREATE DATABASE IF NOT EXISTS art_activity_collection;'
-    mysql -u root -p art_activity_collection < db/schema.sql
+    mysql -h 127.0.0.1 -P 3306 -u root -p -e 'CREATE DATABASE IF NOT EXISTS art_activity_collection;'
+    mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/schema_latest.sql
   
-4. Apply migration in `db/migrations/001_init.sql`.
-   - If your DB already exists from older schema, also run:
-   - `mysql -u root -p art_activity_collection < db/migrations/002_add_activity_location_text.sql`
-   - `mysql -u root -p art_activity_collection < db/migrations/003_add_venue_indexes.sql`
+4. If you already have an older database and need incremental updates, run migrations in order:
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/001_init.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/002_add_activity_location_text.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/003_add_venue_indexes.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/004_add_activity_query_indexes.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/005_allow_paid_and_unknown_activity_price.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/002_add_activity_location_text.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/003_add_venue_indexes.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/004_add_activity_query_indexes.sql`
 5. Run API:
    - `uvicorn src.main:app --reload`
 6. Run frontend:
@@ -69,6 +77,65 @@ Ensure DB exists and schema is loaded (run in project root):
    - `npm install`
    - `cp .env.local.example .env.local`
    - `npm run dev`
+
+## Railway Crawler Guard
+- Use this as crawler service start command:
+  - `bash scripts/run_crawler_guarded.sh`
+- Required env var for guard:
+  - `RUN_CRAWLER=false` (default safe mode; crawler skips)
+- Config-driven venue list:
+  - `config/crawler_venues.toml` controls enabled venues, parser script path, and `batch_id`.
+  - Edit this file to enable/disable venues (or comment out venue blocks).
+- Optional env vars for config mode:
+  - `CRAWLER_CONFIG_PATH=config/crawler_venues.toml`
+  - `CRAWLER_BATCH_ID=batch_a` (run only one batch; useful for staggered cron schedules)
+  - Preview selected venues without running: `python3 scripts/run_crawler_batch.py --batch-id batch_a --list-only`
+  - Local test run (load `.env` into shell first): `set -a; source .env; set +a; RUN_CRAWLER=true bash scripts/run_crawler_guarded.sh`
+- Optional manual override:
+  - `CRAWLER_COMMAND=python3 scripts/run_mfa_parser.py --commit` (bypasses config-driven mode)
+- Optional alert webhook:
+  - `CRAWLER_ALERT_WEBHOOK_URL=` (JSON POST when a parser returns zero rows on `--commit`)
+- Optional remote raw-html base URL:
+  - `RAWHTML_BASE_URL=` (MET auto-download path: `<RAWHTML_BASE_URL>/met/latest_events.html`)
+- To run only on cron:
+  - Keep `RUN_CRAWLER=false` for normal deploys.
+  - In Railway Cron trigger, set `RUN_CRAWLER=true` for that run.
+  - Set `CRAWLER_BATCH_ID` per cron trigger (for example `batch_a` and `batch_b`) to stagger venue runs.
+- Safety behavior:
+  - Parser scripts abort DB writes when total parsed rows are `0` on `--commit` (non-zero exit to surface failure in Railway logs/cron).
+  - Manual alert test: `python3 scripts/test_crawler_alert.py`
+  - Full Zapier setup: `ZAPIER_ALERT_SETUP.md`
+
+## Railway Service Layout
+- `mysql` service: private database.
+- `api` service: FastAPI/uvicorn public endpoint for web + mobile apps.
+- `crawler` service: cron/batch ingestion only.
+- `frontend` service: Next.js website.
+
+### `api` service
+- Start command:
+  - `bash -lc 'uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}'`
+- Required vars (project-level or service-level):
+  - `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB`
+  - or `MYSQL_DSN`
+- Security vars:
+  - `API_ALLOWED_ORIGINS=https://<frontend-domain>`
+  - `AUTH_ENABLED=true|false`
+  - `AUTH_REQUIRE_ALL_REQUESTS=true|false`
+  - `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URL` (required when `AUTH_ENABLED=true`)
+  - `REDIS_URL` (optional but recommended for shared rate limiting)
+  - `RATE_LIMIT_GUEST_PER_MINUTE`, `RATE_LIMIT_GUEST_PER_DAY`
+  - `RATE_LIMIT_USER_PER_MINUTE`, `RATE_LIMIT_USER_PER_DAY`
+
+### `frontend` service
+- Root directory: `frontend`
+- Build command:
+  - `npm ci && npm run build`
+- Start command:
+  - `npm run start`
+- Required var:
+  - `NEXT_PUBLIC_API_BASE_URL=https://<api-domain>`
+
 
 ## Current Status
 This scaffold includes:
@@ -79,21 +146,53 @@ This scaffold includes:
 
 ## MET Source Parser
 - Source URL: `https://www.metmuseum.org/events?audience=teens&price=free&type=workshopsClasses`
-- Dry run from latest saved HTML in `data/html/met` (print parsed rows only):
+- Manually download html file and save to overwrite project's `data/rawhtml/met/latest_events.html` file
+- Default cache dir: `data/rawhtml/met`
+- Optional remote base URL: set `RAWHTML_BASE_URL`, parser auto-downloads `met/latest_events.html`
+- Dry run from latest saved HTML in `data/rawhtml/met` (print parsed rows only):
   - `python3 scripts/run_met_parser.py`
 - Parse from saved HTML file (offline):
-  - `python3 scripts/run_met_parser.py --input-html data/html/met/<file>.html`
+  - `python3 scripts/run_met_parser.py --input-html data/rawhtml/met/<file>.html`
 - Parse from latest saved HTML and dump text:
   - `python3 scripts/run_met_parser.py --dump-text`
 - Commit parsed rows to MySQL:
   - `python3 scripts/run_met_parser.py --commit`
 
 ## MoMA Source Parser
-- Teens URL: `https://www.moma.org/calendar/?happening_filter=For+teens&date=2026-02-24`
-- Kids URL: `https://www.moma.org/calendar/?happening_filter=For+kids&date=2026-02-24`
+- Teens URL: `https://www.moma.org/calendar/?happening_filter=For+teens`
+- Kids URL: `https://www.moma.org/calendar/?happening_filter=For+kids`
 - Remove all existing MoMA entries from DB:
   - `python3 scripts/run_moma_parser.py --clear`
 - Parse directly from MoMA URLs (dry run):
   - `python3 scripts/run_moma_parser.py`
 - Parse directly from MoMA URLs and commit to MySQL:
   - `python3 scripts/run_moma_parser.py --commit`
+
+## Whitney Source Parser
+- URL: `https://whitney.org/events?tags[]=courses_and_workshops&tags[]=teen_events`
+- Remove all existing Whitney entries from DB:
+  - `python3 scripts/run_whitney_parser.py --clear`
+- Parse directly from Whitney URL (dry run):
+  - `python3 scripts/run_whitney_parser.py`
+- Parse from saved Whitney HTML (offline):
+  - `python3 scripts/run_whitney_parser.py --input-html data/html/whitney/<file>.html`
+- Parse directly from Whitney URL and commit to MySQL:
+  - `python3 scripts/run_whitney_parser.py --commit`
+
+## MFA Boston Source Parser
+- Pages: `https://www.mfa.org/programs?page=0` through `https://www.mfa.org/programs?page=4`
+- Notes:
+  - Parser filters out guided tour events.
+  - Parser also filters out events marked `tickets no longer available`.
+  - Venue defaults to Boston, MA.
+- Remove all existing MFA entries from DB:
+  - `python3 scripts/run_mfa_parser.py --clear`
+- Parse directly from MFA pages (dry run):
+  - `python3 scripts/run_mfa_parser.py`
+- Parse a custom page range:
+  - `python3 scripts/run_mfa_parser.py --start-page 0 --end-page 4`
+- Parse from saved MFA HTML files (offline):
+  - `python3 scripts/run_mfa_parser.py --input-html-dir data/html/mfa`
+  - expected filenames: `mfa_programs_page_0.html` ... `mfa_programs_page_4.html`
+- Parse directly from MFA pages and commit to MySQL:
+  - `python3 scripts/run_mfa_parser.py --commit`

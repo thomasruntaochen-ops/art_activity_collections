@@ -11,7 +11,7 @@
     "event_links": [
       "https://danforth.framingham.edu/visit/event-calendar/"
     ],
-    "fail_implement": "Retried on 2026-03-17: calendar page renders as CMS shell with mixed content and no stable public events API/feed exposing consistent machine-readable upcoming datetime fields for reliable parser extraction."
+    "parser_script": "scripts/run_danforth_parser.py"
   },
   "Davis Museum": {
     "city": "Wellesley",
@@ -25,35 +25,35 @@
     "event_links": [
       "https://fitchburgartmuseum.org/upcoming-programs/"
     ],
-    "fail_implement": "Retried on 2026-03-17: direct HTTP requests to the event page return 406 Not Acceptable, and while Playwright can render page HTML, no stable public machine-readable event feed/payload with reliable upcoming datetime fields was identified for robust extraction."
+    "parser_script": "scripts/run_fitchburg_parser.py"
   },
   "Harvard Art Museums": {
     "city": "Cambridge",
     "event_links": [
       "https://harvardartmuseums.org/calendar"
     ],
-    "fail_implement": "Retried on 2026-03-17: calendar route serves a client-rendered shell with no directly parseable event cards in static HTML and no documented stable public events payload endpoint suitable for reliable extraction."
+    "fail_implement": "Retried on 2026-03-18: calendar page still loads a client-heavy shell; hvrd.art/api resolves to an API-docs/GitHub Pages surface, and no anonymous public calendar payload with reliable upcoming datetime/category fields was confirmed."
   },
   "Institute of Contemporary Art / Boston": {
     "city": "Boston",
     "event_links": [
       "https://www.icaboston.org/calendar/"
     ],
-    "fail_implement": "Retried on 2026-03-17: calendar listing mixes multiple program types and relies on presentation markup without a stable public machine-readable feed endpoint guaranteeing consistent upcoming datetime/category extraction."
+    "fail_implement": "Retried on 2026-03-18: Drupal calendar HTML still mixes multiple program types and taxonomy filters, and no stable public JSON/feed endpoint with reliable upcoming datetime/category fields was identified for qualifying art-activity extraction without brittle DOM scraping."
   },
   "Isabella Stewart Gardner Museum": {
     "city": "Boston",
     "event_links": [
       "https://www.gardnermuseum.org/calendar"
     ],
-    "fail_implement": "Retried on 2026-03-17: calendar listing exposes limited teaser markup and no stable public API/feed with consistent machine-readable upcoming datetime fields for reliable parser extraction at scale."
+    "fail_implement": "Retried on 2026-03-18: the museum calendar still splits across Drupal detail pages and a separate TNEW ticketing surface, and no stable public calendar/feed endpoint was confirmed to reconcile upcoming dates and qualifying activity metadata reliably at scale."
   },
   "MASS MoCA": {
     "city": "North Adams",
     "event_links": [
       "https://massmoca.org/calendar/"
     ],
-    "fail_implement": "Retried on 2026-03-17: calendar page contains mixed editorial and event content and no stable public machine-readable events feed endpoint was confirmed for reliable upcoming datetime extraction."
+    "fail_implement": "Retried on 2026-03-18: calendar page still mixes editorial/program content with WordPress event pages, and no stable machine-readable listing/feed was confirmed for reliable upcoming datetime extraction without brittle page-specific heuristics."
   },
   "Museum of Fine Arts, Boston": {
     "city": "Boston",
@@ -67,41 +67,41 @@
     "event_links": [
       "https://newbedfordart.org/events/"
     ],
-    "fail_implement": "Retried on 2026-03-17: events page provides sparse listing markup and no stable public machine-readable API/feed exposing consistent upcoming datetime fields for reliable extraction."
+    "fail_implement": "Retried on 2026-03-18: events page still exposes mostly general site and ticketing chrome, and no reliable upcoming qualifying activity cards or public machine-readable feed with consistent datetime fields was identified."
   },
   "Peabody Essex Museum": {
     "city": "Salem",
     "event_links": [
       "https://www.pem.org/events"
     ],
-    "fail_implement": "Retried on 2026-03-17: events page payload mixes broad event types and lacks a stable documented feed endpoint with consistent machine-readable fields needed to reliably isolate qualifying art activities at scale."
+    "parser_script": "scripts/run_pem_parser.py"
   },
   "Rose Art Museum": {
     "city": "Waltham",
     "event_links": [
       "https://www.brandeis.edu/rose/programs/index.html"
     ],
-    "fail_implement": "Retried on 2026-03-17: programs page is editorial-style and does not provide a stable upcoming events feed/API with consistent machine-readable datetime fields for reliable parser extraction."
+    "parser_script": "scripts/run_rose_parser.py"
   },
   "The Clark Art Institute": {
     "city": "Williamstown",
     "event_links": [
       "https://www.clarkart.edu/Events/Browse-Events"
     ],
-    "fail_implement": "Retried on 2026-03-17 with HTTP and Playwright: events page returns Cloudflare managed challenge (HTTP 403 'Just a moment...') and no machine-readable event payload is accessible for reliable parser extraction."
+    "parser_script": "scripts/run_clark_parser.py"
   },
   "Williams College Museum of Art": {
     "city": "Williamstown",
     "event_links": [
       "https://artmuseum.williams.edu/whats-on/"
     ],
-    "fail_implement": "Retried on 2026-03-17 with HTTP and Playwright: events page returns Cloudflare managed challenge (HTTP 403 'Just a moment...') and no machine-readable event payload is accessible for reliable parser extraction."
+    "fail_implement": "Retried on 2026-03-18: events page still returns Cloudflare managed challenge (HTTP 403 'Just a moment...'), and no machine-readable event payload is accessible for reliable parser extraction."
   },
   "Worcester Art Museum": {
     "city": "Worcester",
     "event_links": [
       "https://www.worcesterart.org/events/"
     ],
-    "fail_implement": "Retried on 2026-03-17: events pages combine mixed recurring/event content and no stable public extraction contract was confirmed to reliably isolate qualifying upcoming activity records without high drift risk."
+    "parser_script": "scripts/run_worcester_parser.py"
   }
 }

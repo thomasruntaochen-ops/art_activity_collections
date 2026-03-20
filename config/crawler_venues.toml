@@ -95,6 +95,54 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "danforth"
+enabled = false
+parser_script_name = "scripts/run_danforth_parser.py"
+batch_id = "batch_a"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "pem"
+enabled = false
+parser_script_name = "scripts/run_pem_parser.py"
+batch_id = "batch_a"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "worcester"
+enabled = false
+parser_script_name = "scripts/run_worcester_parser.py"
+batch_id = "batch_a"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "clark"
+enabled = false
+parser_script_name = "scripts/run_clark_parser.py"
+batch_id = "batch_a"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "rose"
+enabled = false
+parser_script_name = "scripts/run_rose_parser.py"
+batch_id = "batch_a"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "fitchburg"
+enabled = false
+parser_script_name = "scripts/run_fitchburg_parser.py"
+batch_id = "batch_a"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "ocma"
 enabled = true
 parser_script_name = "scripts/run_ocma_parser.py"

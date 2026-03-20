@@ -1,0 +1,39 @@
+{
+  "Academy Art Museum": {
+    "city": "Easton",
+    "event_links": [
+      "https://academyartmuseum.org/education/adult/events/"
+    ]
+  },
+  "African Art Museum of Maryland": {
+    "city": "Columbia",
+    "event_links": [
+      "https://africanartmuseum.org/exhibits-events/"
+    ]
+  },
+  "Baltimore Museum of Art": {
+    "city": "Baltimore",
+    "event_links": [
+      "https://artbma.org/events"
+    ]
+  },
+  "Glenstone": {
+    "city": "Potomac",
+    "event_links": [
+      "https://www.glenstone.org/programming"
+    ]
+  },
+  "Walters Art Museum": {
+    "city": "Baltimore",
+    "event_links": [
+      "https://thewalters.org/events/"
+    ]
+  },
+  "Washington County Museum of Fine Arts": {
+    "city": "Hagerstown",
+    "event_links": [
+      "https://wcmfa.org/events/",
+      "https://wcmfa.org/learnclasses/"
+    ]
+  }
+}
