@@ -187,6 +187,15 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "new_bedford"
+state = "MA"
+enabled = true
+parser_script_name = "scripts/run_new_bedford_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "ocma"
 state = "CA"
 enabled = true
@@ -524,6 +533,42 @@ venue = "ccmoa"
 state = "MA"
 enabled = true
 parser_script_name = "scripts/run_ccmoa_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "academy_art_museum"
+state = "MD"
+enabled = false
+parser_script_name = "scripts/run_academy_art_museum_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "bma"
+state = "MD"
+enabled = false
+parser_script_name = "scripts/run_bma_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "walters"
+state = "MD"
+enabled = false
+parser_script_name = "scripts/run_walters_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "wcmfa"
+state = "MD"
+enabled = false
+parser_script_name = "scripts/run_wcmfa_parser.py"
 batch_id = "batch_d"
 use_base_url = false
 args = ["--commit"]

@@ -104,6 +104,11 @@ sources:
     adapter_type: massmoca_events
     crawl_frequency: daily
     active: false
+  - name: new_bedford_events
+    base_url: https://newbedfordart.org/events/
+    adapter_type: new_bedford_events
+    crawl_frequency: daily
+    active: false
   - name: ocma_calendar
     base_url: https://ocma.art/calendar/
     adapter_type: ocma_calendar
@@ -342,5 +347,25 @@ sources:
   - name: ccmoa_events
     base_url: https://www.ccmoa.org/upcoming-events
     adapter_type: ccmoa_events
+    crawl_frequency: daily
+    active: false
+  - name: academy_art_museum_events
+    base_url: https://academyartmuseum.org/education/adult/events/
+    adapter_type: academy_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: bma_events
+    base_url: https://artbma.org/events
+    adapter_type: bma_events
+    crawl_frequency: daily
+    active: false
+  - name: walters_events
+    base_url: https://thewalters.org/events/
+    adapter_type: walters_events
+    crawl_frequency: daily
+    active: false
+  - name: wcmfa_events
+    base_url: https://wcmfa.org/events/
+    adapter_type: wcmfa_events
     crawl_frequency: daily
     active: false

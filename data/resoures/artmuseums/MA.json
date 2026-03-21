@@ -67,7 +67,7 @@
     "event_links": [
       "https://newbedfordart.org/events/"
     ],
-    "fail_implement": "Retried on 2026-03-18: events page still exposes mostly general site and ticketing chrome, and no reliable upcoming qualifying activity cards or public machine-readable feed with consistent datetime fields was identified."
+    "parser_script": "scripts/run_new_bedford_parser.py"
   },
   "Peabody Essex Museum": {
     "city": "Salem",

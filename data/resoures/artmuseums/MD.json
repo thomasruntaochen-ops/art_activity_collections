@@ -3,37 +3,42 @@
     "city": "Easton",
     "event_links": [
       "https://academyartmuseum.org/education/adult/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_academy_art_museum_parser.py"
   },
   "African Art Museum of Maryland": {
     "city": "Columbia",
     "event_links": [
       "https://africanartmuseum.org/exhibits-events/"
-    ]
+    ],
+    "failed_test_comment": "As of March 19, 2026, the official Exhibits/Events page lists one dated item from September 20, 2025 plus past events, so a dry run would parse 0 upcoming rows from the current first-party page."
   },
   "Baltimore Museum of Art": {
     "city": "Baltimore",
     "event_links": [
       "https://artbma.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_bma_parser.py"
   },
   "Glenstone": {
     "city": "Potomac",
     "event_links": [
       "https://www.glenstone.org/programming"
-    ]
+    ],
+    "fail_implement": "As of March 19, 2026, the official programming page exposes only undated recurring blurbs, and a Playwright-loaded visit.glenstone.org/events session surfaces general admission tickets rather than program-specific dated art activities, so there is no stable first-party event feed to parse."
   },
   "Walters Art Museum": {
     "city": "Baltimore",
     "event_links": [
       "https://thewalters.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_walters_parser.py"
   },
   "Washington County Museum of Fine Arts": {
     "city": "Hagerstown",
     "event_links": [
-      "https://wcmfa.org/events/",
-      "https://wcmfa.org/learnclasses/"
-    ]
+      "https://wcmfa.org/events/"
+    ],
+    "parser_script": "scripts/run_wcmfa_parser.py"
   }
 }
