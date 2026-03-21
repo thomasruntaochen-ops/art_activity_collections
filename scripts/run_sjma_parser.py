@@ -22,6 +22,7 @@ from src.crawlers.adapters.sjma import fetch_sjma_calendar_bundle  # noqa: E402
 from src.crawlers.adapters.sjma import parse_sjma_events_html  # noqa: E402
 from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
 from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
+from src.crawlers.pipeline.clear_utils import lookup_venue_ids  # noqa: E402
 from src.db.session import SessionLocal  # noqa: E402
 from src.models.activity import Activity  # noqa: E402
 from src.models.activity import Source  # noqa: E402
@@ -98,6 +99,11 @@ def clear_sjma_entries() -> dict[str, int]:
     deleted_sources = 0
 
     with SessionLocal() as db:
+        venue_ids = lookup_venue_ids(
+            db,
+            [("San Jose Museum of Art", "San Jose", "CA")],
+        )
+
         source_ids = db.scalars(
             select(Source.id).where(
                 or_(
@@ -110,6 +116,8 @@ def clear_sjma_entries() -> dict[str, int]:
         activity_filter = Activity.source_url.like(SJMA_SOURCE_URL_PREFIX)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
+        if venue_ids:
+            activity_filter = or_(activity_filter, Activity.venue_id.in_(venue_ids))
 
         activity_ids = db.scalars(select(Activity.id).where(activity_filter)).all()
 

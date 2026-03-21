@@ -12,15 +12,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.crawlers.adapters.clark import CLARK_CITY  # noqa: E402
 from src.crawlers.adapters.clark import CLARK_DEFAULT_SCROLL_ROUNDS  # noqa: E402
 from src.crawlers.adapters.clark import CLARK_EVENTS_URL  # noqa: E402
+from src.crawlers.adapters.clark import CLARK_STATE  # noqa: E402
+from src.crawlers.adapters.clark import CLARK_VENUE_NAME  # noqa: E402
 from src.crawlers.adapters.clark import load_clark_events_payload  # noqa: E402
 from src.crawlers.adapters.clark import parse_clark_events_payload  # noqa: E402
 from src.crawlers.pipeline.script_runner import EmptyCommitGuard  # noqa: E402
 from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
 from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
 from src.db.session import SessionLocal  # noqa: E402
-from src.models.activity import Activity, Source  # noqa: E402
+from src.models.activity import Activity, Source, Venue  # noqa: E402
 
 
 DEFAULT_CACHE_DIR = Path("data") / "html" / "clark"
@@ -57,6 +60,14 @@ def clear_clark_entries() -> dict[str, int]:
     deleted_sources = 0
 
     with SessionLocal() as db:
+        venue_ids = db.scalars(
+            select(Venue.id).where(
+                Venue.name == CLARK_VENUE_NAME,
+                Venue.city == CLARK_CITY,
+                Venue.state == CLARK_STATE,
+            )
+        ).all()
+
         source_ids = db.scalars(
             select(Source.id).where(
                 or_(
@@ -66,11 +77,13 @@ def clear_clark_entries() -> dict[str, int]:
             )
         ).all()
 
-        activity_filter = Activity.source_url.like(CLARK_SOURCE_URL_PREFIX)
+        activity_filters = [Activity.source_url.like(CLARK_SOURCE_URL_PREFIX)]
         if source_ids:
-            activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
+            activity_filters.append(Activity.source_id.in_(source_ids))
+        if venue_ids:
+            activity_filters.append(Activity.venue_id.in_(venue_ids))
 
-        activity_ids = db.scalars(select(Activity.id).where(activity_filter)).all()
+        activity_ids = db.scalars(select(Activity.id).where(or_(*activity_filters))).all()
         if activity_ids:
             delete_tags_stmt = text(
                 "DELETE FROM activity_tags WHERE activity_id IN :activity_ids"
