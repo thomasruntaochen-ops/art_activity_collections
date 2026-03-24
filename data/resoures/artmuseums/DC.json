@@ -3,67 +3,78 @@
     "city": "Washington",
     "event_links": [
       "https://www.american.edu/cas/museum/events.cfm"
-    ]
+    ],
+    "fail_implement": "Official events page is blocked by a Cloudflare managed challenge in direct HTTP and Playwright browser runs, so no stable unauthenticated HTML or JSON event feed is available from this environment."
   },
   "Hillwood Estate, Museum & Gardens": {
     "city": "Washington",
     "event_links": [
       "https://hillwoodmuseum.org/events"
-    ]
+    ],
+    "fail_implement": "Official events pages mix large archives with current cards, and the accessible upcoming family-tagged rows resolve to excluded writing, talk, or tour content rather than reliable kid/teen art-activity listings."
   },
   "Hirshhorn Museum and Sculpture Garden": {
     "city": "Washington",
     "event_links": [
       "https://hillwoodmuseum.org/events",
       "https://hirshhorn.si.edu/explore/teen-studio/"
-    ]
+    ],
+    "parser_script": "scripts/run_dc_tribe_bundle_parser.py"
   },
   "National Gallery of Art": {
     "city": "Washington",
     "event_links": [
-      "https://www.nga.gov/calendar?type[103021]=103021&type[103041]=103041&tab=all"
-    ]
+      "https://www.nga.gov/calendar"
+    ],
+    "parser_script": "scripts/run_nga_parser.py"
   },
   "National Museum of African Art": {
     "city": "Washington",
     "event_links": [
       "https://africa.si.edu/events"
-    ]
+    ],
+    "fail_implement": "Official events page renders only a calendar shell and breadcrumb in accessible HTML, and no stable public JSON or dated event listing was exposed from the page."
   },
   "National Museum of Asian Art": {
     "city": "Washington",
     "event_links": [
       "https://asia.si.edu/whats-on/events/search/"
-    ]
+    ],
+    "parser_script": "scripts/run_dc_html_bundle_parser.py"
   },
   "National Museum of Women in the Arts": {
     "city": "Washington",
     "event_links": [
       "https://nmwa.org/whats-on/calendar/"
-    ]
+    ],
+    "fail_implement": "Main calendar page is a JS shell and the official secure calendar endpoint returns no server-rendered event records; no stable public JSON feed was identified for upcoming activities."
   },
   "National Portrait Gallery": {
     "city": "Washington",
     "event_links": [
       "https://npg.si.edu/calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_dc_html_bundle_parser.py"
   },
   "Smithsonian American Art Museum": {
     "city": "Washington",
     "event_links": [
       "https://americanart.si.edu/search/events"
-    ]
+    ],
+    "parser_script": "scripts/run_saam_parser.py"
   },
   "The Kreeger Museum": {
     "city": "Washington",
     "event_links": [
       "https://www.kreegermuseum.org/programs/first-studio"
-    ]
+    ],
+    "parser_script": "scripts/run_dc_html_bundle_parser.py"
   },
   "The Phillips Collection": {
     "city": "Washington",
     "event_links": [
       "https://www.phillipscollection.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_dc_html_bundle_parser.py"
   }
 }

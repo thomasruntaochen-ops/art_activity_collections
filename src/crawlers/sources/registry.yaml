@@ -239,6 +239,11 @@ sources:
     adapter_type: aldrich_calendar
     crawl_frequency: daily
     active: false
+  - name: saam_family_events
+    base_url: https://americanart.si.edu/search/events?content_type=event&event_categories%5B%5D=2616&locations%5B%5D=1558
+    adapter_type: saam_events
+    crawl_frequency: daily
+    active: false
   - name: lyman_allyn_events
     base_url: https://www.lymanallyn.org/events/
     adapter_type: lyman_allyn_events
@@ -247,6 +252,11 @@ sources:
   - name: nbmaa_events
     base_url: https://secure.nbmaa.org/events
     adapter_type: nbmaa_events
+    crawl_frequency: daily
+    active: false
+  - name: nga_calendar
+    base_url: https://www.nga.gov/calendar
+    adapter_type: nga_calendar
     crawl_frequency: daily
     active: false
   - name: slater_events

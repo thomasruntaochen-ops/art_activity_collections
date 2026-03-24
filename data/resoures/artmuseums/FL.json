@@ -1,0 +1,65 @@
+{
+  "Institute of Contemporary Art, Miami": {
+    "city": "Miami",
+    "event_links": [
+      "https://icamiami.org/calendar/"
+    ]
+  },
+  "Museum of Contemporary Art, North Miami": {
+    "city": "North Miami",
+    "event_links": [
+      "https://www.mocanomi.org/events"
+    ]
+  },
+  "Norton Museum of Art": {
+    "city": "West Palm Beach",
+    "event_links": [
+      "https://www.norton.org/programs/family_programs",
+      "https://www.norton.org/programs/art-education",
+      "https://www.norton.org/programs/speakers"
+    ]
+  },
+  "Orlando Museum of Art": {
+    "city": "Orlando",
+    "event_links": [
+      "https://omart.org/events/"
+    ]
+  },
+  "Prez Art Museum Miami": {
+    "city": "Miami",
+    "event_links": [
+      "https://www.pamm.org/en/events/"
+    ]
+  },
+  "Rollins Museum of Art": {
+    "city": "Winter Park",
+    "event_links": [
+      "https://www.rollins.edu/rma/learn/families/",
+      "https://www.rollins.edu/rma/learn/lectures-tours/"
+    ]
+  },
+  "Samuel P. Harn Museum of Art": {
+    "city": "Gainesville",
+    "event_links": [
+      "https://harn.ufl.edu/calendar/"
+    ]
+  },
+  "Tampa Museum of Art": {
+    "city": "Tampa",
+    "event_links": [
+      "https://tampamuseum.org/events/"
+    ]
+  },
+  "The Bass": {
+    "city": "Miami Beach",
+    "event_links": [
+      "https://thebass.org/events/"
+    ]
+  },
+  "The Dali Museum": {
+    "city": "St. Petersburg",
+    "event_links": [
+      "https://thedali.org/events/category/featured/"
+    ]
+  }
+}
