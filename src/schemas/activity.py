@@ -40,3 +40,15 @@ class ActivityFilterOptions(BaseModel):
     venues: list[str]
     states: list[str]
     cities: list[str]
+
+
+class VenueSummaryRead(BaseModel):
+    venue_name: str
+    venue_address: str | None
+    venue_city: str | None
+    venue_state: str | None
+    venue_zip: str | None
+    venue_lat: float | None
+    venue_lng: float | None
+    activity_count: int
+    next_activity_at: datetime | None

@@ -1,244 +1,483 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityTable } from "../components/activity-table";
-import { fetchActivities, fetchFilterOptions } from "../lib/api";
-import { Activity, ActivityFilterOptions } from "../lib/types";
+import type { CSSProperties } from "react";
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useState } from "react";
+import { fetchActivities, fetchFilterOptions, fetchVenueSummaries } from "../lib/api";
+import { getVenueMedia } from "../lib/venue-media";
+import { Activity, VenueSummary } from "../lib/types";
 
-function formatDateInput(date: Date): string {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
+const NAV_ITEMS = ["Exhibitions", "Map Explorer", "Activities", "Member Portal"];
+type MapViewportMode = "fit" | "focus";
+
+function hashString(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
 }
 
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+function formatDateLabel(value: string | null): string {
+  if (!value) return "Date pending";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
+
+function formatActivityTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatVenueLine(venue: VenueSummary | null): string {
+  if (!venue) return "No venue selected";
+  const cityStateZip = [venue.venue_city, venue.venue_state, venue.venue_zip].filter(Boolean).join(" ");
+  if (venue.venue_address) {
+    return [venue.venue_address, cityStateZip].filter(Boolean).join(", ");
+  }
+  const parts = [venue.venue_city, venue.venue_state, venue.venue_zip].filter(Boolean);
+  return parts.join(", ") || "Location pending";
+}
+
+function buildVenueDestination(venue: VenueSummary | null): string {
+  if (!venue) return "";
+  if (venue.venue_lat !== null && venue.venue_lng !== null) {
+    return `${venue.venue_lat},${venue.venue_lng}`;
+  }
+  const parts = [venue.venue_name, venue.venue_address, venue.venue_city, venue.venue_state].filter(Boolean);
+  return parts.join(", ");
+}
+
+function buildGoogleDirectionsUrl(destination: string): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+}
+
+function buildAppleDirectionsUrl(destination: string): string {
+  return `https://maps.apple.com/?daddr=${encodeURIComponent(destination)}&dirflg=d`;
+}
+
+function buildWazeDirectionsUrl(destination: string): string {
+  return `https://waze.com/ul?q=${encodeURIComponent(destination)}&navigate=yes`;
+}
+
+function buildHeroStyle(seed: string, imageUrl?: string | null): CSSProperties {
+  const hue = hashString(seed) % 360;
+  const secondaryHue = (hue + 42) % 360;
+  const layers = [
+    "linear-gradient(180deg, rgba(15, 12, 8, 0.18), rgba(15, 12, 8, 0.72))",
+    `radial-gradient(circle at 18% 20%, hsla(${hue}, 90%, 72%, 0.5), transparent 32%)`,
+    `radial-gradient(circle at 82% 18%, hsla(${secondaryHue}, 78%, 78%, 0.42), transparent 28%)`,
+  ];
+  if (imageUrl) {
+    layers.push(`url("${imageUrl}")`);
+  } else {
+    layers.push(`linear-gradient(135deg, hsl(${hue}, 42%, 22%), hsl(${secondaryHue}, 36%, 12%))`);
+  }
+  return {
+    backgroundImage: layers.join(", "),
+    backgroundSize: imageUrl ? "auto, auto, auto, cover" : "auto",
+    backgroundPosition: imageUrl ? "center, center, center, center" : "center",
+    backgroundRepeat: imageUrl ? "no-repeat, no-repeat, no-repeat, no-repeat" : "no-repeat",
+  };
+}
+
+function buildTodayStartIso(): string {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return todayStart.toISOString();
+}
+
+const VenueMap = dynamic(
+  () => import("../components/venue-map").then((module) => module.VenueMap),
+  {
+    ssr: false,
+    loading: () => <div className="venue-map__loading">Loading interactive map...</div>,
+  },
+);
 
 export default function HomePage() {
-  const [dateBounds, setDateBounds] = useState<{
-    defaultFrom: string;
-    defaultTo: string;
-    minFrom: string;
-  } | null>(null);
-  const [age, setAge] = useState<string>("");
-  const [dropIn, setDropIn] = useState<string>("");
-  const [venue, setVenue] = useState<string>("");
-  const [city, setCity] = useState<string>("");
-  const [state, setState] = useState<string>("");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [allOptions, setAllOptions] = useState<ActivityFilterOptions>({
-    venues: [],
-    states: [],
-    cities: [],
-  });
-  const [venueOptions, setVenueOptions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [venues, setVenues] = useState<VenueSummary[]>([]);
   const [stateOptions, setStateOptions] = useState<string[]>([]);
-  const [cityOptions, setCityOptions] = useState<string[]>([]);
-  const optionsRequestIdRef = useRef(0);
-
-  const summary = useMemo(() => `Showing ${activities.length} activity rows`, [activities.length]);
-
-  useEffect(() => {
-    const today = new Date();
-    const nextBounds = {
-      defaultFrom: formatDateInput(today),
-      defaultTo: formatDateInput(addDays(today, 30)),
-      minFrom: formatDateInput(addDays(today, -3)),
-    };
-    setDateBounds(nextBounds);
-    setDateFrom(nextBounds.defaultFrom);
-    setDateTo(nextBounds.defaultTo);
-  }, []);
+  const [selectedVenueName, setSelectedVenueName] = useState("");
+  const [selectedState, setSelectedState] = useState("");
+  const [searchValue, setSearchValue] = useState("");
+  const [selectedActivities, setSelectedActivities] = useState<Activity[]>([]);
+  const [activityError, setActivityError] = useState("");
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [directionsOpen, setDirectionsOpen] = useState(false);
+  const [mapViewportMode, setMapViewportMode] = useState<MapViewportMode>("fit");
+  const todayStartIso = useMemo(() => buildTodayStartIso(), []);
 
   useEffect(() => {
-    const loadInitialOptions = async () => {
+    let cancelled = false;
+
+    async function loadExplorer() {
+      setLoading(true);
+      setError("");
       try {
-        const options = await fetchFilterOptions();
-        setAllOptions(options);
-        setVenueOptions(options.venues);
-        setStateOptions(options.states);
-        setCityOptions(options.cities);
-      } catch {
-        setAllOptions({ venues: [], states: [], cities: [] });
-        setVenueOptions([]);
-        setStateOptions([]);
-        setCityOptions([]);
+        const [venueRows, filterOptions] = await Promise.all([
+          fetchVenueSummaries({ limit: 150, date_from: todayStartIso }),
+          fetchFilterOptions(),
+        ]);
+        if (cancelled) return;
+        setVenues(venueRows);
+        setStateOptions(filterOptions.states);
+        setSelectedVenueName(venueRows[0]?.venue_name ?? "");
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Unable to load venue explorer");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
+    }
+
+    loadExplorer();
+    return () => {
+      cancelled = true;
     };
-    loadInitialOptions();
-  }, []);
+  }, [todayStartIso]);
+
+  const filteredVenues = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+    return venues.filter((venue) => {
+      const matchesState = selectedState ? venue.venue_state === selectedState : true;
+      const searchText = [venue.venue_name, venue.venue_city, venue.venue_state]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const matchesSearch = query ? searchText.includes(query) : true;
+      return matchesState && matchesSearch;
+    });
+  }, [searchValue, selectedState, venues]);
 
   useEffect(() => {
-    if (
-      allOptions.venues.length === 0 &&
-      allOptions.states.length === 0 &&
-      allOptions.cities.length === 0
-    ) {
+    setMapViewportMode("fit");
+  }, [selectedState, searchValue]);
+
+  useEffect(() => {
+    if (filteredVenues.length === 0) {
+      if (selectedVenueName) {
+        setSelectedVenueName("");
+      }
+      return;
+    }
+    if (!filteredVenues.some((venue) => venue.venue_name === selectedVenueName)) {
+      setSelectedVenueName(filteredVenues[0].venue_name);
+    }
+  }, [filteredVenues, selectedVenueName]);
+
+  function handleSelectVenue(venueName: string) {
+    setSelectedVenueName(venueName);
+    setMapViewportMode("focus");
+  }
+
+  const selectedVenue = useMemo(
+    () => filteredVenues.find((venue) => venue.venue_name === selectedVenueName) ?? null,
+    [filteredVenues, selectedVenueName],
+  );
+
+  useEffect(() => {
+    if (!selectedVenueName) {
+      setSelectedActivities([]);
+      setActivityError("");
+      setDirectionsOpen(false);
       return;
     }
 
-    const requestId = optionsRequestIdRef.current + 1;
-    optionsRequestIdRef.current = requestId;
+    let cancelled = false;
 
-    const loadDependentOptions = async () => {
+    async function loadVenueActivities() {
+      setActivityLoading(true);
+      setActivityError("");
       try {
-        const [stateScoped, cityScoped, combinedScoped] = await Promise.all([
-          state ? fetchFilterOptions({ state }) : Promise.resolve(allOptions),
-          city ? fetchFilterOptions({ city }) : Promise.resolve(allOptions),
-          state || city ? fetchFilterOptions({ state: state || undefined, city: city || undefined }) : Promise.resolve(allOptions),
-        ]);
-
-        if (optionsRequestIdRef.current !== requestId) {
-          return;
+        const rows = await fetchActivities({
+          venue: selectedVenueName,
+          date_from: todayStartIso,
+        });
+        if (cancelled) return;
+        setSelectedActivities(rows);
+      } catch (err) {
+        if (cancelled) return;
+        setActivityError(err instanceof Error ? err.message : "Unable to load venue activities");
+        setSelectedActivities([]);
+      } finally {
+        if (!cancelled) {
+          setActivityLoading(false);
         }
-
-        const nextCityOptions = state ? stateScoped.cities : allOptions.cities;
-        const nextStateOptions = city ? cityScoped.states : allOptions.states;
-        const nextVenueOptions = state || city ? combinedScoped.venues : allOptions.venues;
-
-        setCityOptions(nextCityOptions);
-        setStateOptions(nextStateOptions);
-        setVenueOptions(nextVenueOptions);
-
-        setCity((current) => (current && !nextCityOptions.includes(current) ? "" : current));
-        setState((current) => (current && !nextStateOptions.includes(current) ? "" : current));
-        setVenue((current) => (current && !nextVenueOptions.includes(current) ? "" : current));
-      } catch {
-        if (optionsRequestIdRef.current !== requestId) {
-          return;
-        }
-        setCityOptions(allOptions.cities);
-        setStateOptions(allOptions.states);
-        setVenueOptions(allOptions.venues);
       }
-    };
-
-    loadDependentOptions();
-  }, [allOptions, city, state]);
-
-  async function onSearch() {
-    setLoading(true);
-    setError("");
-    try {
-      const rows = await fetchActivities({
-        age: age ? Number(age) : undefined,
-        drop_in: dropIn === "" ? undefined : dropIn === "true",
-        venue: venue || undefined,
-        city: city || undefined,
-        state: state || undefined,
-        date_from: dateFrom ? new Date(`${dateFrom}T00:00:00`).toISOString() : undefined,
-        date_to: dateTo ? new Date(`${dateTo}T23:59:59`).toISOString() : undefined,
-      });
-      setActivities(rows);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
     }
-  }
+
+    loadVenueActivities();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedVenueName, todayStartIso]);
+
+  useEffect(() => {
+    setDirectionsOpen(false);
+  }, [selectedVenueName]);
+
+  const heroActivity = selectedActivities[0] ?? null;
+  const selectedVenueMedia = getVenueMedia(selectedVenue?.venue_name);
+  const activityCountLabel = selectedVenue ? `${selectedVenue.activity_count} live programs` : "0 programs";
+  const selectedLocation = formatVenueLine(selectedVenue);
+  const visibleVenueCount = filteredVenues.length;
+  const stateLabel = selectedState || "All states";
+  const selectedDestination = buildVenueDestination(selectedVenue);
+  const googleDirectionsUrl = selectedDestination ? buildGoogleDirectionsUrl(selectedDestination) : "";
+  const appleDirectionsUrl = selectedDestination ? buildAppleDirectionsUrl(selectedDestination) : "";
+  const wazeDirectionsUrl = selectedDestination ? buildWazeDirectionsUrl(selectedDestination) : "";
+  const heroCardHref = heroActivity?.source_url ?? "";
 
   return (
-    <main className="container">
-      <header>
-        <h1>Art Activity Collection</h1>
-        <p>kids/teen art activities</p>
+    <main className="explorer-shell">
+      <header className="explorer-topbar">
+        <div className="explorer-brand">The Digital Curator</div>
+        <nav className="explorer-topnav" aria-label="Primary">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`explorer-topnav__item${item === "Map Explorer" ? " is-active" : ""}`}
+            >
+              {item}
+            </button>
+          ))}
+        </nav>
+        <div className="explorer-toolbar">
+          <label className="explorer-search">
+            <span className="sr-only">Search venues</span>
+            <input
+              type="search"
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
+              placeholder="Search museums or cities..."
+            />
+          </label>
+          <select value={selectedState} onChange={(event) => setSelectedState(event.target.value)}>
+            <option value="">All states</option>
+            {stateOptions.map((state) => (
+              <option key={state} value={state}>
+                {state}
+              </option>
+            ))}
+          </select>
+        </div>
       </header>
 
-      <section className="filters">
-        <label>
-          Age
-          <input
-            type="number"
-            min={0}
-            max={120}
-            value={age}
-            onChange={(e) => setAge(e.target.value)}
-          />
-        </label>
+      <section className="explorer-content">
+        <aside className="explorer-sidebar">
+          <div className="explorer-sidebar__heading">
+            <h1>Venue Explorer</h1>
+            <p>{visibleVenueCount} museums with active kid and teen programs</p>
+          </div>
 
-        <label>
-          Drop-in
-          <select value={dropIn} onChange={(e) => setDropIn(e.target.value)}>
-            <option value="">Any</option>
-            <option value="true">Yes</option>
-            <option value="false">No</option>
-          </select>
-        </label>
+          <div className="explorer-menu">
+            <button type="button" className="explorer-menu__item">
+              <span className="explorer-menu__dot" />
+              Current Galleries
+            </button>
+            <button type="button" className="explorer-menu__item">
+              <span className="explorer-menu__dot" />
+              Daily Schedule
+            </button>
+            <button type="button" className="explorer-menu__item is-active">
+              <span className="explorer-menu__dot" />
+              Museum Guide
+            </button>
+            <button type="button" className="explorer-menu__item">
+              <span className="explorer-menu__dot" />
+              Saved Spots
+            </button>
+          </div>
 
-        <label>
-          Venue
-          <select value={venue} onChange={(e) => setVenue(e.target.value)}>
-            <option value="">Any</option>
-            {venueOptions.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="explorer-sidebar__list">
+            <div className="explorer-sidebar__list-head">
+              <span>{stateLabel}</span>
+              <span>{visibleVenueCount} visible</span>
+            </div>
 
-        <label>
-          City
-          <select value={city} onChange={(e) => setCity(e.target.value)}>
-            <option value="">Any</option>
-            {cityOptions.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
+            {loading ? <p className="status-note">Loading venues...</p> : null}
+            {error ? <p className="status-note is-error">{error}</p> : null}
+            {!loading && !error && filteredVenues.length === 0 ? (
+              <p className="status-note">No venues match this filter.</p>
+            ) : null}
 
-        <label>
-          State
-          <select value={state} onChange={(e) => setState(e.target.value)}>
-            <option value="">Any</option>
-            {stateOptions.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
+            {filteredVenues.slice(0, 12).map((venue) => {
+              const isActive = venue.venue_name === selectedVenueName;
+              return (
+                <button
+                  key={venue.venue_name}
+                  type="button"
+                  className={`venue-card${isActive ? " is-active" : ""}`}
+                  onClick={() => handleSelectVenue(venue.venue_name)}
+                >
+                  <span className="venue-card__title">{venue.venue_name}</span>
+                  <span className="venue-card__meta">
+                    {[venue.venue_city, venue.venue_state].filter(Boolean).join(", ") || "Location pending"}
+                  </span>
+                  <span className="venue-card__count">{venue.activity_count} programs</span>
+                </button>
+              );
+            })}
+          </div>
 
-        <label>
-          Date From
-          <input
-            type="date"
-            min={dateBounds?.minFrom}
-            value={dateFrom}
-            onChange={(e) =>
-              setDateFrom(
-                dateBounds && e.target.value < dateBounds.minFrom ? dateBounds.minFrom : e.target.value,
-              )
-            }
-          />
-        </label>
+          <button type="button" className="explorer-cta">
+            Build Family Route
+          </button>
+        </aside>
 
-        <label>
-          Date To
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </label>
+        <section className="explorer-map">
+          <div className="explorer-map__frame">
+            <div className="explorer-map__surface is-live">
+              <VenueMap
+                venues={filteredVenues}
+                selectedVenueName={selectedVenueName}
+                viewportMode={mapViewportMode}
+                onSelectVenue={handleSelectVenue}
+              />
+            </div>
+          </div>
+        </section>
 
-        <button onClick={onSearch} disabled={loading}>
-          {loading ? "Loading..." : "Search"}
-        </button>
+        <aside className="explorer-detail">
+          <p className="eyebrow">Selected Venue</p>
+          <h2>{selectedVenue?.venue_name ?? "Select a museum"}</h2>
+          <p className="explorer-detail__location">{selectedLocation}</p>
+
+          <div className="explorer-metrics">
+            <div>
+              <span className="explorer-metrics__label">Programs</span>
+              <strong>{activityCountLabel}</strong>
+            </div>
+            <div>
+              <span className="explorer-metrics__label">Next Date</span>
+              <strong>{formatDateLabel(selectedVenue?.next_activity_at ?? null)}</strong>
+            </div>
+          </div>
+
+          {selectedVenue ? (
+            <div className="explorer-detail__section">
+              <div className="explorer-detail__section-head">
+                <h3>Directions</h3>
+                <button
+                  type="button"
+                  className="directions-toggle"
+                  onClick={() => setDirectionsOpen((current) => !current)}
+                >
+                  {directionsOpen ? "Hide" : "Get directions"}
+                </button>
+              </div>
+
+              {directionsOpen ? (
+              <div className="directions-links">
+                  <a
+                    className="directions-link"
+                    href={googleDirectionsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Google Maps
+                  </a>
+                  <a
+                    className="directions-link"
+                    href={appleDirectionsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Apple Maps
+                  </a>
+                  <a
+                    className="directions-link"
+                    href={wazeDirectionsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Waze
+                  </a>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {heroCardHref ? (
+            <a
+              className="hero-card hero-card--link"
+              style={buildHeroStyle(heroActivity?.title ?? selectedVenue?.venue_name ?? "museum", selectedVenueMedia?.image_path)}
+              href={heroCardHref}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <div className="hero-card__overlay">
+                <span className="hero-card__label">Program Highlight</span>
+                <h3>{heroActivity?.title ?? "Select a venue to review its live activity feed"}</h3>
+                <p>{`${formatActivityTime(heroActivity.start_at)} • ${heroActivity.activity_type ?? "Museum activity"}`}</p>
+              </div>
+            </a>
+          ) : (
+            <div
+              className="hero-card"
+              style={buildHeroStyle(heroActivity?.title ?? selectedVenue?.venue_name ?? "museum", selectedVenueMedia?.image_path)}
+            >
+              <div className="hero-card__overlay">
+                <span className="hero-card__label">Program Highlight</span>
+                <h3>{heroActivity?.title ?? "Select a venue to review its live activity feed"}</h3>
+                <p>
+                  {heroActivity
+                    ? `${formatActivityTime(heroActivity.start_at)} • ${heroActivity.activity_type ?? "Museum activity"}`
+                    : "This panel now uses a local museum image when one is available, with a high-contrast fade overlay for readability."}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="explorer-detail__section">
+            <div className="explorer-detail__section-head">
+              <h3>Upcoming Activities</h3>
+              <span>{activityLoading ? "Updating..." : `${selectedActivities.length} loaded`}</span>
+            </div>
+
+            {activityError ? <p className="status-note is-error">{activityError}</p> : null}
+            {!activityError && !activityLoading && selectedActivities.length === 0 ? (
+              <p className="status-note">No activities available for this venue.</p>
+            ) : null}
+
+            {selectedActivities.length > 0 ? (
+              <div className="activity-list">
+                {selectedActivities.map((activity) => (
+                  <a
+                    key={activity.id}
+                    className="activity-listing"
+                    href={activity.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span className="activity-listing__title">{activity.title}</span>
+                    <span className="activity-listing__meta">
+                      {formatActivityTime(activity.start_at)} • {activity.activity_type ?? "Activity"}
+                    </span>
+                  </a>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </aside>
       </section>
-
-      <section className="summary">
-        <span>{summary}</span>
-        {error ? <span className="error">Error: {error}</span> : null}
-      </section>
-
-      <ActivityTable activities={activities} />
     </main>
   );
 }

@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     crawler_batch_id: str | None = None
     rawhtml_base_url: str | None = None
 
+    geocoding_enabled: bool = True
+    geocoding_user_agent: str = "art-activity-collection/0.1 (local venue geocoder)"
+    geocoding_nominatim_url: str = "https://nominatim.openstreetmap.org/search"
+    geocoding_timeout_seconds: float = 15.0
+    geocoding_min_interval_seconds: float = 1.0
+
     model_config = SettingsConfigDict(
         env_file=str(PROJECT_ROOT / ".env"),
         env_file_encoding="utf-8",

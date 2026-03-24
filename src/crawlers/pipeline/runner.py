@@ -8,6 +8,7 @@ from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.extractors.hardcoded import extract_from_event_page
 from src.db.session import SessionLocal
 from src.models.activity import Activity, FreeVerificationStatus, Source, Venue
+from src.services.venue_geocoding import populate_venue_geocodes
 
 _UPSERT_BATCH_SIZE = 500
 
@@ -50,6 +51,16 @@ def _normalize_optional_text(value: str | None) -> str | None:
 def _normalize_state(value: str | None) -> str | None:
     text = _normalize_optional_text(value)
     return text.upper() if text is not None else None
+
+
+def _normalize_website(value: str | None) -> str | None:
+    text = _normalize_optional_text(value)
+    if text is None:
+        return None
+    parsed = urlparse(text)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
 
 
 def _venue_key_for(
@@ -97,8 +108,14 @@ def _has_meaningful_activity_change(
     )
 
 
-def _resolve_venues(db, extracted: list[ExtractedActivity]) -> dict[tuple[str, str | None, str | None], Venue]:
+def _resolve_venues(
+    db,
+    extracted: list[ExtractedActivity],
+    *,
+    website_url: str | None = None,
+) -> dict[tuple[str, str | None, str | None], Venue]:
     desired_venues: dict[tuple[str, str | None, str | None], str | None] = {}
+    normalized_website = _normalize_website(website_url)
     for item in extracted:
         venue_key = _venue_key_for(item.venue_name, item.location_text, item.city, item.state)
         if venue_key is None:
@@ -122,22 +139,37 @@ def _resolve_venues(db, extracted: list[ExtractedActivity]) -> dict[tuple[str, s
     }
 
     new_venues: list[Venue] = []
+    venues_needing_geocodes: dict[tuple[str, str | None, str | None], Venue] = {}
     for key, address in desired_venues.items():
         if key in venues_by_key:
+            venue = venues_by_key[key]
+            current_address = _normalize_optional_text(venue.address)
+            if current_address is None and address is not None:
+                venue.address = address
+            elif current_address is not None and address is not None and len(address) > len(current_address):
+                venue.address = address
+            if _normalize_optional_text(venue.website) is None and normalized_website is not None:
+                venue.website = normalized_website
+            if venue.lat is None or venue.lng is None:
+                venues_needing_geocodes[key] = venue
             continue
         venue = Venue(
             name=key[0],
             address=address,
             city=key[1],
             state=key[2],
-            website=None,
+            website=normalized_website,
         )
         new_venues.append(venue)
         venues_by_key[key] = venue
+        venues_needing_geocodes[key] = venue
 
     if new_venues:
         db.add_all(new_venues)
         db.flush()
+
+    if venues_needing_geocodes:
+        populate_venue_geocodes(list(venues_needing_geocodes.values()))
 
     return venues_by_key
 
@@ -198,7 +230,7 @@ def upsert_extracted_activities_with_stats(
             )
         existing_by_key = {(a.source_url, a.title, a.start_at): a for a in existing_items}
 
-        venues_by_key = _resolve_venues(db, deduped)
+        venues_by_key = _resolve_venues(db, deduped, website_url=source.base_url)
 
         for item in deduped:
             key = (item.source_url, item.title, item.start_at)

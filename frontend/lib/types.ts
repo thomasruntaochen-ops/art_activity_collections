@@ -20,6 +20,18 @@ export type Activity = {
   confidence_score: string;
 };
 
+export type VenueSummary = {
+  venue_name: string;
+  venue_address: string | null;
+  venue_city: string | null;
+  venue_state: string | null;
+  venue_zip: string | null;
+  venue_lat: number | null;
+  venue_lng: number | null;
+  activity_count: number;
+  next_activity_at: string | null;
+};
+
 export type ActivityFilters = {
   age?: number;
   drop_in?: boolean;

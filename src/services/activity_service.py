@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from collections.abc import Sequence
+
 from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -143,3 +145,47 @@ def get_filter_options(
     states = [value for value in db.scalars(state_stmt) if value]
     cities = [value for value in db.scalars(city_stmt) if value]
     return {"venues": venues, "states": states, "cities": cities}
+
+
+def list_venue_summaries(
+    db: Session,
+    *,
+    state: str | None = None,
+    city: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    free_only: bool = False,
+    limit: int = 150,
+) -> Sequence:
+    conditions = [Activity.status.in_(("active", "needs_review")), Activity.venue_id.is_not(None)]
+    if free_only:
+        conditions.append(Activity.is_free.is_(True))
+    if state:
+        conditions.append(Venue.state == state.strip().upper())
+    if city:
+        conditions.append(Venue.city == city.strip())
+    if date_from is not None:
+        conditions.append(Activity.start_at >= date_from)
+    if date_to is not None:
+        conditions.append(Activity.start_at <= date_to)
+
+    stmt = (
+        select(
+            Venue.name.label("venue_name"),
+            Venue.address.label("venue_address"),
+            Venue.city.label("venue_city"),
+            Venue.state.label("venue_state"),
+            Venue.zip.label("venue_zip"),
+            Venue.lat.label("venue_lat"),
+            Venue.lng.label("venue_lng"),
+            func.count(Activity.id).label("activity_count"),
+            func.min(Activity.start_at).label("next_activity_at"),
+        )
+        .join(Activity, Activity.venue_id == Venue.id)
+        .where(*conditions, Venue.name.is_not(None))
+        .group_by(Venue.id)
+        .order_by(func.count(Activity.id).desc(), func.min(Activity.start_at).asc(), Venue.name.asc())
+        .limit(max(1, min(limit, 300)))
+    )
+
+    return db.execute(stmt).all()

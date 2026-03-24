@@ -1,0 +1,362 @@
+{
+  "Academy Art Museum": {
+    "image_path": "/venue-photos/academy-art-museum.png",
+    "image_source_url": "https://academyartmuseum.org/wp-content/uploads/2025/12/Screenshot-2026-02-19-at-2.27.49\u202fPM-820x1024.png",
+    "website": "https://academyartmuseum.org"
+  },
+  "Amon Carter Museum of American Art": {
+    "image_path": "/venue-photos/amon-carter-museum-of-american-art.jpg",
+    "image_source_url": "https://d2ujpqfu85jxzw.cloudfront.net/website/panth-live/styles/page_header_no_lazy_load/s3/2024-10/SecondThursday_Digital_Website-Banner_530x300_Yellow.jpg?h=647b0dd3&itok=WFqU03M-",
+    "website": "https://www.cartermuseum.org"
+  },
+  "Bakersfield Museum of Art": {
+    "image_path": "/venue-photos/bakersfield-museum-of-art.webp",
+    "image_source_url": "https://images.squarespace-cdn.com/content/v1/53630c06e4b0e2e552371dad/0ef72697-f6cd-455f-995d-074979c8ed54/16x9-2026-Winter+Exhibitions-Artists+on+Artists.png",
+    "website": "https://www.bmoa.org"
+  },
+  "Baltimore Museum of Art": {
+    "image_path": "/venue-photos/baltimore-museum-of-art.jpg",
+    "image_source_url": "https://cdn.artbma.org/2025/11/03103933/sherald-hero2-scaled.jpg",
+    "website": "https://artbma.org"
+  },
+  "Berkeley Art Museum and Pacific Film Archive": {
+    "image_path": "/venue-photos/berkeley-art-museum-and-pacific-film-archive.jpg",
+    "image_source_url": "https://bamlive.s3.amazonaws.com/styles/program_slide/s3/1200_Akerman_News-From-Home_010.jpg",
+    "website": "https://bampfa.org"
+  },
+  "Blanton Museum of Art": {
+    "image_path": "/venue-photos/blanton-museum-of-art.jpg",
+    "image_source_url": "https://blantonmuseum.b-cdn.net/app/uploads/2025/08/Zurkow-Mesocosm-Wink-TX-Fall-Animation-Still-1-bitforms-Med-Res-2017.01.10-520x480.jpg",
+    "website": "https://blantonmuseum.org"
+  },
+  "Bruce Museum": {
+    "image_path": "/venue-photos/bruce-museum.webp",
+    "image_source_url": "https://brucemuseum.org/media/images/FamilyportraitinColor.2e16d0ba.fill-444x680.format-webp_jaY6yD4.webp",
+    "website": "https://brucemuseum.org"
+  },
+  "Buffalo AKG Art Museum": {
+    "image_path": "/venue-photos/buffalo-akg-art-museum.jpg",
+    "image_source_url": "https://buffaloakg.org/sites/default/files/styles/fixed_height_sm/public/2025-08/2023_042_nonakg2025_kunstvereinbraunschweig2021_002.jpg?itok=HAMcrni8",
+    "website": "https://buffaloakg.org"
+  },
+  "Cape Cod Museum of Art": {
+    "image_path": "/venue-photos/cape-cod-museum-of-art.jpg",
+    "image_source_url": "https://static.wixstatic.com/media/cff0e7_7da38e74409f4945896635591d72f364~mv2.jpg/v1/fill/w_147,h_119,al_c,q_80,usm_0.66_1.00_0.01,blur_2,enc_avif,quality_auto/cff0e7_7da38e74409f4945896635591d72f364~mv2.jpg",
+    "website": "https://www.ccmoa.org"
+  },
+  "Chrysler Museum of Art": {
+    "image_path": "/venue-photos/chrysler-museum-of-art.jpg",
+    "image_source_url": "https://chrysler.org/wp-content/uploads/Norfolk-Museum-of-Arts-and-Sciences-300x194.jpg",
+    "website": "https://chrysler.org"
+  },
+  "Crocker Art Museum": {
+    "image_path": "/venue-photos/crocker-art-museum.jpg",
+    "image_source_url": "https://www.crockerart.org/_next/image?url=https%3A%2F%2Fimages.ctfassets.net%2Fxnr9m1ku670m%2F7LnBYoUPSEUVgbDNyUhlCs%2F8dc87821bb3a4b748fbeb42be73da57e%2FRS101666_763A1827_scr.jpg&w=3840&q=75",
+    "website": "https://www.crockerart.org"
+  },
+  "Danforth Art Museum and Art School": {
+    "image_path": "/venue-photos/danforth-art-museum-and-art-school.jpg",
+    "image_source_url": "https://danforth.framingham.edu/wp-content/uploads/2026/01/\u252c\u2310-1988_2026_Susan-Lapides_July-1988-frame-18.jpg",
+    "website": "https://danforth.framingham.edu"
+  },
+  "El Museo del Barrio": {
+    "image_path": "/venue-photos/el-museo-del-barrio.jpg",
+    "image_source_url": "https://elmuseo.org/wp-content/uploads/2026/03/Museum-Mile_720.jpg",
+    "website": "https://elmuseo.org"
+  },
+  "Everson Museum of Art": {
+    "image_path": "/venue-photos/everson-museum-of-art.png",
+    "image_source_url": "https://everson.org/wp-content/uploads/2026/02/Hero-Image-1166x655.png",
+    "website": "https://everson.org"
+  },
+  "Fairfield University Art Museum": {
+    "image_path": "/venue-photos/fairfield-university-art-museum.jpg",
+    "image_source_url": "https://localist-images.azureedge.net/photos/51967887060656/card/d02bfb85e513dbca4885d75c5dac5421d9b1d339.jpg",
+    "website": "https://events.fairfield.edu"
+  },
+  "Fitchburg Art Museum": {
+    "image_path": "/venue-photos/fitchburg-art-museum.jpg",
+    "image_source_url": "https://fitchburgartmuseum.org/wp-content/uploads/2019/02/3-_MG_4004-e1551113229578.jpg",
+    "website": "https://fitchburgartmuseum.org"
+  },
+  "Florence Griswold Museum": {
+    "image_path": "/venue-photos/florence-griswold-museum.png",
+    "image_source_url": "https://flogris.org/wp-content/uploads/2026/03/Patchwork-square-header-graphic.png",
+    "website": "https://flogris.org"
+  },
+  "Fresno Art Museum": {
+    "image_path": "/venue-photos/fresno-art-museum.jpg",
+    "image_source_url": "https://fresnoartmuseum.org/application/files/cache/thumbnails/fam-front-w-cropped-sculpt-carlos-a11751d402f3884024bf864fd1af9757.jpg",
+    "website": "https://fresnoartmuseum.org"
+  },
+  "Grounds For Sculpture": {
+    "image_path": "/venue-photos/grounds-for-sculpture.jpg",
+    "image_source_url": "https://www.groundsforsculpture.org/wp-content/uploads/2026/03/home-page-156-1110x0-c-default.jpg",
+    "website": "https://www.groundsforsculpture.org"
+  },
+  "Hammer Museum": {
+    "image_path": "/venue-photos/hammer-museum.jpg",
+    "image_source_url": "https://hammer.ucla.edu/sites/default/files/styles/content_block_homepage/public/2025-10/corita-kent_header_0.jpg?h=070e6338&itok=q1ImBM35",
+    "website": "https://hammer.ucla.edu"
+  },
+  "Harvard Art Museums": {
+    "image_path": "/venue-photos/harvard-art-museums.jpg",
+    "image_source_url": "https://s3.amazonaws.com/media.harvardartmuseums.org/production/file_uploads/FeaturedCustomArticle/images/000/000/210/home/49b8ab5327c5d13d.jpg",
+    "website": "https://harvardartmuseums.org"
+  },
+  "Hirshhorn Museum and Sculpture Garden": {
+    "image_path": "/venue-photos/hirshhorn-museum-and-sculpture-garden.jpg",
+    "image_source_url": "https://hirshhorn.si.edu/wp-content/uploads/2024/11/HMSG_Building_Exterior_FAA_081623_002-768x500.jpg",
+    "website": "https://hirshhorn.si.edu"
+  },
+  "Institute for Contemporary Art at Virginia Commonwealth University": {
+    "image_path": "/venue-photos/institute-for-contemporary-art-at-virginia-commonwealth-university.jpg",
+    "image_source_url": "http://icavcu.org/wp-content/uploads/2022/08/BuildingPhotos-.jpg",
+    "website": "https://icavcu.org"
+  },
+  "Institute of Contemporary Art / Boston": {
+    "image_path": "/venue-photos/institute-of-contemporary-art-boston.jpg",
+    "image_source_url": "https://www.icaboston.org/wp-content/uploads/2023/06/Visitors_Portraits_Lauren-Miller-111-1024x682.jpg",
+    "website": "https://www.icaboston.org"
+  },
+  "J. Paul Getty Museum": {
+    "image_path": "/venue-photos/j-paul-getty-museum.jpg",
+    "image_source_url": "https://media.getty.edu/iiif/image/5421e2f8-8f4d-469a-ac11-be8118f5c9e2/1298,323,8206,4616/800,/0/default.jpg",
+    "website": "https://www.getty.edu"
+  },
+  "Katonah Museum of Art": {
+    "image_path": "/venue-photos/katonah-museum-of-art.jpg",
+    "image_source_url": "http://www.katonahmuseum.org/content/page_images/image_2_image_compress_80.JPG",
+    "website": "https://www.katonahmuseum.org"
+  },
+  "Kluge-Ruhe Aboriginal Art Collection of the University of Virginia": {
+    "image_path": "/venue-photos/kluge-ruhe-aboriginal-art-collection-of-the-university-of-virginia.png",
+    "image_source_url": "https://kluge-ruhe.org/wp-content/uploads/2025/01/Rotunda-Orange-Horizontal-Light-Text-Copy.png",
+    "website": "https://kluge-ruhe.org"
+  },
+  "Los Angeles County Museum of Art": {
+    "image_path": "/venue-photos/los-angeles-county-museum-of-art.webp",
+    "image_source_url": "https://www-images.lacma.org/s3fs-public/styles/front_page_grid_3_2_aspect_ratio/public/2026-02/MEMDGGPrev_Homepage.png.webp?VersionId=h5exKnTGdDmYiZgTqUPv5pdQXy2Nnv5J&h=dc393cb2&itok=tyYVdsL6",
+    "website": "https://www.lacma.org"
+  },
+  "Lyman Allyn Art Museum": {
+    "image_path": "/venue-photos/lyman-allyn-art-museum.jpg",
+    "image_source_url": "https://www.lymanallyn.org/site/wp-content/uploads/2022/10/IMG_NewBannersFrontFacade2-1024x470-1.jpg",
+    "website": "https://www.lymanallyn.org"
+  },
+  "MASS MoCA": {
+    "image_path": "/venue-photos/mass-moca.jpg",
+    "image_source_url": "https://massmoca.org/wp-content/uploads/2020/06/PlanYourVisit_3840x1524-scaled.jpg",
+    "website": "https://massmoca.org"
+  },
+  "McNay Art Museum": {
+    "image_path": "/venue-photos/mcnay-art-museum.webp",
+    "image_source_url": "https://www.mcnayart.org/wp-content/uploads/2026/01/2026-01-29-Mystic-Threads-Installation-Selects-WebRes-25-scaled-e1770763990465-1024x683.webp",
+    "website": "https://www.mcnayart.org"
+  },
+  "MoCA CT": {
+    "image_path": "/venue-photos/moca-ct.jpg",
+    "image_source_url": "https://mocact.org/wp-content/uploads/2026/02/MoCA-CT-Art-Jazz-the-Blues-Web-Banner-_-Hero-Image.jpg",
+    "website": "https://mocact.org"
+  },
+  "MoMA": {
+    "image_path": "/venue-photos/moma.jpg",
+    "image_source_url": "https://www.moma.org/d/assets/W1siZiIsIjIwMjYvMDIvMDYvN2M1aTl6NmVwOV9QZWdneV9XZWlsX2hlcm9fMi5qcGciXSxbInAiLCJjb252ZXJ0IiwiLXF1YWxpdHkgOTAgLXJlc2l6ZSA5MzB4NDI4XHUwMDNlIl1d/Peggy_Weil-hero_2.jpg?sha=9ae897b454f1c6bd",
+    "website": "https://www.moma.org"
+  },
+  "Muscarelle Museum of Art": {
+    "image_path": "/venue-photos/muscarelle-museum-of-art.png",
+    "image_source_url": "http://muscarelle.wm.edu/wp-content/uploads/2024/12/m-membership.png",
+    "website": "https://muscarelle.wm.edu"
+  },
+  "Museum of Contemporary Art Arlington": {
+    "image_path": "/venue-photos/museum-of-contemporary-art-arlington.png",
+    "image_source_url": "https://mocaarlington.org/wp-content/uploads/2024/01/Gentle-Yoga-Web-Banner-text-920x470.png",
+    "website": "https://mocaarlington.org"
+  },
+  "Museum of Fine Arts, Boston": {
+    "image_path": "/venue-photos/museum-of-fine-arts-boston.jpg",
+    "image_source_url": "https://d1nn9x4fgzyvn4.cloudfront.net/styles/scaled_562_wide/s3/2026-01/SC514416_16x9.jpg?itok=xCzo03GZ",
+    "website": "https://www.mfa.org"
+  },
+  "National Museum of Asian Art": {
+    "image_path": "/venue-photos/national-museum-of-asian-art.jpg",
+    "image_source_url": "https://asia.si.edu/wp-content/uploads/2023/01/homepage-visit-1.jpg",
+    "website": "https://asia.si.edu"
+  },
+  "National Portrait Gallery": {
+    "image_path": "/venue-photos/national-portrait-gallery.jpg",
+    "image_source_url": "https://npg.si.edu/sites/default/files/styles/grid_default/public/learnbanner.jpg?itok=TgsxSMV6",
+    "website": "https://npg.si.edu"
+  },
+  "New Bedford Art Museum": {
+    "image_path": "/venue-photos/new-bedford-art-museum.jpg",
+    "image_source_url": "https://newbedfordart.org/wp-content/uploads/bb-plugin/cache/HomeComing_LONG-square-c4f0c9d3bcefb3d1f5e0045b4cff25e3-x4vpn65dr8qs.jpg",
+    "website": "https://newbedfordart.org"
+  },
+  "Norton Simon Museum": {
+    "image_path": "/venue-photos/norton-simon-museum.jpg",
+    "image_source_url": "https://www.nortonsimon.org/assets/GenericPages/Images/419b834689/MuseumMap-600x600__ScaleWidthWzMwMF0.jpg",
+    "website": "https://www.nortonsimon.org"
+  },
+  "Noyes Museum of Art": {
+    "image_path": "/venue-photos/noyes-museum-of-art.webp",
+    "image_source_url": "https://images.squarespace-cdn.com/content/v1/56fd4f0d45bf21c39ace2e5b/1545198412290-KW6WQM684DPNN2FZF6GD/Arts+Garage.jpg",
+    "website": "https://noyesmuseum.org"
+  },
+  "Orange County Museum of Art": {
+    "image_path": "/venue-photos/orange-county-museum-of-art.jpg",
+    "image_source_url": "https://ocma.art/wp-content/themes/ocma-ucirvine/metathumb-global.jpg",
+    "website": "https://ocma.art"
+  },
+  "Palm Springs Art Museum": {
+    "image_path": "/venue-photos/palm-springs-art-museum.jpg",
+    "image_source_url": "https://www.psmuseum.org/storage/app/uploads/public/19c/40e/7d1/thumb__466_0_0_0_auto.jpg",
+    "website": "https://www.psmuseum.org"
+  },
+  "Peabody Essex Museum": {
+    "image_path": "/venue-photos/peabody-essex-museum.jpg",
+    "image_source_url": "https://s3.us-east-1.amazonaws.com/pem-org/general/Visit_NavDrop_600_01.jpg",
+    "website": "https://www.pem.org"
+  },
+  "Piedmont Arts": {
+    "image_path": "/venue-photos/piedmont-arts.png",
+    "image_source_url": "http://www.piedmontarts.org/images/paa-og.png",
+    "website": "https://www.piedmontarts.org"
+  },
+  "Princeton University Art Museum": {
+    "image_path": "/venue-photos/princeton-university-art-museum.webp",
+    "image_source_url": "https://media.artmuseum.princeton.edu/iiif/3/web_images/R_Barnes_IMGL8615-b_Final/5,0,2157,2783/!768,991/0/default.webp",
+    "website": "https://artmuseum.princeton.edu"
+  },
+  "Rose Art Museum": {
+    "image_path": "/venue-photos/rose-art-museum.jpg",
+    "image_source_url": "https://www.brandeis.edu/images/facts/building.jpg",
+    "website": "https://www.brandeis.edu"
+  },
+  "San Antonio Museum of Art": {
+    "image_path": "/venue-photos/san-antonio-museum-of-art.webp",
+    "image_source_url": "https://ucarecdn.com/e2bc35c3-4c8d-4f8c-8bb0-96f8cfffea68/-/crop/455x341/35,0/-/preview/-/quality/lighter/-/format/webp/",
+    "website": "https://www.samuseum.org"
+  },
+  "San Jose Museum of Art": {
+    "image_path": "/venue-photos/san-jose-museum-of-art.jpg",
+    "image_source_url": "https://sjmusart.org/sites/default/files/styles/home_banner/public/2025-08/SJMA_3-11-25_004.jpg?h=b4908bdc&itok=wO_yXEvD",
+    "website": "https://sjmusart.org"
+  },
+  "Santa Barbara Museum of Art": {
+    "image_path": "/venue-photos/santa-barbara-museum-of-art.webp",
+    "image_source_url": "https://www.sbma.net/sites/default/files/2025-04/homepage-wide-sbma-exterior.webp",
+    "website": "https://www.sbma.net"
+  },
+  "Smithsonian American Art Museum": {
+    "image_path": "/venue-photos/smithsonian-american-art-museum.jpg",
+    "image_source_url": "https://ids.si.edu/ids/deliveryService?id=SAAM-2024.36_1-000001&max=640",
+    "website": "https://americanart.si.edu"
+  },
+  "Taubman Museum of Art": {
+    "image_path": "/venue-photos/taubman-museum-of-art.png",
+    "image_source_url": "https://www.taubmanmuseum.org/wp-content/uploads/2025/06/newsweek-1024x1024.png",
+    "website": "https://www.taubmanmuseum.org"
+  },
+  "The Aldrich Contemporary Art Museum": {
+    "image_path": "/venue-photos/the-aldrich-contemporary-art-museum.png",
+    "image_source_url": "https://thealdrich.org/client-uploads/images-general/_aldrich_image_6x4_5_1000px/Support-Hero-Photo-Kaiya-McCormick.png",
+    "website": "https://thealdrich.org"
+  },
+  "The Branch Museum of Design": {
+    "image_path": "/venue-photos/the-branch-museum-of-design.png",
+    "image_source_url": "https://branchmuseum.org/wp-content/uploads/2026/03/image-300x300.png",
+    "website": "https://branchmuseum.org"
+  },
+  "The Clark Art Institute": {
+    "image_path": "/venue-photos/the-clark-art-institute.png",
+    "image_source_url": "https://events.clarkart.edu/images/social/facebook.png",
+    "website": "https://events.clarkart.edu"
+  },
+  "The Kreeger Museum": {
+    "image_path": "/venue-photos/the-kreeger-museum.jpg",
+    "image_source_url": "https://www.kreegermuseum.org/images/home_slideshow/conversations34.jpg",
+    "website": "https://www.kreegermuseum.org"
+  },
+  "The Metropolitan Museum of Art": {
+    "image_path": "/venue-photos/the-metropolitan-museum-of-art.jpg",
+    "image_source_url": "https://collectionapi.metmuseum.org/api/collection/v1/iiif/852570/2070552/restricted",
+    "website": "https://www.metmuseum.org"
+  },
+  "The Modern Art Museum of Fort Worth": {
+    "image_path": "/venue-photos/the-modern-art-museum-of-fort-worth.jpg",
+    "image_source_url": "https://www.themodern.org/sites/default/files/2026-01/God%20Painting%20The%20Spirit%20-%20HOMEPAGE.jpg",
+    "website": "https://www.themodern.org"
+  },
+  "The Museum of Contemporary Art, Los Angeles": {
+    "image_path": "/venue-photos/the-museum-of-contemporary-art-los-angeles.jpg",
+    "image_source_url": "https://www.moca.org/storage/app/uploads/public/12c/f8a/dfb/thumb__1120_0_0_0_crop.jpg",
+    "website": "https://www.moca.org"
+  },
+  "The Newark Museum of Art": {
+    "image_path": "/venue-photos/the-newark-museum-of-art.png",
+    "image_source_url": "https://newarkmuseumart.org/wp-content/uploads/2025/01/Camp-NMOA-gif-1.png",
+    "website": "https://newarkmuseumart.org"
+  },
+  "The Noguchi Museum": {
+    "image_path": "/venue-photos/the-noguchi-museum.jpg",
+    "image_source_url": "https://www.noguchi.org/wp-content/uploads/2019/09/Isamu-Noguchi-with-Interlocking-Sculpture-1947-Arnold-Newman.jpg",
+    "website": "https://www.noguchi.org"
+  },
+  "The Phillips Collection": {
+    "image_path": "/venue-photos/the-phillips-collection.jpg",
+    "image_source_url": "https://www.phillipscollection.org/sites/default/files/styles/featured_homepage_xxl_1900x1056_/public/2026-01/Miro_Femme%20et%20oiseaux%20au%20lever%20du%20soleil%2C%201946.jpeg?itok=94Wb7Z2U",
+    "website": "https://www.phillipscollection.org"
+  },
+  "The San Diego Museum of Art": {
+    "image_path": "/venue-photos/the-san-diego-museum-of-art.jpg",
+    "image_source_url": "https://www.sdmart.org/wp-content/uploads/2025/09/SDMA-facade-detail_IMG_4981_web-resize.jpg",
+    "website": "https://www.sdmart.org"
+  },
+  "Virginia Museum of Contemporary Art": {
+    "image_path": "/venue-photos/virginia-museum-of-contemporary-art.png",
+    "image_source_url": "https://virginiamoca.org/wp-content/uploads/2026/03/Untitled-design-4.png",
+    "website": "https://virginiamoca.org"
+  },
+  "Virginia Quilt Museum": {
+    "image_path": "/venue-photos/virginia-quilt-museum.jpg",
+    "image_source_url": "https://cdn.prod.website-files.com/617a35062b87da3ad8c01a40/68471da68669d7a07462d997_01-Virginia%20Quilt%20Museum--April%202025%20Photo----471.jpg",
+    "website": "https://www.vaquiltmuseum.org"
+  },
+  "Wadsworth Atheneum Museum of Art": {
+    "image_path": "/venue-photos/wadsworth-atheneum-museum-of-art.png",
+    "image_source_url": "https://www.thewadsworth.org/wp-content/themes/wpcode-v2/images/best-of-ct-winner.png",
+    "website": "https://www.thewadsworth.org"
+  },
+  "Walters Art Museum": {
+    "image_path": "/venue-photos/walters-art-museum.jpg",
+    "image_source_url": "https://thewalters.org/wp-content/uploads/2021/03/topic_homepage_.jpg",
+    "website": "https://thewalters.org"
+  },
+  "Washington County Museum of Fine Arts": {
+    "image_path": "/venue-photos/washington-county-museum-of-fine-arts.jpg",
+    "image_source_url": "https://wcmfa.org/wp-content/uploads/2017/01/Museum-Drone-Photo-Credit-Scott-Cantner-cropp2.jpg",
+    "website": "https://wcmfa.org"
+  },
+  "Whitney Museum of American Art": {
+    "image_path": "/venue-photos/whitney-museum-of-american-art.jpg",
+    "image_source_url": "https://whitneymedia.org/assets/image/833049/large_WMAA97701_02_251016_GPowell_Whitney_1409_v2_3x2_web.jpg",
+    "website": "https://whitney.org"
+  },
+  "William Benton Museum of Art": {
+    "image_path": "/venue-photos/william-benton-museum-of-art.png",
+    "image_source_url": "https://benton.media.uconn.edu/wp-content/uploads/sites/2454/2020/08/Web-Welcome-Banner.png",
+    "website": "https://benton.uconn.edu"
+  },
+  "Worcester Art Museum": {
+    "image_path": "/venue-photos/worcester-art-museum.jpg",
+    "image_source_url": "https://www.worcesterart.org/wp-content/uploads/2024/12/wam-exterior-facade-corner-16x9-web-1300px-1024x576.jpg",
+    "website": "https://www.worcesterart.org"
+  },
+  "Zimmerli Art Museum": {
+    "image_path": "/venue-photos/zimmerli-art-museum.png",
+    "image_source_url": "https://zimmerli.rutgers.edu/sites/default/files/styles/16x9_full_default_1x/public/2025-12/warholbanner_digi_2100x14001.png?h=8b7966f8&itok=j86cxOpZ",
+    "website": "https://zimmerli.rutgers.edu"
+  }
+}

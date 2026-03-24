@@ -4,6 +4,7 @@ import {
   ActivityFilterOptions,
   ActivityFilters,
   SuggestField,
+  VenueSummary,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -55,6 +56,29 @@ export async function fetchFilterOptions(
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Filter options request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchVenueSummaries(params?: {
+  state?: string;
+  city?: string;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+}): Promise<VenueSummary[]> {
+  const search = new URLSearchParams();
+  if (params?.state) search.set("state", params.state);
+  if (params?.city) search.set("city", params.city);
+  if (params?.date_from) search.set("date_from", params.date_from);
+  if (params?.date_to) search.set("date_to", params.date_to);
+  if (params?.limit !== undefined) search.set("limit", String(params.limit));
+
+  const query = search.toString();
+  const url = `${API_BASE_URL}/api/activities/venues${query ? `?${query}` : ""}`;
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Venue summaries request failed: ${response.status}`);
   }
   return response.json();
 }

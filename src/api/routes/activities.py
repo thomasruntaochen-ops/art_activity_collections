@@ -6,8 +6,13 @@ from sqlalchemy.orm import Session
 
 from src.api.deps.rate_limit import enforce_request_limits
 from src.db.session import get_db
-from src.schemas.activity import ActivityFilterOptions, ActivityRead
-from src.services.activity_service import get_filter_options, get_filter_suggestions, list_activities
+from src.schemas.activity import ActivityFilterOptions, ActivityRead, VenueSummaryRead
+from src.services.activity_service import (
+    get_filter_options,
+    get_filter_suggestions,
+    list_activities,
+    list_venue_summaries,
+)
 
 router = APIRouter(tags=["activities"], dependencies=[Depends(enforce_request_limits)])
 
@@ -90,3 +95,38 @@ def get_activity_filter_options(
         states=options["states"],
         cities=options["cities"],
     )
+
+
+@router.get("/activities/venues", response_model=list[VenueSummaryRead])
+def get_activity_venues(
+    state: str | None = Query(default=None, min_length=2, max_length=2),
+    city: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    free_only: bool = False,
+    limit: int = Query(default=150, ge=1, le=300),
+    db: Session = Depends(get_db),
+) -> list[VenueSummaryRead]:
+    rows = list_venue_summaries(
+        db,
+        state=state,
+        city=city,
+        date_from=date_from,
+        date_to=date_to,
+        free_only=free_only,
+        limit=limit,
+    )
+    return [
+        VenueSummaryRead(
+            venue_name=row.venue_name,
+            venue_address=row.venue_address,
+            venue_city=row.venue_city,
+            venue_state=row.venue_state,
+            venue_zip=row.venue_zip,
+            venue_lat=float(row.venue_lat) if row.venue_lat is not None else None,
+            venue_lng=float(row.venue_lng) if row.venue_lng is not None else None,
+            activity_count=row.activity_count,
+            next_activity_at=row.next_activity_at,
+        )
+        for row in rows
+    ]
