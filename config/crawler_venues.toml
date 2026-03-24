@@ -576,7 +576,7 @@ args = ["--commit"]
 [[venues]]
 venue = "dc_tribe_bundle"
 state = "DC"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_dc_tribe_bundle_parser.py"
 batch_id = "batch_d"
 use_base_url = false
@@ -585,7 +585,7 @@ args = ["--commit"]
 [[venues]]
 venue = "dc_html_bundle"
 state = "DC"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_dc_html_bundle_parser.py"
 batch_id = "batch_d"
 use_base_url = false
@@ -594,7 +594,7 @@ args = ["--commit"]
 [[venues]]
 venue = "nga"
 state = "DC"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_nga_parser.py"
 batch_id = "batch_d"
 use_base_url = false
@@ -603,7 +603,7 @@ args = ["--commit"]
 [[venues]]
 venue = "saam"
 state = "DC"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_saam_parser.py"
 batch_id = "batch_d"
 use_base_url = false
