@@ -396,6 +396,22 @@ a {
   color: var(--muted);
 }
 
+.venue-map__notice {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 550;
+  max-width: min(320px, calc(100% - 88px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(118, 138, 168, 0.18);
+  color: #32445f;
+  box-shadow: 0 8px 18px rgba(38, 51, 77, 0.1);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
 .venue-map__popup {
   display: grid;
   gap: 6px;

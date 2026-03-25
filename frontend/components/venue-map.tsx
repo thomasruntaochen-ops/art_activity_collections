@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import { resolveVenueCoordinates } from "../lib/venue-map-data";
 import { VenueSummary } from "../lib/types";
@@ -25,7 +25,12 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
+  const primaryTilesRef = useRef<L.TileLayer | null>(null);
+  const fallbackTilesRef = useRef<L.TileLayer | null>(null);
+  const usingFallbackTilesRef = useRef(false);
+  const tileErrorCountRef = useRef(0);
   const resolvedVenues = useMemo(() => venues.map(resolveVenueCoordinates), [venues]);
+  const [mapNotice, setMapNotice] = useState("");
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -46,18 +51,57 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
     L.control.zoom({ position: "bottomright" }).addTo(map);
     L.control.scale({ position: "bottomleft", imperial: true, metric: false }).addTo(map);
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    const primaryTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: "abcd",
       maxZoom: 18,
       maxNativeZoom: 18,
       detectRetina: true,
-    }).addTo(map);
+      crossOrigin: true,
+    });
+    const fallbackTiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 18,
+      maxNativeZoom: 18,
+      detectRetina: true,
+      crossOrigin: true,
+    });
+
+    primaryTiles.on("load", () => {
+      tileErrorCountRef.current = 0;
+      if (!usingFallbackTilesRef.current) {
+        setMapNotice("");
+      }
+    });
+    primaryTiles.on("tileerror", () => {
+      tileErrorCountRef.current += 1;
+      if (usingFallbackTilesRef.current || tileErrorCountRef.current < 3) return;
+      usingFallbackTilesRef.current = true;
+      setMapNotice("Map tiles switched to fallback mode.");
+      if (map.hasLayer(primaryTiles)) {
+        map.removeLayer(primaryTiles);
+      }
+      fallbackTiles.addTo(map);
+    });
+    fallbackTiles.on("load", () => {
+      if (usingFallbackTilesRef.current) {
+        setMapNotice("Map tiles switched to fallback mode.");
+      }
+    });
+    fallbackTiles.on("tileerror", () => {
+      if (usingFallbackTilesRef.current) {
+        setMapNotice("Map tiles are unavailable right now.");
+      }
+    });
+
+    primaryTiles.addTo(map);
 
     map.setView([39.8283, -98.5795], 4);
     mapRef.current = map;
     markersRef.current = L.layerGroup().addTo(map);
+    primaryTilesRef.current = primaryTiles;
+    fallbackTilesRef.current = fallbackTiles;
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -74,9 +118,13 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
     return () => {
       resizeObserver.disconnect();
       markersRef.current?.clearLayers();
+      primaryTilesRef.current?.off();
+      fallbackTilesRef.current?.off();
       map.remove();
       mapRef.current = null;
       markersRef.current = null;
+      primaryTilesRef.current = null;
+      fallbackTilesRef.current = null;
     };
   }, []);
 
@@ -165,6 +213,7 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
   return (
     <div className="venue-map">
       <div ref={containerRef} className="venue-map__canvas" />
+      {mapNotice ? <div className="venue-map__notice">{mapNotice}</div> : null}
     </div>
   );
 }
