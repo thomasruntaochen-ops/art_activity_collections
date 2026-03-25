@@ -32,16 +32,6 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
   const resolvedVenues = useMemo(() => venues.map(resolveVenueCoordinates), [venues]);
   const [mapNotice, setMapNotice] = useState("");
   const [mapInitError, setMapInitError] = useState("");
-  const [debugLines, setDebugLines] = useState<string[]>([]);
-
-  function pushDebug(message: string) {
-    const timestamp = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-    setDebugLines((current) => [...current.slice(-5), `${timestamp} ${message}`]);
-  }
 
   useEffect(() => {
     if (!containerNode || mapRef.current) return;
@@ -49,7 +39,6 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
     let resizeObserver: ResizeObserver | null = null;
 
     try {
-      pushDebug("Container ready");
       const map = L.map(containerNode, {
         zoomControl: false,
         attributionControl: true,
@@ -62,7 +51,6 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
         fadeAnimation: true,
         markerZoomAnimation: true,
       });
-      pushDebug("Leaflet initialized");
 
       L.control.zoom({ position: "bottomright" }).addTo(map);
       L.control.scale({ position: "bottomleft", imperial: true, metric: false }).addTo(map);
@@ -86,18 +74,15 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
 
       primaryTiles.on("load", () => {
         tileErrorCountRef.current = 0;
-        pushDebug("Primary tiles loaded");
         if (!usingFallbackTilesRef.current) {
           setMapNotice("");
         }
       });
       primaryTiles.on("tileerror", () => {
         tileErrorCountRef.current += 1;
-        pushDebug(`Primary tile error ${tileErrorCountRef.current}`);
         if (usingFallbackTilesRef.current || tileErrorCountRef.current < 3) return;
         usingFallbackTilesRef.current = true;
         setMapNotice("Map tiles switched to fallback mode.");
-        pushDebug("Switching to fallback tiles");
         if (map.hasLayer(primaryTiles)) {
           map.removeLayer(primaryTiles);
         }
@@ -106,18 +91,15 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
       fallbackTiles.on("load", () => {
         if (usingFallbackTilesRef.current) {
           setMapNotice("Map tiles switched to fallback mode.");
-          pushDebug("Fallback tiles loaded");
         }
       });
       fallbackTiles.on("tileerror", () => {
         if (usingFallbackTilesRef.current) {
           setMapNotice("Map tiles are unavailable right now.");
-          pushDebug("Fallback tile error");
         }
       });
 
       primaryTiles.addTo(map);
-      pushDebug("Primary tiles requested");
 
       map.setView([39.8283, -98.5795], 4);
       mapRef.current = map;
@@ -138,7 +120,6 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
         map.invalidateSize({ animate: false });
       });
     } catch (error) {
-      pushDebug("Leaflet init failed");
       setMapInitError(error instanceof Error ? error.message : "Unable to initialize the map.");
     }
 
@@ -211,16 +192,12 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
     });
 
     if (resolvedVenues.length === 0) {
-      pushDebug("No resolved venues for current filter");
       map.setView([39.8283, -98.5795], 4);
       return;
     }
 
-    pushDebug(`Rendered ${resolvedVenues.length} markers`);
-
     const selectedVenue = resolvedVenues.find((venue) => venue.venue_name === selectedVenueName) ?? null;
     if (viewportMode === "fit" && bounds.isValid()) {
-      pushDebug("Fitting bounds to visible venues");
       map.fitBounds(bounds, {
         padding: [40, 40],
         maxZoom: 8,
@@ -231,7 +208,6 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
     }
 
     if (selectedVenue) {
-      pushDebug(`Focusing ${selectedVenue.venue_name}`);
       map.flyTo([selectedVenue.resolvedLat, selectedVenue.resolvedLng], Math.max(map.getZoom(), 15), {
         duration: 0.45,
       });
@@ -245,15 +221,6 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
   return (
     <div className="venue-map">
       <div ref={setContainerNode} className="venue-map__canvas" />
-      <div className="venue-map__debug">
-        {debugLines.length > 0 ? (
-          debugLines.map((line) => (
-            <span key={line}>{line}</span>
-          ))
-        ) : (
-          <span>Waiting for map lifecycle...</span>
-        )}
-      </div>
       {mapInitError ? <div className="venue-map__notice">Map failed to initialize: {mapInitError}</div> : null}
       {mapNotice ? <div className="venue-map__notice">{mapNotice}</div> : null}
     </div>
