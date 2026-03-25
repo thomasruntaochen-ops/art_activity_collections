@@ -1,7 +1,7 @@
 "use client";
 
+import type { LayerGroup, Map as LeafletMap, TileLayer } from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
-import L from "leaflet";
 import { resolveVenueCoordinates } from "../lib/venue-map-data";
 import { VenueSummary } from "../lib/types";
 
@@ -23,104 +23,126 @@ function escapeHtml(value: string): string {
 
 export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenue }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<L.LayerGroup | null>(null);
-  const primaryTilesRef = useRef<L.TileLayer | null>(null);
-  const fallbackTilesRef = useRef<L.TileLayer | null>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const markersRef = useRef<LayerGroup | null>(null);
+  const leafletRef = useRef<typeof import("leaflet") | null>(null);
+  const primaryTilesRef = useRef<TileLayer | null>(null);
+  const fallbackTilesRef = useRef<TileLayer | null>(null);
   const usingFallbackTilesRef = useRef(false);
   const tileErrorCountRef = useRef(0);
   const resolvedVenues = useMemo(() => venues.map(resolveVenueCoordinates), [venues]);
   const [mapNotice, setMapNotice] = useState("");
+  const [mapInitError, setMapInitError] = useState("");
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const map = L.map(containerRef.current, {
-      zoomControl: false,
-      attributionControl: true,
-      minZoom: 3,
-      maxZoom: 18,
-      zoomSnap: 1,
-      zoomDelta: 1,
-      wheelPxPerZoomLevel: 100,
-      wheelDebounceTime: 60,
-      fadeAnimation: true,
-      markerZoomAnimation: true,
-    });
+    let cancelled = false;
+    let resizeObserver: ResizeObserver | null = null;
 
-    L.control.zoom({ position: "bottomright" }).addTo(map);
-    L.control.scale({ position: "bottomleft", imperial: true, metric: false }).addTo(map);
+    async function initMap() {
+      try {
+        const L = await import("leaflet");
+        if (cancelled || !containerRef.current) return;
 
-    const primaryTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: "abcd",
-      maxZoom: 18,
-      maxNativeZoom: 18,
-      detectRetina: true,
-      crossOrigin: true,
-    });
-    const fallbackTiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 18,
-      maxNativeZoom: 18,
-      detectRetina: true,
-      crossOrigin: true,
-    });
+        const map = L.map(containerRef.current, {
+          zoomControl: false,
+          attributionControl: true,
+          minZoom: 3,
+          maxZoom: 18,
+          zoomSnap: 1,
+          zoomDelta: 1,
+          wheelPxPerZoomLevel: 100,
+          wheelDebounceTime: 60,
+          fadeAnimation: true,
+          markerZoomAnimation: true,
+        });
 
-    primaryTiles.on("load", () => {
-      tileErrorCountRef.current = 0;
-      if (!usingFallbackTilesRef.current) {
-        setMapNotice("");
+        L.control.zoom({ position: "bottomright" }).addTo(map);
+        L.control.scale({ position: "bottomleft", imperial: true, metric: false }).addTo(map);
+
+        const primaryTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: "abcd",
+          maxZoom: 18,
+          maxNativeZoom: 18,
+          detectRetina: true,
+          crossOrigin: true,
+        });
+        const fallbackTiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 18,
+          maxNativeZoom: 18,
+          detectRetina: true,
+          crossOrigin: true,
+        });
+
+        primaryTiles.on("load", () => {
+          tileErrorCountRef.current = 0;
+          if (!usingFallbackTilesRef.current) {
+            setMapNotice("");
+          }
+        });
+        primaryTiles.on("tileerror", () => {
+          tileErrorCountRef.current += 1;
+          if (usingFallbackTilesRef.current || tileErrorCountRef.current < 3) return;
+          usingFallbackTilesRef.current = true;
+          setMapNotice("Map tiles switched to fallback mode.");
+          if (map.hasLayer(primaryTiles)) {
+            map.removeLayer(primaryTiles);
+          }
+          fallbackTiles.addTo(map);
+        });
+        fallbackTiles.on("load", () => {
+          if (usingFallbackTilesRef.current) {
+            setMapNotice("Map tiles switched to fallback mode.");
+          }
+        });
+        fallbackTiles.on("tileerror", () => {
+          if (usingFallbackTilesRef.current) {
+            setMapNotice("Map tiles are unavailable right now.");
+          }
+        });
+
+        primaryTiles.addTo(map);
+
+        map.setView([39.8283, -98.5795], 4);
+        leafletRef.current = L;
+        mapRef.current = map;
+        markersRef.current = L.layerGroup().addTo(map);
+        primaryTilesRef.current = primaryTiles;
+        fallbackTilesRef.current = fallbackTiles;
+        setMapInitError("");
+
+        resizeObserver = new ResizeObserver((entries) => {
+          const entry = entries[0];
+          if (!entry) return;
+          const { width, height } = entry.contentRect;
+          if (width <= 0 || height <= 0) return;
+          map.invalidateSize({ animate: false });
+        });
+        resizeObserver.observe(containerRef.current);
+        requestAnimationFrame(() => {
+          map.invalidateSize({ animate: false });
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setMapInitError(error instanceof Error ? error.message : "Unable to initialize the map.");
+        }
       }
-    });
-    primaryTiles.on("tileerror", () => {
-      tileErrorCountRef.current += 1;
-      if (usingFallbackTilesRef.current || tileErrorCountRef.current < 3) return;
-      usingFallbackTilesRef.current = true;
-      setMapNotice("Map tiles switched to fallback mode.");
-      if (map.hasLayer(primaryTiles)) {
-        map.removeLayer(primaryTiles);
-      }
-      fallbackTiles.addTo(map);
-    });
-    fallbackTiles.on("load", () => {
-      if (usingFallbackTilesRef.current) {
-        setMapNotice("Map tiles switched to fallback mode.");
-      }
-    });
-    fallbackTiles.on("tileerror", () => {
-      if (usingFallbackTilesRef.current) {
-        setMapNotice("Map tiles are unavailable right now.");
-      }
-    });
+    }
 
-    primaryTiles.addTo(map);
-
-    map.setView([39.8283, -98.5795], 4);
-    mapRef.current = map;
-    markersRef.current = L.layerGroup().addTo(map);
-    primaryTilesRef.current = primaryTiles;
-    fallbackTilesRef.current = fallbackTiles;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      const { width, height } = entry.contentRect;
-      if (width <= 0 || height <= 0) return;
-      map.invalidateSize({ animate: false });
-    });
-    resizeObserver.observe(containerRef.current);
-    requestAnimationFrame(() => {
-      map.invalidateSize({ animate: false });
-    });
+    initMap();
 
     return () => {
-      resizeObserver.disconnect();
+      cancelled = true;
+      resizeObserver?.disconnect();
       markersRef.current?.clearLayers();
       primaryTilesRef.current?.off();
       fallbackTilesRef.current?.off();
-      map.remove();
+      mapRef.current?.remove();
+      leafletRef.current = null;
       mapRef.current = null;
       markersRef.current = null;
       primaryTilesRef.current = null;
@@ -129,9 +151,10 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
   }, []);
 
   useEffect(() => {
+    const L = leafletRef.current;
     const map = mapRef.current;
     const layerGroup = markersRef.current;
-    if (!map || !layerGroup) return;
+    if (!L || !map || !layerGroup) return;
 
     layerGroup.clearLayers();
     const bounds = L.latLngBounds([]);
@@ -213,6 +236,7 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
   return (
     <div className="venue-map">
       <div ref={containerRef} className="venue-map__canvas" />
+      {mapInitError ? <div className="venue-map__notice">Map failed to initialize: {mapInitError}</div> : null}
       {mapNotice ? <div className="venue-map__notice">{mapNotice}</div> : null}
     </div>
   );
