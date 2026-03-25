@@ -412,6 +412,28 @@ a {
   line-height: 1.35;
 }
 
+.venue-map__debug {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 560;
+  display: grid;
+  gap: 4px;
+  max-width: min(360px, calc(100% - 32px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(26, 31, 39, 0.82);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 18px rgba(38, 51, 77, 0.16);
+  font-size: 0.74rem;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+.venue-map__debug span {
+  display: block;
+}
+
 .venue-map__popup {
   display: grid;
   gap: 6px;
