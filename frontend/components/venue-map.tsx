@@ -22,7 +22,7 @@ function escapeHtml(value: string): string {
 }
 
 export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenue }: Props) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<LayerGroup | null>(null);
   const primaryTilesRef = useRef<TileLayer | null>(null);
@@ -44,13 +44,13 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
   }
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!containerNode || mapRef.current) return;
 
     let resizeObserver: ResizeObserver | null = null;
 
     try {
       pushDebug("Container ready");
-      const map = L.map(containerRef.current, {
+      const map = L.map(containerNode, {
         zoomControl: false,
         attributionControl: true,
         minZoom: 3,
@@ -133,7 +133,7 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
         if (width <= 0 || height <= 0) return;
         map.invalidateSize({ animate: false });
       });
-      resizeObserver.observe(containerRef.current);
+      resizeObserver.observe(containerNode);
       requestAnimationFrame(() => {
         map.invalidateSize({ animate: false });
       });
@@ -153,7 +153,7 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
       primaryTilesRef.current = null;
       fallbackTilesRef.current = null;
     };
-  }, []);
+  }, [containerNode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -244,7 +244,7 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
 
   return (
     <div className="venue-map">
-      <div ref={containerRef} className="venue-map__canvas" />
+      <div ref={setContainerNode} className="venue-map__canvas" />
       <div className="venue-map__debug">
         {debugLines.length > 0 ? (
           debugLines.map((line) => (
