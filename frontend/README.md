@@ -12,10 +12,11 @@ Next.js frontend for browsing activities from the FastAPI backend.
 4. Open:
    - `http://localhost:3000`
 
-The frontend reads `NEXT_PUBLIC_API_BASE_URL` (default `http://127.0.0.1:8000`).
+The frontend reads `NEXT_PUBLIC_API_BASE_URL` and defaults to same-origin `/api` when unset.
 
 ## Railway
 - Service root directory: `frontend`
 - Build command: `npm ci && npm run build`
 - Start command: `npm run start`
-- Set `NEXT_PUBLIC_API_BASE_URL` to your API service public URL.
+- If the frontend and API are served behind the same public host, leave `NEXT_PUBLIC_API_BASE_URL` unset.
+- If the API is deployed as a separate Railway service/domain, set `NEXT_PUBLIC_API_BASE_URL` to that public API URL.
