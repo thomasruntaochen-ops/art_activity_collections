@@ -379,3 +379,48 @@ sources:
     adapter_type: wcmfa_events
     crawl_frequency: daily
     active: false
+  - name: orlando_museum_events
+    base_url: https://omart.org/events/
+    adapter_type: orlando_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: harn_events
+    base_url: https://harn.ufl.edu/calendar/
+    adapter_type: harn_events
+    crawl_frequency: daily
+    active: false
+  - name: tampa_museum_events
+    base_url: https://tampamuseum.org/events/
+    adapter_type: tampa_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: bass_events
+    base_url: https://thebass.org/events/
+    adapter_type: bass_events
+    crawl_frequency: daily
+    active: false
+  - name: dali_events
+    base_url: https://thedali.org/events/category/featured/
+    adapter_type: dali_events
+    crawl_frequency: daily
+    active: false
+  - name: ica_miami_events
+    base_url: https://icamiami.org/calendar/
+    adapter_type: ica_miami_events
+    crawl_frequency: daily
+    active: false
+  - name: norton_events
+    base_url: https://www.norton.org/programs/family_programs
+    adapter_type: norton_events
+    crawl_frequency: daily
+    active: false
+  - name: pamm_events
+    base_url: https://www.pamm.org/en/events/
+    adapter_type: pamm_events
+    crawl_frequency: daily
+    active: false
+  - name: rollins_events
+    base_url: https://www.rollins.edu/rma/learn/families/
+    adapter_type: rollins_events
+    crawl_frequency: daily
+    active: false

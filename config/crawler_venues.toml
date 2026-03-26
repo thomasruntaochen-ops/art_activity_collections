@@ -608,3 +608,21 @@ parser_script_name = "scripts/run_saam_parser.py"
 batch_id = "batch_d"
 use_base_url = false
 args = ["--commit"]
+
+[[venues]]
+venue = "fl_tribe_bundle"
+state = "FL"
+enabled = true
+parser_script_name = "scripts/run_fl_tribe_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "fl_html_bundle"
+state = "FL"
+enabled = true
+parser_script_name = "scripts/run_fl_html_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
