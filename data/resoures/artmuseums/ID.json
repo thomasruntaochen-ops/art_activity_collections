@@ -1,0 +1,21 @@
+{
+  "Boise Art Museum": {
+    "city": "Boise",
+    "event_links": [
+      "https://boiseartmuseum.org/events-calendar/",
+      "https://boiseartmuseum.org/classes-workshops/"
+    ]
+  },
+  "Sun Valley Museum of Art": {
+    "city": "Ketchum",
+    "event_links": [
+      "https://svmoa.org/events/calendar"
+    ]
+  },
+  "The Art Museum of Eastern Idaho": {
+    "city": "Idaho Falls",
+    "event_links": [
+      "https://www.theartmuseum.org/Calendar"
+    ]
+  }
+}

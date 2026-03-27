@@ -1,0 +1,22 @@
+{
+  "Biggs Museum of American Art": {
+    "city": "Dover",
+    "event_links": [
+      "https://www.biggsmuseum.org/program-events/",
+      "https://www.biggsmuseum.org/eventkids.htm"
+    ]
+  },
+  "Delaware Art Museum": {
+    "city": "Wilmington",
+    "event_links": [
+      "https://delart.org/whats-on/",
+      "https://delart.org/visit/families-with-children/"
+    ]
+  },
+  "The Delaware Contemporary": {
+    "city": "Wilmington",
+    "event_links": [
+      "https://www.decontemporary.org/upcoming-events"
+    ]
+  }
+}

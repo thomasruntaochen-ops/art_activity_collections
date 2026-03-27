@@ -399,6 +399,26 @@ sources:
     adapter_type: wa_mac_events
     crawl_frequency: daily
     active: false
+  - name: or_coos_art_museum_events
+    base_url: https://coosartmuseum.org/education/classes/
+    adapter_type: or_coos_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: or_portland_art_museum_events
+    base_url: https://portlandartmuseum.org/calendar/
+    adapter_type: or_portland_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: or_jordan_schnitzer_uo_events
+    base_url: https://jsma.uoregon.edu/events
+    adapter_type: or_jordan_schnitzer_uo_events
+    crawl_frequency: daily
+    active: false
+  - name: or_jordan_schnitzer_psu_events
+    base_url: https://www.pdx.edu/museum-of-art/calendar/month
+    adapter_type: or_jordan_schnitzer_psu_events
+    crawl_frequency: daily
+    active: false
   - name: ccmoa_events
     base_url: https://www.ccmoa.org/upcoming-events
     adapter_type: ccmoa_events
@@ -449,6 +469,61 @@ sources:
     adapter_type: dali_events
     crawl_frequency: daily
     active: false
+  - name: ackland_events
+    base_url: https://events.ackland.org/events/
+    adapter_type: ackland_events
+    crawl_frequency: daily
+    active: false
+  - name: asheville_art_museum_events
+    base_url: https://www.ashevilleart.org/events/
+    adapter_type: asheville_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: bechtler_events
+    base_url: https://www.bechtler.org/events
+    adapter_type: bechtler_events
+    crawl_frequency: daily
+    active: false
+  - name: cameron_art_museum_events
+    base_url: https://cameronartmuseum.org/events/
+    adapter_type: cameron_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: gregg_events
+    base_url: https://gregg.arts.ncsu.edu/programs/
+    adapter_type: gregg_events
+    crawl_frequency: daily
+    active: false
+  - name: hickory_events
+    base_url: https://www.hickoryart.org/events
+    adapter_type: hickory_events
+    crawl_frequency: daily
+    active: false
+  - name: nasher_events
+    base_url: https://nasher.duke.edu/programs/
+    adapter_type: nasher_events
+    crawl_frequency: daily
+    active: false
+  - name: ncma_events
+    base_url: https://ncartmuseum.org/events-and-exhibitions/events-calendar/
+    adapter_type: ncma_events
+    crawl_frequency: daily
+    active: false
+  - name: reynolda_events
+    base_url: https://reynolda.org/visit/calendar/
+    adapter_type: reynolda_events
+    crawl_frequency: daily
+    active: false
+  - name: mint_events
+    base_url: https://www.mintmuseum.org/events/
+    adapter_type: mint_events
+    crawl_frequency: daily
+    active: false
+  - name: weatherspoon_events
+    base_url: https://weatherspoonart.org/calendar/
+    adapter_type: weatherspoon_events
+    crawl_frequency: daily
+    active: false
   - name: ica_miami_events
     base_url: https://icamiami.org/calendar/
     adapter_type: ica_miami_events
@@ -467,5 +542,110 @@ sources:
   - name: rollins_events
     base_url: https://www.rollins.edu/rma/learn/families/
     adapter_type: rollins_events
+    crawl_frequency: daily
+    active: false
+  - name: ga_albany_events
+    base_url: https://www.albanymuseum.com/events/calendar/
+    adapter_type: ga_albany_events
+    crawl_frequency: daily
+    active: false
+  - name: ga_zuckerman_events
+    base_url: https://campus.kennesaw.edu/colleges-departments/arts/academics/visual-arts/zuckerman/events-and-programs/index.php
+    adapter_type: ga_zuckerman_events
+    crawl_frequency: daily
+    active: false
+  - name: ga_booth_events
+    base_url: https://boothmuseum.org/calendar/
+    adapter_type: ga_booth_events
+    crawl_frequency: daily
+    active: false
+  - name: ga_gmoa_events
+    base_url: https://georgiamuseum.org/events/
+    adapter_type: ga_gmoa_events
+    crawl_frequency: daily
+    active: false
+  - name: ga_high_events
+    base_url: https://high.org/events/
+    adapter_type: ga_high_events
+    crawl_frequency: daily
+    active: false
+  - name: ga_marietta_events
+    base_url: https://mariettacobbartmuseum.org/learn/workshops
+    adapter_type: ga_marietta_events
+    crawl_frequency: daily
+    active: false
+  - name: ga_oglethorpe_events
+    base_url: https://connect.oglethorpe.edu/organization/ouma/events
+    adapter_type: ga_oglethorpe_events
+    crawl_frequency: daily
+    active: false
+  - name: ga_telfair_events
+    base_url: https://www.telfair.org/museum-events/
+    adapter_type: ga_telfair_events
+    crawl_frequency: daily
+    active: false
+  - name: akron_art_museum_events
+    base_url: https://akronartmuseum.org/calendar/
+    adapter_type: akron_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: allen_memorial_art_museum_events
+    base_url: https://amam.oberlin.edu/exhibitions-events/events
+    adapter_type: allen_memorial_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: canton_museum_of_art_events
+    base_url: https://www.cantonart.org/calendar
+    adapter_type: canton_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: cincinnati_art_museum_events
+    base_url: https://www.cincinnatiartmuseum.org/events-programs/events-list/
+    adapter_type: cincinnati_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: cleveland_art_museum_events
+    base_url: https://www.clevelandart.org/whats-on/all?page=0&when=Upcoming
+    adapter_type: cleveland_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: columbus_museum_of_art_events
+    base_url: https://www.columbusmuseum.org/events
+    adapter_type: columbus_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: dayton_art_institute_events
+    base_url: https://www.daytonartinstitute.org/upcoming-events/calendar/
+    adapter_type: dayton_art_institute_events
+    crawl_frequency: daily
+    active: false
+  - name: decorative_arts_center_of_ohio_events
+    base_url: https://www.decartsohio.org/events.html
+    adapter_type: decorative_arts_center_of_ohio_events
+    crawl_frequency: daily
+    active: false
+  - name: massillon_museum_events
+    base_url: https://www.massillonmuseum.org/home/programs/massillon-museum-events-calendar
+    adapter_type: massillon_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: moca_cleveland_events
+    base_url: https://www.mocacleveland.org/events
+    adapter_type: moca_cleveland_events
+    crawl_frequency: daily
+    active: false
+  - name: butler_institute_of_american_art_events
+    base_url: https://butlerart.com/programs/
+    adapter_type: butler_institute_of_american_art_events
+    crawl_frequency: daily
+    active: false
+  - name: toledo_museum_of_art_events
+    base_url: https://toledomuseum.org/events
+    adapter_type: toledo_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: zanesville_museum_of_art_events
+    base_url: https://www.zanesvilleart.org/calendar/
+    adapter_type: zanesville_museum_of_art_events
     crawl_frequency: daily
     active: false

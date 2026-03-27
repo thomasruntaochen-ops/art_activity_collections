@@ -1,0 +1,47 @@
+{
+  "Aspen Art Museum": {
+    "city": "Aspen",
+    "event_links": [
+      "https://aspenartmuseum.org/calendar/"
+    ]
+  },
+  "Boulder Museum of Contemporary Art": {
+    "city": "Boulder",
+    "event_links": [
+      "https://www.bmoca.org/events/"
+    ]
+  },
+  "Clyfford Still Museum": {
+    "city": "Denver",
+    "event_links": [
+      "https://clyffordstillmuseum.org/exhibitions-events/",
+      "https://clyffordstillmuseum.org/events/"
+    ]
+  },
+  "Colorado Springs Fine Arts Center": {
+    "city": "Colorado Springs",
+    "event_links": [
+      "https://fac.coloradocollege.edu/events/",
+      "https://fac.coloradocollege.edu/museum/museum-events-programs/"
+    ]
+  },
+  "CU Art Museum": {
+    "city": "Boulder",
+    "event_links": [
+      "https://www.colorado.edu/cuartmuseum/programs-virtual-activities"
+    ]
+  },
+  "Gregory Allicar Museum of Art": {
+    "city": "Fort Collins",
+    "event_links": [
+      "https://artmuseum.colostate.edu/programs/",
+      "https://artmuseum.colostate.edu/events/"
+    ]
+  },
+  "Museo de las Americas": {
+    "city": "Denver",
+    "event_links": [
+      "https://museo.org/museo-calendar/"
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "Arkansas Museum of Fine Arts": {
+    "city": "Little Rock",
+    "event_links": [
+      "https://events.arkmfa.org/"
+    ]
+  },
+  "Bradbury Art Museum": {
+    "city": "Jonesboro",
+    "event_links": [
+      "https://bradburyartmuseum.org/event"
+    ]
+  },
+  "Crystal Bridges Museum of American Art": {
+    "city": "Bentonville",
+    "event_links": [
+      "https://crystalbridges.org/calendar/",
+      "https://crystalbridges.org/families/"
+    ]
+  },
+  "Fort Smith Regional Art Museum": {
+    "city": "Fort Smith",
+    "event_links": [
+      "https://fsram.org/education/"
+    ]
+  },
+  "The Momentary": {
+    "city": "Bentonville",
+    "event_links": [
+      "https://themomentary.org/calendar/"
+    ]
+  },
+  "Windgate Museum of Art": {
+    "city": "Conway",
+    "event_links": [
+      "https://www.windgatemuseum.org/exhibitions/"
+    ]
+  }
+}

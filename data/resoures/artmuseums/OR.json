@@ -5,36 +5,42 @@
       "https://coosartmuseum.org/education/cam-community/",
       "https://coosartmuseum.org/education/classes/",
       "https://coosartmuseum.org/visit/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_or_tribe_bundle_parser.py"
   },
   "Hallie Ford Museum of Art": {
     "city": "Salem",
     "event_links": [
       "https://hfma.willamette.edu/events/"
-    ]
+    ],
+    "failed_test_comment": "As of March 26, 2026, the official Hallie Ford Museum of Art JSON feed returns only two exhibition rows for the museum overall while the lecture, family-program, and gallery-talk endpoints are empty, so a dry run currently parses 0 qualifying talks, workshops, or art-activity rows."
   },
   "Jordan Schnitzer Museum of Art": {
     "city": "Eugene",
     "event_links": [
       "https://jsma.uoregon.edu/events"
-    ]
+    ],
+    "parser_script": "scripts/run_or_html_bundle_parser.py"
   },
   "Jordan Schnitzer Museum of Art at Portland State University": {
     "city": "Portland",
     "event_links": [
       "https://www.pdx.edu/museum-of-art/calendar/month"
-    ]
+    ],
+    "parser_script": "scripts/run_or_html_bundle_parser.py"
   },
   "Portland Art Museum": {
     "city": "Portland",
     "event_links": [
       "https://portlandartmuseum.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_or_tribe_bundle_parser.py"
   },
   "Schneider Museum of Art": {
     "city": "Ashland",
     "event_links": [
       "https://sma.sou.edu/upcoming-exhibitions/"
-    ]
+    ],
+    "fail_implement": "As of March 26, 2026, the official Upcoming Exhibitions & Events page and its WordPress page payload are empty, and site search surfaces only older 2023 posts rather than a stable current calendar/feed, so there is no reliable first-party source of current dated museum activities to parse."
   }
 }

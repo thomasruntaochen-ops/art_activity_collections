@@ -1,0 +1,38 @@
+{
+  "Eiteljorg Museum of American Indians and Western Art": {
+    "city": "Indianapolis",
+    "event_links": [
+      "https://eiteljorg.org/events/"
+    ]
+  },
+  "Sidney and Lois Eskenazi Museum of Art": {
+    "city": "Bloomington",
+    "event_links": [
+      "https://artmuseum.indiana.edu/news-events/calendar/index.html"
+    ]
+  },
+  "Fort Wayne Museum of Art": {
+    "city": "Fort Wayne",
+    "event_links": [
+      "https://fwmoa.org/events/"
+    ]
+  },
+  "Indianapolis Museum of Art at Newfields": {
+    "city": "Indianapolis",
+    "event_links": [
+      "https://discovernewfields.org/events-exhibitions/calendar"
+    ]
+  },
+  "Raclin Murphy Museum of Art": {
+    "city": "Notre Dame",
+    "event_links": [
+      "https://raclinmurphymuseum.nd.edu/visit/events/"
+    ]
+  },
+  "South Bend Museum of Art": {
+    "city": "South Bend",
+    "event_links": [
+      "https://southbendart.org/events/"
+    ]
+  }
+}

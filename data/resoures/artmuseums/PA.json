@@ -3,78 +3,92 @@
     "city": "Allentown",
     "event_links": [
       "https://www.allentownartmuseum.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_pa_html_bundle_parser.py"
   },
   "Barnes Foundation": {
     "city": "Philadelphia",
     "event_links": [
       "https://www.barnesfoundation.org/whats-on"
-    ]
+    ],
+    "parser_script": "scripts/run_pa_html_bundle_parser.py"
   },
   "Brandywine Museum of Art": {
     "city": "Chadds Ford",
     "event_links": [
       "https://www.brandywine.org/museum/events"
-    ]
+    ],
+    "parser_script": "scripts/run_pa_html_bundle_parser.py"
   },
   "Carnegie Museum of Art": {
     "city": "Pittsburgh",
     "event_links": [
       "https://carnegieart.org/events/format/drop-in-programs/"
-    ]
+    ],
+    "fail_implement": "Official events pages did not expose a stable, parseable upcoming activity listing or detail structure; Playwright rendering still surfaced navigation/category chrome instead of concrete event cards."
   },
   "Erie Art Museum": {
     "city": "Erie",
     "event_links": [
-      "https://www.erieartmuseum.org/gallery-night/"
-    ]
+      "https://www.erieartmuseum.org/events-calendar"
+    ],
+    "parser_script": "scripts/run_pa_html_bundle_parser.py"
   },
   "James A. Michener Art Museum": {
     "city": "Doylestown",
     "event_links": [
       "https://michenerartmuseum.org/events/"
-    ]
+    ],
+    "fail_implement": "Official event pages returned anti-bot access-denied responses even with Playwright, so upcoming activities could not be fetched reliably from the official site."
   },
   "Palmer Museum of Art": {
     "city": "University Park",
     "event_links": [
       "https://palmermuseum.psu.edu/programs/"
-    ]
+    ],
+    "parser_script": "scripts/run_pa_html_bundle_parser.py"
   },
   "Pennsylvania Academy of the Fine Arts": {
     "city": "Philadelphia",
     "event_links": [
       "https://www.pafa.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_pa_html_bundle_parser.py"
   },
   "Philadelphia Museum of Art": {
     "city": "Philadelphia",
     "event_links": [
       "https://www.philamuseum.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_pa_html_bundle_parser.py"
   },
   "Susquehanna Art Museum": {
     "city": "Harrisburg",
     "event_links": [
       "https://susquehannaartmuseum.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_pa_tribe_bundle_parser.py"
   },
   "The Andy Warhol Museum": {
     "city": "Pittsburgh",
     "event_links": [
       "https://www.warhol.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_pa_tribe_bundle_parser.py"
   },
   "The Westmoreland Museum of American Art": {
     "city": "Greensburg",
     "event_links": [
       "https://thewestmoreland.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_pa_tribe_bundle_parser.py"
   },
   "Woodmere Art Museum": {
     "city": "Philadelphia",
     "event_links": [
-      "https://woodmereartmuseum.org/calendar"
-    ]
+      "https://woodmeremuseum.org/learn-create/adult-classes-and-workshops",
+      "https://woodmeremuseum.org/learn-create/children-and-teen-classes"
+    ],
+    "parser_script": "scripts/run_pa_html_bundle_parser.py"
   }
 }

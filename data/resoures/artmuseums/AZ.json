@@ -1,0 +1,64 @@
+{
+  "ASU Art Museum": {
+    "city": "Tempe",
+    "event_links": [
+      "https://asuartmuseum.org/exhibitions-and-events/events/"
+    ]
+  },
+  "Center for Creative Photography": {
+    "city": "Tucson",
+    "event_links": [
+      "https://ccp.arizona.edu/events/"
+    ]
+  },
+  "Heard Museum": {
+    "city": "Phoenix",
+    "event_links": [
+      "https://heard.org/experience/events-and-classes/"
+    ]
+  },
+  "Mesa Contemporary Arts Museum": {
+    "city": "Mesa",
+    "event_links": [
+      "https://www.mesaartscenter.com/index.php/museum/programs"
+    ]
+  },
+  "Museum of Contemporary Art Tucson": {
+    "city": "Tucson",
+    "event_links": [
+      "https://moca-tucson.org/learn/"
+    ]
+  },
+  "NAU Art Museum": {
+    "city": "Flagstaff",
+    "event_links": [
+      "https://nau.edu/artmuseum/exhibitions/"
+    ]
+  },
+  "Phoenix Art Museum": {
+    "city": "Phoenix",
+    "event_links": [
+      "https://phxart.org/events/calendar/"
+    ]
+  },
+  "Scottsdale Museum of Contemporary Art": {
+    "city": "Scottsdale",
+    "event_links": [
+      "https://scottsdalearts.org/whats-on/?categories=events&venues=smoca"
+    ]
+  },
+  "Tucson Museum of Art and Historic Block": {
+    "city": "Tucson",
+    "event_links": [
+      "https://www.tucsonmuseumofart.org/first-thursday/",
+      "https://www.tucsonmuseumofart.org/secondsundaze/",
+      "https://www.tucsonmuseumofart.org/art-camp/"
+    ]
+  },
+  "University of Arizona Museum of Art": {
+    "city": "Tucson",
+    "event_links": [
+      "https://artmuseum.arizona.edu/see-do/events/calendar"
+    ]
+  }
+}

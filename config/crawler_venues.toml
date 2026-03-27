@@ -547,6 +547,24 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "or_tribe_bundle"
+state = "OR"
+enabled = true
+parser_script_name = "scripts/run_or_tribe_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "or_html_bundle"
+state = "OR"
+enabled = true
+parser_script_name = "scripts/run_or_html_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "ccmoa"
 state = "MA"
 enabled = true
@@ -641,6 +659,168 @@ venue = "fl_html_bundle"
 state = "FL"
 enabled = true
 parser_script_name = "scripts/run_fl_html_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "nc_tribe_bundle"
+state = "NC"
+enabled = true
+parser_script_name = "scripts/run_nc_tribe_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "nc_html_bundle"
+state = "NC"
+enabled = true
+parser_script_name = "scripts/run_nc_html_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "ga_tribe_bundle"
+state = "GA"
+enabled = true
+parser_script_name = "scripts/run_ga_tribe_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "ga_mec_bundle"
+state = "GA"
+enabled = true
+parser_script_name = "scripts/run_ga_mec_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "ga_html_bundle"
+state = "GA"
+enabled = true
+parser_script_name = "scripts/run_ga_html_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "akron_art_museum"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_akron_art_museum_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "allen_memorial_art_museum"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_allen_memorial_art_museum_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "canton_museum_of_art"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_canton_museum_of_art_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "cincinnati_art_museum"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_cincinnati_art_museum_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "cleveland_art_museum"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_cleveland_art_museum_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "columbus_museum_of_art"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_columbus_museum_of_art_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "dayton_art_institute"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_dayton_art_institute_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "decorative_arts_center_of_ohio"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_decorative_arts_center_of_ohio_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "massillon_museum"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_massillon_museum_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "moca_cleveland"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_moca_cleveland_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "butler_institute_of_american_art"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_butler_institute_of_american_art_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "toledo_museum_of_art"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_toledo_museum_of_art_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "zanesville_museum_of_art"
+state = "OH"
+enabled = true
+parser_script_name = "scripts/run_zanesville_museum_of_art_parser.py"
 batch_id = "batch_d"
 use_base_url = false
 args = ["--commit"]

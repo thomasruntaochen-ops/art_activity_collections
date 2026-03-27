@@ -1,0 +1,22 @@
+{
+  "Alaska State Museum": {
+    "city": "Juneau",
+    "event_links": [
+      "https://lam.alaska.gov/asm-events",
+      "https://lam.alaska.gov/youthart"
+    ]
+  },
+  "Anchorage Museum": {
+    "city": "Anchorage",
+    "event_links": [
+      "https://www.anchoragemuseum.org/visit/calendar/",
+      "https://www.anchoragemuseum.org/programs/family-youth-homeschool/"
+    ]
+  },
+  "University Art Gallery": {
+    "city": "Fairbanks",
+    "event_links": [
+      "https://www.uaf.edu/art/gallery-and-events/"
+    ]
+  }
+}

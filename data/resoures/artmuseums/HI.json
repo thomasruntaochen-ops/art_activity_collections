@@ -1,0 +1,41 @@
+{
+  "Capitol Modern": {
+    "city": "Honolulu",
+    "event_links": [
+      "https://www.capitolmodern.org/events",
+      "https://www.capitolmodern.org/exhibitions"
+    ]
+  },
+  "Donkey Mill Art Center": {
+    "city": "Hōlualoa",
+    "event_links": [
+      "https://donkeymillartcenter.org/event/",
+      "https://donkeymillartcenter.org/art-programs/"
+    ]
+  },
+  "East Hawaiʻi Cultural Center": {
+    "city": "Hilo",
+    "event_links": [
+      "https://www.ehcc.org/programs/calendar"
+    ]
+  },
+  "Honolulu Museum of Art": {
+    "city": "Honolulu",
+    "event_links": [
+      "https://honolulumuseum.org/events"
+    ]
+  },
+  "Hui No‘eau Visual Arts Center": {
+    "city": "Makawao",
+    "event_links": [
+      "https://www.huinoeau.com/the-classes/",
+      "https://www.huinoeau.com/art-events"
+    ]
+  },
+  "John Young Museum of Art": {
+    "city": "Honolulu",
+    "event_links": [
+      "https://hawaii.edu/art/exhibitions-events/"
+    ]
+  }
+}

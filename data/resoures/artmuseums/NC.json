@@ -3,66 +3,77 @@
     "city": "Chapel Hill",
     "event_links": [
       "https://events.ackland.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_tribe_bundle_parser.py"
   },
   "Asheville Art Museum": {
     "city": "Asheville",
     "event_links": [
       "https://www.ashevilleart.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_tribe_bundle_parser.py"
   },
   "Bechtler Museum of Modern Art": {
     "city": "Charlotte",
     "event_links": [
       "https://www.bechtler.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_html_bundle_parser.py"
   },
   "Cameron Art Museum": {
     "city": "Wilmington",
     "event_links": [
       "https://cameronartmuseum.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_tribe_bundle_parser.py"
   },
   "Gregg Museum of Art + Design": {
     "city": "Raleigh",
     "event_links": [
       "https://gregg.arts.ncsu.edu/programs/"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_html_bundle_parser.py"
   },
   "Hickory Museum of Art": {
     "city": "Hickory",
     "event_links": [
       "https://www.hickoryart.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_html_bundle_parser.py"
   },
   "Nasher Museum of Art at Duke University": {
     "city": "Durham",
     "event_links": [
       "https://nasher.duke.edu/programs/"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_tribe_bundle_parser.py"
   },
   "North Carolina Museum of Art": {
     "city": "Raleigh",
     "event_links": [
       "https://ncartmuseum.org/events-and-exhibitions/events-calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_html_bundle_parser.py"
   },
   "Reynolda House Museum of American Art": {
     "city": "Winston-Salem",
     "event_links": [
       "https://reynolda.org/visit/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_html_bundle_parser.py"
   },
   "The Mint Museum": {
     "city": "Charlotte",
     "event_links": [
       "https://www.mintmuseum.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_tribe_bundle_parser.py"
   },
   "Weatherspoon Art Museum": {
     "city": "Greensboro",
     "event_links": [
       "https://weatherspoonart.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_nc_html_bundle_parser.py"
   }
 }

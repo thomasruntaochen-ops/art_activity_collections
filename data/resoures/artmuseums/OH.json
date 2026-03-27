@@ -3,85 +3,99 @@
     "city": "Akron",
     "event_links": [
       "https://akronartmuseum.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_akron_art_museum_parser.py"
   },
   "Allen Memorial Art Museum": {
     "city": "Oberlin",
     "event_links": [
       "https://amam.oberlin.edu/exhibitions-events/events"
-    ]
+    ],
+    "parser_script": "scripts/run_allen_memorial_art_museum_parser.py"
   },
   "Canton Museum of Art": {
     "city": "Canton",
     "event_links": [
       "https://www.cantonart.org/calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_canton_museum_of_art_parser.py"
   },
   "Cincinnati Art Museum": {
     "city": "Cincinnati",
     "event_links": [
       "https://www.cincinnatiartmuseum.org/events-programs/events-list/"
-    ]
+    ],
+    "parser_script": "scripts/run_cincinnati_art_museum_parser.py"
   },
   "Cleveland Museum of Art": {
     "city": "Cleveland",
     "event_links": [
       "https://www.clevelandart.org/whats-on/all?page=0&when=Upcoming"
-    ]
+    ],
+    "parser_script": "scripts/run_cleveland_art_museum_parser.py"
   },
   "Columbus Museum of Art": {
     "city": "Columbus",
     "event_links": [
       "https://www.columbusmuseum.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_columbus_museum_of_art_parser.py"
   },
   "Dayton Art Institute": {
     "city": "Dayton",
     "event_links": [
       "https://www.daytonartinstitute.org/upcoming-events/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_dayton_art_institute_parser.py"
   },
   "Decorative Arts Center of Ohio": {
     "city": "Lancaster",
     "event_links": [
       "https://www.decartsohio.org/events.html",
       "https://www.decartsohio.org/lectures.html"
-    ]
+    ],
+    "parser_script": "scripts/run_decorative_arts_center_of_ohio_parser.py"
   },
   "Massillon Museum": {
     "city": "Massillon",
     "event_links": [
       "https://www.massillonmuseum.org/home/programs/massillon-museum-events-calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_massillon_museum_parser.py"
   },
   "McDonough Museum of Art": {
     "city": "Youngstown",
     "event_links": [
       "https://ysu.edu/mcdonough-museum/exhibition-schedule"
-    ]
+    ],
+    "fail_implement": "The exhibition schedule page is stale 2024-25 content with only past 2025 items and no current upcoming activity feed to parse."
   },
   "Museum of Contemporary Art Cleveland": {
     "city": "Cleveland",
     "event_links": [
       "https://www.mocacleveland.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_moca_cleveland_parser.py"
   },
   "The Butler Institute of American Art": {
     "city": "Youngstown",
     "event_links": [
       "https://butlerart.com/programs/"
-    ]
+    ],
+    "parser_script": "scripts/run_butler_institute_of_american_art_parser.py"
   },
   "Toledo Museum of Art": {
     "city": "Toledo",
     "event_links": [
       "https://toledomuseum.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_toledo_museum_of_art_parser.py"
   },
   "Zanesville Museum of Art": {
     "city": "Zanesville",
     "event_links": [
       "https://www.zanesvilleart.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_zanesville_museum_of_art_parser.py"
   }
 }

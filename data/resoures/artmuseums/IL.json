@@ -1,0 +1,74 @@
+{
+  "Art Institute of Chicago": {
+    "city": "Chicago",
+    "event_links": [
+      "https://www.artic.edu/events"
+    ]
+  },
+  "Mary and Leigh Block Museum of Art": {
+    "city": "Evanston",
+    "event_links": [
+      "https://www.blockmuseum.northwestern.edu/events/"
+    ]
+  },
+  "Elmhurst Art Museum": {
+    "city": "Elmhurst",
+    "event_links": [
+      "https://elmhurstartmuseum.org/events"
+    ]
+  },
+  "Intuit Art Museum": {
+    "city": "Chicago",
+    "event_links": [
+      "https://art.org/events"
+    ]
+  },
+  "Krannert Art Museum": {
+    "city": "Champaign",
+    "event_links": [
+      "https://kam.illinois.edu/exhibitions-events/events"
+    ]
+  },
+  "Lizzadro Museum of Lapidary Art": {
+    "city": "Oak Brook",
+    "event_links": [
+      "https://lizzadromuseum.org/event/"
+    ]
+  },
+  "Museum of Contemporary Art Chicago": {
+    "city": "Chicago",
+    "event_links": [
+      "https://visit.mcachicago.org/events/"
+    ]
+  },
+  "Museum of Contemporary Photography": {
+    "city": "Chicago",
+    "event_links": [
+      "https://www.mocp.org/events/"
+    ]
+  },
+  "National Museum of Mexican Art": {
+    "city": "Chicago",
+    "event_links": [
+      "https://nationalmuseumofmexicanart.org/events"
+    ]
+  },
+  "NIU Art Museum": {
+    "city": "DeKalb",
+    "event_links": [
+      "https://www.niu.edu/artmuseum/events/index.shtml"
+    ]
+  },
+  "Smart Museum of Art": {
+    "city": "Chicago",
+    "event_links": [
+      "https://smartmuseum.uchicago.edu/public-practice/calendar-of-events/"
+    ]
+  },
+  "Ukrainian Institute of Modern Art": {
+    "city": "Chicago",
+    "event_links": [
+      "https://uima-chicago.org/events-1-1/"
+    ]
+  }
+}

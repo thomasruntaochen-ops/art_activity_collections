@@ -3,69 +3,80 @@
     "city": "Albany",
     "event_links": [
       "https://www.albanymuseum.com/events/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_ga_mec_bundle_parser.py"
   },
   "Bernard A. Zuckerman Museum of Art": {
     "city": "Kennesaw",
     "event_links": [
       "https://www.kennesaw.edu/arts/academics/visual-arts/zuckerman/events-and-programs/index.php"
-    ]
+    ],
+    "parser_script": "scripts/run_ga_html_bundle_parser.py"
   },
   "Booth Western Art Museum": {
     "city": "Cartersville",
     "event_links": [
       "https://boothmuseum.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_ga_tribe_bundle_parser.py"
   },
   "Georgia Museum of Art": {
     "city": "Athens",
     "event_links": [
       "https://georgiamuseum.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_ga_mec_bundle_parser.py"
   },
   "High Museum of Art": {
     "city": "Atlanta",
     "event_links": [
       "https://high.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_ga_html_bundle_parser.py"
   },
   "Marietta Cobb Museum of Art": {
     "city": "Marietta",
     "event_links": [
-      "https://mariettacobbartmuseum.org/happenings-2",
-      "https://mariettacobbartmuseum.org/learn"
-    ]
+      "https://mariettacobbartmuseum.org/learn/workshops",
+      "https://mariettacobbartmuseum.org/happenings-2/art-talks"
+    ],
+    "parser_script": "scripts/run_ga_tribe_bundle_parser.py"
   },
   "Morris Museum of Art": {
     "city": "Augusta",
     "event_links": [
       "https://www.themorris.org/calendar/"
-    ]
+    ],
+    "fail_implement": "As of March 26, 2026, the official calendar and direct event URLs return a Cloudflare \"Just a moment...\" verification flow in direct HTTP, and a Playwright browser session reaches the same security interstitial instead of event content, so there is no stable first-party event payload available from this environment."
   },
   "Museum of Contemporary Art of Georgia": {
     "city": "Atlanta",
     "event_links": [
       "https://mocaga.org/exhibitions-events/special-events/"
-    ]
+    ],
+    "failed_test_comment": "As of March 26, 2026, the official special-events page reports \"No Current or Upcoming Events,\" and the museum's official Tribe endpoint returns an empty upcoming-events payload, so a dry run currently parses 0 upcoming qualifying rows."
   },
   "Oglethorpe University Museum of Art": {
     "city": "Atlanta",
     "event_links": [
       "https://museum.oglethorpe.edu/exhibitions/",
       "https://museum.oglethorpe.edu/programs-and-initiatives/"
-    ]
+    ],
+    "parser_script": "scripts/run_ga_html_bundle_parser.py"
   },
   "SCAD Museum of Art": {
     "city": "Savannah",
     "event_links": [
       "https://www.scadmoa.org/programs"
-    ]
+    ],
+    "fail_implement": "As of March 26, 2026, direct HTTP requests to the official programs page are blocked by a Cloudflare challenge and a Playwright browser session still lands on an \"Attention Required! | Cloudflare\" block page, so there is no stable official HTML or JSON program feed to parse from this environment."
   },
   "Telfair Museums": {
     "city": "Savannah",
     "event_links": [
       "https://www.telfair.org/family-programs/",
       "https://www.telfair.org/museum-events/"
-    ]
+    ],
+    "parser_script": "scripts/run_ga_tribe_bundle_parser.py"
   }
 }
