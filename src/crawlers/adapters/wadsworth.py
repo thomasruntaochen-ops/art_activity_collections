@@ -12,6 +12,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.extractors.filters import is_irrelevant_item_text
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -324,7 +325,7 @@ def _parse_end_at(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value)
+        return parse_iso_datetime(value, timezone_name=WADSWORTH_TIMEZONE)
     except ValueError:
         return None
 

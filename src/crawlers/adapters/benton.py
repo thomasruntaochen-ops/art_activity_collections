@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -424,7 +425,7 @@ def _parse_datetime(value: object) -> datetime | None:
     if value in (None, ""):
         return None
     try:
-        return datetime.fromisoformat(str(value))
+        return parse_iso_datetime(str(value), timezone_name=NY_TIMEZONE)
     except ValueError:
         return None
 

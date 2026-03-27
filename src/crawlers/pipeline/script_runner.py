@@ -7,6 +7,7 @@ from typing import Awaitable
 from typing import Callable
 
 from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse
+from src.crawlers.pipeline.datetime_utils import normalize_extracted_activity_datetimes
 from src.crawlers.pipeline.runner import UpsertStats
 from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -82,7 +83,7 @@ async def run_targets(
 
     for target in targets:
         payload = await target.load_payload()
-        parsed = target.parse_payload(payload)
+        parsed = [normalize_extracted_activity_datetimes(row) for row in target.parse_payload(payload)]
 
         print(f"Parsed {len(parsed)} {target.parsed_label}")
         for row in parsed:

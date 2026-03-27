@@ -10,6 +10,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -352,7 +353,7 @@ def _parse_datetime(value: object) -> datetime | None:
         return None
     normalized = text.replace("Z", "+00:00")
     try:
-        return datetime.fromisoformat(normalized)
+        return parse_iso_datetime(normalized, timezone_name=NY_TIMEZONE)
     except ValueError:
         return None
 

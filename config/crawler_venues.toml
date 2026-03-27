@@ -531,7 +531,7 @@ args = ["--commit"]
 [[venues]]
 venue = "wa_tribe_bundle"
 state = "WA"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_wa_tribe_bundle_parser.py"
 batch_id = "batch_d"
 use_base_url = false
@@ -540,7 +540,7 @@ args = ["--commit"]
 [[venues]]
 venue = "wa_html_bundle"
 state = "WA"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_wa_html_bundle_parser.py"
 batch_id = "batch_d"
 use_base_url = false

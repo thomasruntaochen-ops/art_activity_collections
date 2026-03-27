@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -559,7 +560,7 @@ def _extract_detail_datetimes(soup: BeautifulSoup) -> tuple[datetime | None, dat
         if not raw or raw in seen:
             continue
         try:
-            parsed = datetime.fromisoformat(raw)
+            parsed = parse_iso_datetime(raw, timezone_name=HILLWOOD_TIMEZONE)
         except ValueError:
             continue
         seen.add(raw)

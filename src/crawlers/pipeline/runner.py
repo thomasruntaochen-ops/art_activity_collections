@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy import func, literal, select, tuple_
 
+from src.crawlers.pipeline.datetime_utils import normalize_extracted_activity_datetimes
 from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.extractors.hardcoded import extract_from_event_page
 from src.db.session import SessionLocal
@@ -181,12 +182,13 @@ def upsert_extracted_activities_with_stats(
     adapter_type: str = "static_html",
 ) -> tuple[list[ExtractedActivity], UpsertStats]:
     """Upsert extracted activity rows and return deduped inputs plus write stats."""
-    deduped = list({(a.source_url, a.title, a.start_at): a for a in extracted}.values())
+    normalized = [normalize_extracted_activity_datetimes(item) for item in extracted]
+    deduped = list({(a.source_url, a.title, a.start_at): a for a in normalized}.values())
     if not deduped:
         return (
             deduped,
             UpsertStats(
-                input_rows=len(extracted),
+                input_rows=len(normalized),
                 deduped_rows=0,
                 inserted=0,
                 updated=0,
@@ -298,7 +300,7 @@ def upsert_extracted_activities_with_stats(
     return (
         deduped,
         UpsertStats(
-            input_rows=len(extracted),
+            input_rows=len(normalized),
             deduped_rows=len(deduped),
             inserted=inserted,
             updated=updated,

@@ -12,6 +12,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.extractors.filters import is_irrelevant_item_text
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -283,13 +284,13 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
             continue
 
         try:
-            start_at = datetime.fromisoformat(start_date)
+            start_at = parse_iso_datetime(start_date, timezone_name=NY_TIMEZONE)
         except ValueError:
             continue
 
         end_raw = source_obj.get("endDate")
         try:
-            end_at = datetime.fromisoformat(end_raw) if end_raw else None
+            end_at = parse_iso_datetime(end_raw, timezone_name=NY_TIMEZONE) if end_raw else None
         except ValueError:
             end_at = None
 

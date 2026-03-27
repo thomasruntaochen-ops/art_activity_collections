@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from datetime import timezone
 
 from src.crawlers.pipeline.runner import UpsertStats
 from src.crawlers.pipeline.script_runner import EmptyCommitGuard
@@ -158,3 +159,53 @@ def test_run_targets_aggregate_empty_guard_allows_individual_empty_batches(monke
     assert write_calls[0][1] == []
     assert write_calls[1][1][0].title == "Sample Workshop"
     assert summary.total_parsed == 1
+
+
+def test_run_targets_normalizes_aware_datetimes_before_upsert(monkeypatch) -> None:
+    write_calls: list[tuple[str, list[ExtractedActivity], str]] = []
+
+    def _fake_upsert(source_url: str, extracted: list[ExtractedActivity], *, adapter_type: str):
+        write_calls.append((source_url, extracted, adapter_type))
+        return extracted, UpsertStats(
+            input_rows=len(extracted),
+            deduped_rows=len(extracted),
+            inserted=len(extracted),
+            updated=0,
+            unchanged=0,
+        )
+
+    monkeypatch.setattr("src.crawlers.pipeline.script_runner.upsert_extracted_activities_with_stats", _fake_upsert)
+
+    aware_row = _sample_row()
+    aware_row.start_at = datetime(2026, 3, 10, 16, 0, tzinfo=timezone.utc)
+    aware_row.end_at = datetime(2026, 3, 10, 17, 0, tzinfo=timezone.utc)
+    aware_row.timezone = "America/New_York"
+
+    async def _load_payload() -> str:
+        return "payload"
+
+    summary = asyncio.run(
+        run_targets(
+            targets=[
+                TargetRunSpec(
+                    name="aware",
+                    source_url="https://example.org/events",
+                    load_payload=_load_payload,
+                    parse_payload=lambda payload: [aware_row],
+                    parser_name="aware_parser",
+                    adapter_type="example_adapter",
+                    parsed_label="rows",
+                )
+            ],
+            commit=True,
+        )
+    )
+
+    assert summary.total_inserted == 1
+    assert len(write_calls) == 1
+    written_row = write_calls[0][1][0]
+    assert written_row.start_at == datetime(2026, 3, 10, 12, 0)
+    assert written_row.end_at == datetime(2026, 3, 10, 13, 0)
+    assert written_row.start_at.tzinfo is None
+    assert written_row.end_at is not None
+    assert written_row.end_at.tzinfo is None

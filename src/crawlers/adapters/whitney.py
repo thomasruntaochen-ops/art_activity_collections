@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.types import ExtractedActivity
 
 WHITNEY_TEEN_WORKSHOPS_URL = (
@@ -366,7 +367,7 @@ def _parse_datetime(value: object) -> datetime | None:
     if text.endswith("Z"):
         text = text[:-1] + "+00:00"
     try:
-        return datetime.fromisoformat(text)
+        return parse_iso_datetime(text, timezone_name=NY_TIMEZONE)
     except ValueError:
         pass
 

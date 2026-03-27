@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover - optional dependency
     BrowserContext = None
     async_playwright = None
 
+from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -730,7 +731,7 @@ def _parse_datetime_value(value: object) -> datetime | None:
     if not text:
         return None
     try:
-        return datetime.fromisoformat(text)
+        return parse_iso_datetime(text, timezone_name=NGA_TIMEZONE)
     except ValueError:
         return None
 

@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -393,7 +394,7 @@ def _parse_datetime(value: object) -> datetime | None:
     if not text:
         return None
     try:
-        return datetime.fromisoformat(text)
+        return parse_iso_datetime(text, timezone_name=WA_TIMEZONE)
     except ValueError:
         pass
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):

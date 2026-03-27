@@ -9,6 +9,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.types import ExtractedActivity
 
 LYMAN_ALLYN_EVENTS_URL = "https://www.lymanallyn.org/events/"
@@ -482,7 +483,7 @@ def _parse_iso_datetime(value: object) -> datetime | None:
     if len(text) == 10:
         text = f"{text}T00:00:00"
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return parse_iso_datetime(text.replace("Z", "+00:00"), timezone_name=NY_TIMEZONE)
     except ValueError:
         return None
 
