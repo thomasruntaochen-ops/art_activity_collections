@@ -1,0 +1,87 @@
+{
+  "Akron Art Museum": {
+    "city": "Akron",
+    "event_links": [
+      "https://akronartmuseum.org/calendar/"
+    ]
+  },
+  "Allen Memorial Art Museum": {
+    "city": "Oberlin",
+    "event_links": [
+      "https://amam.oberlin.edu/exhibitions-events/events"
+    ]
+  },
+  "Canton Museum of Art": {
+    "city": "Canton",
+    "event_links": [
+      "https://www.cantonart.org/calendar"
+    ]
+  },
+  "Cincinnati Art Museum": {
+    "city": "Cincinnati",
+    "event_links": [
+      "https://www.cincinnatiartmuseum.org/events-programs/events-list/"
+    ]
+  },
+  "Cleveland Museum of Art": {
+    "city": "Cleveland",
+    "event_links": [
+      "https://www.clevelandart.org/whats-on/all?page=0&when=Upcoming"
+    ]
+  },
+  "Columbus Museum of Art": {
+    "city": "Columbus",
+    "event_links": [
+      "https://www.columbusmuseum.org/events"
+    ]
+  },
+  "Dayton Art Institute": {
+    "city": "Dayton",
+    "event_links": [
+      "https://www.daytonartinstitute.org/upcoming-events/calendar/"
+    ]
+  },
+  "Decorative Arts Center of Ohio": {
+    "city": "Lancaster",
+    "event_links": [
+      "https://www.decartsohio.org/events.html",
+      "https://www.decartsohio.org/lectures.html"
+    ]
+  },
+  "Massillon Museum": {
+    "city": "Massillon",
+    "event_links": [
+      "https://www.massillonmuseum.org/home/programs/massillon-museum-events-calendar"
+    ]
+  },
+  "McDonough Museum of Art": {
+    "city": "Youngstown",
+    "event_links": [
+      "https://ysu.edu/mcdonough-museum/exhibition-schedule"
+    ]
+  },
+  "Museum of Contemporary Art Cleveland": {
+    "city": "Cleveland",
+    "event_links": [
+      "https://www.mocacleveland.org/events"
+    ]
+  },
+  "The Butler Institute of American Art": {
+    "city": "Youngstown",
+    "event_links": [
+      "https://butlerart.com/programs/"
+    ]
+  },
+  "Toledo Museum of Art": {
+    "city": "Toledo",
+    "event_links": [
+      "https://toledomuseum.org/events"
+    ]
+  },
+  "Zanesville Museum of Art": {
+    "city": "Zanesville",
+    "event_links": [
+      "https://www.zanesvilleart.org/calendar/"
+    ]
+  }
+}

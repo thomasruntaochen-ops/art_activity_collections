@@ -1,0 +1,40 @@
+{
+  "Coos Art Museum": {
+    "city": "Coos Bay",
+    "event_links": [
+      "https://coosartmuseum.org/education/cam-community/",
+      "https://coosartmuseum.org/education/classes/",
+      "https://coosartmuseum.org/visit/events/"
+    ]
+  },
+  "Hallie Ford Museum of Art": {
+    "city": "Salem",
+    "event_links": [
+      "https://hfma.willamette.edu/events/"
+    ]
+  },
+  "Jordan Schnitzer Museum of Art": {
+    "city": "Eugene",
+    "event_links": [
+      "https://jsma.uoregon.edu/events"
+    ]
+  },
+  "Jordan Schnitzer Museum of Art at Portland State University": {
+    "city": "Portland",
+    "event_links": [
+      "https://www.pdx.edu/museum-of-art/calendar/month"
+    ]
+  },
+  "Portland Art Museum": {
+    "city": "Portland",
+    "event_links": [
+      "https://portlandartmuseum.org/calendar/"
+    ]
+  },
+  "Schneider Museum of Art": {
+    "city": "Ashland",
+    "event_links": [
+      "https://sma.sou.edu/upcoming-exhibitions/"
+    ]
+  }
+}

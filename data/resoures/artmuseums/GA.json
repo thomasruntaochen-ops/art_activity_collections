@@ -1,0 +1,71 @@
+{
+  "Albany Museum of Art": {
+    "city": "Albany",
+    "event_links": [
+      "https://www.albanymuseum.com/events/calendar/"
+    ]
+  },
+  "Bernard A. Zuckerman Museum of Art": {
+    "city": "Kennesaw",
+    "event_links": [
+      "https://www.kennesaw.edu/arts/academics/visual-arts/zuckerman/events-and-programs/index.php"
+    ]
+  },
+  "Booth Western Art Museum": {
+    "city": "Cartersville",
+    "event_links": [
+      "https://boothmuseum.org/calendar/"
+    ]
+  },
+  "Georgia Museum of Art": {
+    "city": "Athens",
+    "event_links": [
+      "https://georgiamuseum.org/events/"
+    ]
+  },
+  "High Museum of Art": {
+    "city": "Atlanta",
+    "event_links": [
+      "https://high.org/events/"
+    ]
+  },
+  "Marietta Cobb Museum of Art": {
+    "city": "Marietta",
+    "event_links": [
+      "https://mariettacobbartmuseum.org/happenings-2",
+      "https://mariettacobbartmuseum.org/learn"
+    ]
+  },
+  "Morris Museum of Art": {
+    "city": "Augusta",
+    "event_links": [
+      "https://www.themorris.org/calendar/"
+    ]
+  },
+  "Museum of Contemporary Art of Georgia": {
+    "city": "Atlanta",
+    "event_links": [
+      "https://mocaga.org/exhibitions-events/special-events/"
+    ]
+  },
+  "Oglethorpe University Museum of Art": {
+    "city": "Atlanta",
+    "event_links": [
+      "https://museum.oglethorpe.edu/exhibitions/",
+      "https://museum.oglethorpe.edu/programs-and-initiatives/"
+    ]
+  },
+  "SCAD Museum of Art": {
+    "city": "Savannah",
+    "event_links": [
+      "https://www.scadmoa.org/programs"
+    ]
+  },
+  "Telfair Museums": {
+    "city": "Savannah",
+    "event_links": [
+      "https://www.telfair.org/family-programs/",
+      "https://www.telfair.org/museum-events/"
+    ]
+  }
+}

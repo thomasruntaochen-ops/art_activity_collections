@@ -1,0 +1,80 @@
+{
+  "Allentown Art Museum": {
+    "city": "Allentown",
+    "event_links": [
+      "https://www.allentownartmuseum.org/calendar/"
+    ]
+  },
+  "Barnes Foundation": {
+    "city": "Philadelphia",
+    "event_links": [
+      "https://www.barnesfoundation.org/whats-on"
+    ]
+  },
+  "Brandywine Museum of Art": {
+    "city": "Chadds Ford",
+    "event_links": [
+      "https://www.brandywine.org/museum/events"
+    ]
+  },
+  "Carnegie Museum of Art": {
+    "city": "Pittsburgh",
+    "event_links": [
+      "https://carnegieart.org/events/format/drop-in-programs/"
+    ]
+  },
+  "Erie Art Museum": {
+    "city": "Erie",
+    "event_links": [
+      "https://www.erieartmuseum.org/gallery-night/"
+    ]
+  },
+  "James A. Michener Art Museum": {
+    "city": "Doylestown",
+    "event_links": [
+      "https://michenerartmuseum.org/events/"
+    ]
+  },
+  "Palmer Museum of Art": {
+    "city": "University Park",
+    "event_links": [
+      "https://palmermuseum.psu.edu/programs/"
+    ]
+  },
+  "Pennsylvania Academy of the Fine Arts": {
+    "city": "Philadelphia",
+    "event_links": [
+      "https://www.pafa.org/events"
+    ]
+  },
+  "Philadelphia Museum of Art": {
+    "city": "Philadelphia",
+    "event_links": [
+      "https://www.philamuseum.org/events"
+    ]
+  },
+  "Susquehanna Art Museum": {
+    "city": "Harrisburg",
+    "event_links": [
+      "https://susquehannaartmuseum.org/calendar/"
+    ]
+  },
+  "The Andy Warhol Museum": {
+    "city": "Pittsburgh",
+    "event_links": [
+      "https://www.warhol.org/events/"
+    ]
+  },
+  "The Westmoreland Museum of American Art": {
+    "city": "Greensburg",
+    "event_links": [
+      "https://thewestmoreland.org/events/"
+    ]
+  },
+  "Woodmere Art Museum": {
+    "city": "Philadelphia",
+    "event_links": [
+      "https://woodmereartmuseum.org/calendar"
+    ]
+  }
+}

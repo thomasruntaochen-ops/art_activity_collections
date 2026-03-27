@@ -1,0 +1,68 @@
+{
+  "Ackland Art Museum": {
+    "city": "Chapel Hill",
+    "event_links": [
+      "https://events.ackland.org/events/"
+    ]
+  },
+  "Asheville Art Museum": {
+    "city": "Asheville",
+    "event_links": [
+      "https://www.ashevilleart.org/events/"
+    ]
+  },
+  "Bechtler Museum of Modern Art": {
+    "city": "Charlotte",
+    "event_links": [
+      "https://www.bechtler.org/events"
+    ]
+  },
+  "Cameron Art Museum": {
+    "city": "Wilmington",
+    "event_links": [
+      "https://cameronartmuseum.org/events/"
+    ]
+  },
+  "Gregg Museum of Art + Design": {
+    "city": "Raleigh",
+    "event_links": [
+      "https://gregg.arts.ncsu.edu/programs/"
+    ]
+  },
+  "Hickory Museum of Art": {
+    "city": "Hickory",
+    "event_links": [
+      "https://www.hickoryart.org/events"
+    ]
+  },
+  "Nasher Museum of Art at Duke University": {
+    "city": "Durham",
+    "event_links": [
+      "https://nasher.duke.edu/programs/"
+    ]
+  },
+  "North Carolina Museum of Art": {
+    "city": "Raleigh",
+    "event_links": [
+      "https://ncartmuseum.org/events-and-exhibitions/events-calendar/"
+    ]
+  },
+  "Reynolda House Museum of American Art": {
+    "city": "Winston-Salem",
+    "event_links": [
+      "https://reynolda.org/visit/calendar/"
+    ]
+  },
+  "The Mint Museum": {
+    "city": "Charlotte",
+    "event_links": [
+      "https://www.mintmuseum.org/events/"
+    ]
+  },
+  "Weatherspoon Art Museum": {
+    "city": "Greensboro",
+    "event_links": [
+      "https://weatherspoonart.org/calendar/"
+    ]
+  }
+}
