@@ -354,6 +354,51 @@ sources:
     adapter_type: va_quilt_events
     crawl_frequency: daily
     active: false
+  - name: wa_tacoma_events
+    base_url: https://www.tacomaartmuseum.org/events/
+    adapter_type: wa_tacoma_events
+    crawl_frequency: daily
+    active: false
+  - name: wa_whatcom_events
+    base_url: https://www.whatcommuseum.org/events/
+    adapter_type: wa_whatcom_events
+    crawl_frequency: daily
+    active: false
+  - name: wa_bima_events
+    base_url: https://www.biartmuseum.org/calendar-events/
+    adapter_type: wa_bima_events
+    crawl_frequency: daily
+    active: false
+  - name: wa_frye_events
+    base_url: https://fryemuseum.org/calendar
+    adapter_type: wa_frye_events
+    crawl_frequency: daily
+    active: false
+  - name: wa_henry_events
+    base_url: https://henryart.org/programs/all
+    adapter_type: wa_henry_events
+    crawl_frequency: daily
+    active: false
+  - name: wa_mona_events
+    base_url: https://www.monamuseum.org/events
+    adapter_type: wa_mona_events
+    crawl_frequency: daily
+    active: false
+  - name: wa_sam_events
+    base_url: https://www.seattleartmuseum.org/whats-on/events
+    adapter_type: wa_sam_events
+    crawl_frequency: daily
+    active: false
+  - name: wa_western_events
+    base_url: https://westerngallery.wwu.edu/events-calendar
+    adapter_type: wa_western_events
+    crawl_frequency: daily
+    active: false
+  - name: wa_mac_events
+    base_url: https://sales.northwestmuseum.org/calendar.aspx?view=c&et=p+c
+    adapter_type: wa_mac_events
+    crawl_frequency: daily
+    active: false
   - name: ccmoa_events
     base_url: https://www.ccmoa.org/upcoming-events
     adapter_type: ccmoa_events

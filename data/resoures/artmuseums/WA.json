@@ -3,64 +3,71 @@
     "city": "Bainbridge Island",
     "event_links": [
       "https://www.biartmuseum.org/calendar-events/"
-    ]
+    ],
+    "parser_script": "scripts/run_wa_html_bundle_parser.py"
   },
   "Cascadia Art Museum": {
     "city": "Edmonds",
     "event_links": [
       "https://www.cascadiaartmuseum.org/art-walk-edmonds/",
       "https://www.cascadiaartmuseum.org/family-art-workshops/"
-    ]
+    ],
+    "fail_implement": "No information"
   },
   "Frye Art Museum": {
     "city": "Seattle",
     "event_links": [
-      "https://fryemuseum.org/calendar",
-      "https://fryemuseum.org/ongoing-programs"
-    ]
+      "https://fryemuseum.org/calendar"
+    ],
+    "parser_script": "scripts/run_wa_html_bundle_parser.py"
   },
   "Henry Art Gallery": {
     "city": "Seattle",
     "event_links": [
       "https://henryart.org/programs/all"
-    ]
+    ],
+    "parser_script": "scripts/run_wa_html_bundle_parser.py"
   },
   "Museum of Northwest Art": {
     "city": "La Conner",
     "event_links": [
       "https://www.monamuseum.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_wa_html_bundle_parser.py"
   },
   "Northwest Museum of Arts and Culture": {
     "city": "Spokane",
     "event_links": [
-      "https://www.northwestmuseum.org/programs/special-events/curators-of-sound-concert-series/",
-      "https://www.northwestmuseum.org/programs/youth-programs/day-camps/"
-    ]
+      "https://sales.northwestmuseum.org/calendar.aspx?view=c&et=p+c"
+    ],
+    "parser_script": "scripts/run_wa_html_bundle_parser.py"
   },
   "Seattle Art Museum": {
     "city": "Seattle",
     "event_links": [
       "https://www.seattleartmuseum.org/whats-on/events"
-    ]
+    ],
+    "parser_script": "scripts/run_wa_html_bundle_parser.py"
   },
   "Tacoma Art Museum": {
     "city": "Tacoma",
     "event_links": [
       "https://www.tacomaartmuseum.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_wa_tribe_bundle_parser.py"
   },
   "Western Gallery": {
     "city": "Bellingham",
     "event_links": [
       "https://westerngallery.wwu.edu/events-calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_wa_html_bundle_parser.py"
   },
   "Whatcom Museum": {
     "city": "Bellingham",
     "event_links": [
-      "https://www.whatcommuseum.org/series/storytime/",
-      "https://www.whatcommuseum.org/venue/family-interactive-gallery/"
-    ]
+      "https://www.whatcommuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_wa_tribe_bundle_parser.py"
   }
 }
