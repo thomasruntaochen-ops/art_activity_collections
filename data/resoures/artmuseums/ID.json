@@ -2,20 +2,22 @@
   "Boise Art Museum": {
     "city": "Boise",
     "event_links": [
-      "https://boiseartmuseum.org/events-calendar/",
-      "https://boiseartmuseum.org/classes-workshops/"
-    ]
+      "https://boiseartmuseum.org/programs-events/"
+    ],
+    "parser_script": "scripts/run_id_bundle_parser.py"
   },
   "Sun Valley Museum of Art": {
     "city": "Ketchum",
     "event_links": [
-      "https://svmoa.org/events/calendar"
-    ]
+      "https://svmoa.org/events"
+    ],
+    "parser_script": "scripts/run_id_bundle_parser.py"
   },
   "The Art Museum of Eastern Idaho": {
     "city": "Idaho Falls",
     "event_links": [
       "https://www.theartmuseum.org/Calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_id_bundle_parser.py"
   }
 }

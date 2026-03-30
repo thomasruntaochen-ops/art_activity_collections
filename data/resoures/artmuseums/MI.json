@@ -1,0 +1,44 @@
+{
+  "Detroit Institute of Arts": {
+    "city": "Detroit",
+    "event_links": [
+      "https://dia.org/events"
+    ],
+    "parser_script": "scripts/run_mi_bundle_parser.py"
+  },
+  "Grand Rapids Art Museum": {
+    "city": "Grand Rapids",
+    "event_links": [
+      "https://www.artmuseumgr.org/events"
+    ],
+    "parser_script": "scripts/run_mi_bundle_parser.py"
+  },
+  "Kalamazoo Institute of Arts": {
+    "city": "Kalamazoo",
+    "event_links": [
+      "https://www.kiarts.org/events/"
+    ],
+    "parser_script": "scripts/run_mi_bundle_parser.py"
+  },
+  "MSU Broad Art Museum": {
+    "city": "East Lansing",
+    "event_links": [
+      "https://broadmuseum.msu.edu/events/"
+    ],
+    "parser_script": "scripts/run_mi_bundle_parser.py"
+  },
+  "Muskegon Museum of Art": {
+    "city": "Muskegon",
+    "event_links": [
+      "https://muskegonartmuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_mi_bundle_parser.py"
+  },
+  "University of Michigan Museum of Art": {
+    "city": "Ann Arbor",
+    "event_links": [
+      "https://umma.umich.edu/visit/events/"
+    ],
+    "parser_script": "scripts/run_mi_bundle_parser.py"
+  }
+}

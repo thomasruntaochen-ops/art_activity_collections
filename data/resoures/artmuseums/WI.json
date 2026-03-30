@@ -1,0 +1,37 @@
+{
+  "Chazen Museum of Art": {
+    "city": "Madison",
+    "event_links": [
+      "https://chazen.wisc.edu/events/"
+    ],
+    "parser_script": "scripts/run_chazen_parser.py"
+  },
+  "Leigh Yawkey Woodson Art Museum": {
+    "city": "Wausau",
+    "event_links": [
+      "https://www.lywam.org/art-events-in-wausau/"
+    ],
+    "parser_script": "scripts/run_leigh_yawkey_woodson_parser.py"
+  },
+  "Madison Museum of Contemporary Art": {
+    "city": "Madison",
+    "event_links": [
+      "https://www.mmoca.org/events/"
+    ],
+    "parser_script": "scripts/run_mmoca_parser.py"
+  },
+  "Milwaukee Art Museum": {
+    "city": "Milwaukee",
+    "event_links": [
+      "https://mam.org/events/"
+    ],
+    "parser_script": "scripts/run_milwaukee_art_museum_parser.py"
+  },
+  "Museum of Wisconsin Art": {
+    "city": "West Bend",
+    "event_links": [
+      "https://wisconsinart.org/events/"
+    ],
+    "parser_script": "scripts/run_museum_of_wisconsin_art_parser.py"
+  }
+}

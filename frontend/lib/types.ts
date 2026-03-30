@@ -14,6 +14,7 @@ export type Activity = {
   start_at: string;
   end_at: string | null;
   timezone: string;
+  is_free: boolean | null;
   free_verification_status: string;
   extraction_method: string;
   status: string;
@@ -40,6 +41,7 @@ export type ActivityFilters = {
   state?: string;
   date_from?: string;
   date_to?: string;
+  free_only?: boolean;
 };
 
 export type SuggestField = "venue" | "city" | "state";
@@ -53,4 +55,5 @@ export type ActivityFilterOptions = {
 export type ActivityFilterOptionFilters = {
   city?: string;
   state?: string;
+  free_only?: boolean;
 };

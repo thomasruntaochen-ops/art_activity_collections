@@ -1,0 +1,30 @@
+{
+  "Georgia O'Keeffe Museum": {
+    "city": "Santa Fe",
+    "event_links": [
+      "https://www.okeeffemuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_nm_bundle_parser.py"
+  },
+  "Harwood Museum of Art": {
+    "city": "Taos",
+    "event_links": [
+      "https://harwoodmuseum.org/events-calendar/"
+    ],
+    "failed_test_comment": "As of March 30, 2026, the official EventON calendar requires client-side rendering; a Playwright-loaded pass reached the live page but displayed 'MARCH, 2026' with 'NO EVENTS', so the dry run currently parses 0 upcoming qualifying rows."
+  },
+  "New Mexico Museum of Art": {
+    "city": "Santa Fe",
+    "event_links": [
+      "https://www.nmartmuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_nm_bundle_parser.py"
+  },
+  "SITE SANTA FE": {
+    "city": "Santa Fe",
+    "event_links": [
+      "https://www.sitesantafe.org/en/events/"
+    ],
+    "parser_script": "scripts/run_nm_bundle_parser.py"
+  }
+}

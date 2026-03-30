@@ -3,62 +3,70 @@
     "city": "Tempe",
     "event_links": [
       "https://asuartmuseum.org/exhibitions-and-events/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_az_tribe_bundle_parser.py"
   },
   "Center for Creative Photography": {
     "city": "Tucson",
     "event_links": [
       "https://ccp.arizona.edu/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_az_tribe_bundle_parser.py"
   },
   "Heard Museum": {
     "city": "Phoenix",
     "event_links": [
       "https://heard.org/experience/events-and-classes/"
-    ]
+    ],
+    "parser_script": "scripts/run_az_html_bundle_parser.py"
   },
   "Mesa Contemporary Arts Museum": {
     "city": "Mesa",
     "event_links": [
-      "https://www.mesaartscenter.com/index.php/museum/programs"
-    ]
+      "https://www.mesaartscenter.com/programs-events"
+    ],
+    "parser_script": "scripts/run_az_html_bundle_parser.py"
   },
   "Museum of Contemporary Art Tucson": {
     "city": "Tucson",
     "event_links": [
       "https://moca-tucson.org/learn/"
-    ]
+    ],
+    "parser_script": "scripts/run_az_html_bundle_parser.py"
   },
   "NAU Art Museum": {
     "city": "Flagstaff",
     "event_links": [
       "https://nau.edu/artmuseum/exhibitions/"
-    ]
+    ],
+    "fail_implement": "No activity"
   },
   "Phoenix Art Museum": {
     "city": "Phoenix",
     "event_links": [
       "https://phxart.org/events/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_az_html_bundle_parser.py"
   },
   "Scottsdale Museum of Contemporary Art": {
     "city": "Scottsdale",
     "event_links": [
       "https://scottsdalearts.org/whats-on/?categories=events&venues=smoca"
-    ]
+    ],
+    "parser_script": "scripts/run_az_html_bundle_parser.py"
   },
   "Tucson Museum of Art and Historic Block": {
     "city": "Tucson",
     "event_links": [
-      "https://www.tucsonmuseumofart.org/first-thursday/",
-      "https://www.tucsonmuseumofart.org/secondsundaze/",
-      "https://www.tucsonmuseumofart.org/art-camp/"
-    ]
+      "https://www.tucsonmuseumofart.org/events/month/"
+    ],
+    "parser_script": "scripts/run_az_tribe_bundle_parser.py"
   },
   "University of Arizona Museum of Art": {
     "city": "Tucson",
     "event_links": [
       "https://artmuseum.arizona.edu/see-do/events/calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_az_html_bundle_parser.py"
   }
 }

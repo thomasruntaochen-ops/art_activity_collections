@@ -2,21 +2,22 @@
   "Biggs Museum of American Art": {
     "city": "Dover",
     "event_links": [
-      "https://www.biggsmuseum.org/program-events/",
       "https://www.biggsmuseum.org/eventkids.htm"
-    ]
+    ],
+    "fail_implement": "Current official Biggs pages describe recurring kids programming, but the live events calendar is behind an unavailable Agile/Incapsula page and the remaining pages do not expose reliable upcoming datetimes."
   },
   "Delaware Art Museum": {
     "city": "Wilmington",
     "event_links": [
-      "https://delart.org/whats-on/",
-      "https://delart.org/visit/families-with-children/"
-    ]
+      "https://delart.org/whats-on/"
+    ],
+    "parser_script": "scripts/run_de_bundle_parser.py"
   },
   "The Delaware Contemporary": {
     "city": "Wilmington",
     "event_links": [
       "https://www.decontemporary.org/upcoming-events"
-    ]
+    ],
+    "parser_script": "scripts/run_de_bundle_parser.py"
   }
 }

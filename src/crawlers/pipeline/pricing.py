@@ -12,6 +12,11 @@ FREE_MARKERS = (
     "0 dollars",
     "free of charge",
 )
+SUGGESTED_DONATION_MARKERS = (
+    "suggested donation",
+    "donation suggested",
+    "suggested contribution",
+)
 DEFINITE_PAID_MARKERS = (
     " paid ",
     "tuition",
@@ -43,9 +48,11 @@ def infer_price_classification(
     if not normalized:
         return _default_price_classification(default_is_free)
 
-    if POSITIVE_DOLLAR_RE.search(normalized):
-        return False, "confirmed"
     if any(marker in normalized for marker in DEFINITE_PAID_MARKERS):
+        return False, "confirmed"
+    if any(marker in normalized for marker in SUGGESTED_DONATION_MARKERS):
+        return True, "confirmed"
+    if POSITIVE_DOLLAR_RE.search(normalized):
         return False, "confirmed"
     if any(marker in normalized for marker in FREE_MARKERS):
         return True, "confirmed"

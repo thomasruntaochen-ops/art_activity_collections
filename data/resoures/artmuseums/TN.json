@@ -1,0 +1,30 @@
+{
+  "Dixon Gallery & Gardens": {
+    "city": "Memphis",
+    "event_links": [
+      "https://www.dixon.org/events"
+    ],
+    "parser_script": "scripts/run_dixon_parser.py"
+  },
+  "Frist Art Museum": {
+    "city": "Nashville",
+    "event_links": [
+      "https://fristartmuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_frist_parser.py"
+  },
+  "Hunter Museum of American Art": {
+    "city": "Chattanooga",
+    "event_links": [
+      "https://www.huntermuseum.org/events"
+    ],
+    "parser_script": "scripts/run_hunter_parser.py"
+  },
+  "Knoxville Museum of Art": {
+    "city": "Knoxville",
+    "event_links": [
+      "https://knoxart.org/events/"
+    ],
+    "parser_script": "scripts/run_knoxville_museum_of_art_parser.py"
+  }
+}

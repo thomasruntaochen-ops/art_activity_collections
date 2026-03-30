@@ -2,40 +2,43 @@
   "Capitol Modern": {
     "city": "Honolulu",
     "event_links": [
-      "https://www.capitolmodern.org/events",
-      "https://www.capitolmodern.org/exhibitions"
-    ]
+      "https://www.capitolmodern.org/events"
+    ],
+    "failed_test_comment": "As of March 27, 2026, the official events page lists future Island Pulse, Mod Gala, First Friday, and Noise Cabinet entries, but they are music, fundraiser, or performance/listening-session programs excluded by the activity filters, so the dry run currently parses 0 qualifying rows."
   },
   "Donkey Mill Art Center": {
     "city": "Hōlualoa",
     "event_links": [
-      "https://donkeymillartcenter.org/event/",
-      "https://donkeymillartcenter.org/art-programs/"
-    ]
+      "https://donkeymillartcenter.org/event/"
+    ],
+    "parser_script": "scripts/run_hi_html_bundle_parser.py"
   },
   "East Hawaiʻi Cultural Center": {
     "city": "Hilo",
     "event_links": [
       "https://www.ehcc.org/programs/calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_hi_html_bundle_parser.py"
   },
   "Honolulu Museum of Art": {
     "city": "Honolulu",
     "event_links": [
       "https://honolulumuseum.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_hi_html_bundle_parser.py"
   },
   "Hui No‘eau Visual Arts Center": {
     "city": "Makawao",
     "event_links": [
-      "https://www.huinoeau.com/the-classes/",
       "https://www.huinoeau.com/art-events"
-    ]
+    ],
+    "failed_test_comment": "As of March 27, 2026, the official special-events page only exposes past items dated March 6, 2026 and earlier, so the dry run currently parses 0 upcoming qualifying rows."
   },
   "John Young Museum of Art": {
     "city": "Honolulu",
     "event_links": [
       "https://hawaii.edu/art/exhibitions-events/"
-    ]
+    ],
+    "fail_implement": "No activities"
   }
 }

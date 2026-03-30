@@ -340,10 +340,46 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "crow"
+state = "TX"
+enabled = true
+parser_script_name = "scripts/run_crow_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "dma"
+state = "TX"
+enabled = true
+parser_script_name = "scripts/run_dma_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "kimbell"
+state = "TX"
+enabled = true
+parser_script_name = "scripts/run_kimbell_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "mcnay"
 state = "TX"
 enabled = true
 parser_script_name = "scripts/run_mcnay_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "mfah"
+state = "TX"
+enabled = true
+parser_script_name = "scripts/run_mfah_parser.py"
 batch_id = "batch_b"
 use_base_url = false
 args = ["--commit"]
@@ -381,6 +417,42 @@ state = "CT"
 enabled = false
 parser_script_name = "scripts/run_wadsworth_parser.py"
 batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "knoxville_museum_of_art"
+state = "TN"
+enabled = true
+parser_script_name = "scripts/run_knoxville_museum_of_art_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "frist"
+state = "TN"
+enabled = true
+parser_script_name = "scripts/run_frist_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "hunter"
+state = "TN"
+enabled = true
+parser_script_name = "scripts/run_hunter_parser.py"
+batch_id = "batch_b"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "dixon"
+state = "TN"
+enabled = true
+parser_script_name = "scripts/run_dixon_parser.py"
+batch_id = "batch_b"
 use_base_url = false
 args = ["--commit"]
 
@@ -821,6 +893,267 @@ venue = "zanesville_museum_of_art"
 state = "OH"
 enabled = true
 parser_script_name = "scripts/run_zanesville_museum_of_art_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "alaska_state_museum"
+state = "AK"
+enabled = true
+parser_script_name = "scripts/run_alaska_state_museum_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "anchorage_museum"
+state = "AK"
+enabled = true
+parser_script_name = "scripts/run_anchorage_museum_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "al_bundle"
+state = "AL"
+enabled = true
+parser_script_name = "scripts/run_al_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "ar_tribe_bundle"
+state = "AR"
+enabled = true
+parser_script_name = "scripts/run_ar_tribe_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "ar_custom_calendar_bundle"
+state = "AR"
+enabled = true
+parser_script_name = "scripts/run_ar_custom_calendar_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "fort_smith_regional_art_museum"
+state = "AR"
+enabled = true
+parser_script_name = "scripts/run_fort_smith_regional_art_museum_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "az_tribe_bundle"
+state = "AZ"
+enabled = true
+parser_script_name = "scripts/run_az_tribe_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "az_html_bundle"
+state = "AZ"
+enabled = true
+parser_script_name = "scripts/run_az_html_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "de_bundle"
+state = "DE"
+enabled = true
+parser_script_name = "scripts/run_de_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "id_bundle"
+state = "ID"
+enabled = true
+parser_script_name = "scripts/run_id_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "il_bundle"
+state = "IL"
+enabled = true
+parser_script_name = "scripts/run_il_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "in_bundle"
+state = "IN"
+enabled = true
+parser_script_name = "scripts/run_in_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "mn_artsmia"
+state = "MN"
+enabled = true
+parser_script_name = "scripts/run_mn_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--venue", "artsmia", "--commit"]
+
+[[venues]]
+venue = "mn_mmam"
+state = "MN"
+enabled = true
+parser_script_name = "scripts/run_mn_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--venue", "mmam", "--commit"]
+
+[[venues]]
+venue = "mn_mmaa"
+state = "MN"
+enabled = true
+parser_script_name = "scripts/run_mn_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--venue", "mmaa", "--commit"]
+
+[[venues]]
+venue = "mn_rourke"
+state = "MN"
+enabled = true
+parser_script_name = "scripts/run_mn_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--venue", "rourke", "--commit"]
+
+[[venues]]
+venue = "mn_wam"
+state = "MN"
+enabled = true
+parser_script_name = "scripts/run_mn_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--venue", "wam", "--commit"]
+
+[[venues]]
+venue = "mi_bundle"
+state = "MI"
+enabled = true
+parser_script_name = "scripts/run_mi_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "nm_okeeffe"
+state = "NM"
+enabled = true
+parser_script_name = "scripts/run_nm_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--venue", "okeeffe", "--commit"]
+
+[[venues]]
+venue = "nm_nmart"
+state = "NM"
+enabled = true
+parser_script_name = "scripts/run_nm_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--venue", "nmart", "--commit"]
+
+[[venues]]
+venue = "nm_sitesf"
+state = "NM"
+enabled = true
+parser_script_name = "scripts/run_nm_bundle_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--venue", "sitesf", "--commit"]
+
+[[venues]]
+venue = "chazen"
+state = "WI"
+enabled = true
+parser_script_name = "scripts/run_chazen_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "leigh_yawkey_woodson"
+state = "WI"
+enabled = true
+parser_script_name = "scripts/run_leigh_yawkey_woodson_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "mmoca"
+state = "WI"
+enabled = true
+parser_script_name = "scripts/run_mmoca_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "milwaukee_art_museum"
+state = "WI"
+enabled = true
+parser_script_name = "scripts/run_milwaukee_art_museum_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "museum_of_wisconsin_art"
+state = "WI"
+enabled = true
+parser_script_name = "scripts/run_museum_of_wisconsin_art_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "albrecht_kemper"
+state = "MO"
+enabled = true
+parser_script_name = "scripts/run_albrecht_kemper_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "slam"
+state = "MO"
+enabled = true
+parser_script_name = "scripts/run_slam_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "nelson_atkins"
+state = "MO"
+enabled = true
+parser_script_name = "scripts/run_nelson_atkins_parser.py"
 batch_id = "batch_d"
 use_base_url = false
 args = ["--commit"]

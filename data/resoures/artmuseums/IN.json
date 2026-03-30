@@ -3,36 +3,42 @@
     "city": "Indianapolis",
     "event_links": [
       "https://eiteljorg.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_in_bundle_parser.py"
   },
   "Sidney and Lois Eskenazi Museum of Art": {
     "city": "Bloomington",
     "event_links": [
       "https://artmuseum.indiana.edu/news-events/calendar/index.html"
-    ]
+    ],
+    "parser_script": "scripts/run_in_bundle_parser.py"
   },
   "Fort Wayne Museum of Art": {
     "city": "Fort Wayne",
     "event_links": [
       "https://fwmoa.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_in_bundle_parser.py"
   },
   "Indianapolis Museum of Art at Newfields": {
     "city": "Indianapolis",
     "event_links": [
       "https://discovernewfields.org/events-exhibitions/calendar"
-    ]
+    ],
+    "fail_implement": "The official calendar page is a curated App Router landing page that exposes seasonal marketing content but no stable upcoming activity feed or discrete event listings to parse reliably, including after Playwright inspection."
   },
   "Raclin Murphy Museum of Art": {
     "city": "Notre Dame",
     "event_links": [
       "https://raclinmurphymuseum.nd.edu/visit/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_in_bundle_parser.py"
   },
   "South Bend Museum of Art": {
     "city": "South Bend",
     "event_links": [
       "https://southbendart.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_in_bundle_parser.py"
   }
 }

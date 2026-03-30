@@ -19,6 +19,7 @@ export async function fetchActivities(filters: ActivityFilters): Promise<Activit
   if (filters.state) params.set("state", filters.state);
   if (filters.date_from) params.set("date_from", filters.date_from);
   if (filters.date_to) params.set("date_to", filters.date_to);
+  if (filters.free_only !== undefined) params.set("free_only", String(filters.free_only));
 
   const query = params.toString();
   const url = `${API_BASE_URL}/api/activities${query ? `?${query}` : ""}`;
@@ -51,6 +52,7 @@ export async function fetchFilterOptions(
   const params = new URLSearchParams();
   if (filters.state) params.set("state", filters.state);
   if (filters.city) params.set("city", filters.city);
+  if (filters.free_only !== undefined) params.set("free_only", String(filters.free_only));
   const query = params.toString();
   const url = `${API_BASE_URL}/api/activities/filter-options${query ? `?${query}` : ""}`;
   const response = await fetch(url, { cache: "no-store" });
@@ -65,6 +67,7 @@ export async function fetchVenueSummaries(params?: {
   city?: string;
   date_from?: string;
   date_to?: string;
+  free_only?: boolean;
   limit?: number;
 }): Promise<VenueSummary[]> {
   const search = new URLSearchParams();
@@ -72,6 +75,7 @@ export async function fetchVenueSummaries(params?: {
   if (params?.city) search.set("city", params.city);
   if (params?.date_from) search.set("date_from", params.date_from);
   if (params?.date_to) search.set("date_to", params.date_to);
+  if (params?.free_only !== undefined) search.set("free_only", String(params.free_only));
   if (params?.limit !== undefined) search.set("limit", String(params.limit));
 
   const query = search.toString();
