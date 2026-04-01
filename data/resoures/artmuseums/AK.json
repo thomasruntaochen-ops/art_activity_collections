@@ -2,21 +2,24 @@
   "Alaska State Museum": {
     "city": "Juneau",
     "event_links": [
-      "https://lam.alaska.gov/asm-events",
+      "https://lam.alaska.gov/sjm-events",
       "https://lam.alaska.gov/youthart"
-    ]
+    ],
+    "parser_script": "scripts/run_alaska_state_museum_parser.py"
   },
   "Anchorage Museum": {
     "city": "Anchorage",
     "event_links": [
       "https://www.anchoragemuseum.org/visit/calendar/",
       "https://www.anchoragemuseum.org/programs/family-youth-homeschool/"
-    ]
+    ],
+    "parser_script": "scripts/run_anchorage_museum_parser.py"
   },
   "University Art Gallery": {
     "city": "Fairbanks",
     "event_links": [
       "https://www.uaf.edu/art/gallery-and-events/"
-    ]
+    ],
+    "fail_implement": "Official UAF gallery sources expose a 25live calendar feed dominated by exhibition and reception rows; qualifying talks appear only as subtext inside exhibition entries, so there is no stable standalone activity record to parse reliably."
   }
 }

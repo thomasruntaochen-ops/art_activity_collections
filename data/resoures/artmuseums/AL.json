@@ -2,79 +2,92 @@
   "Abroms-Engel Institute for the Visual Arts": {
     "city": "Birmingham",
     "event_links": [
-      "https://www.uab.edu/aeiva/exhibitions"
-    ]
+      "https://www.uab.edu/aeiva/events"
+    ],
+    "parser_script": "scripts/run_al_bundle_parser.py"
   },
   "Birmingham Museum of Art": {
     "city": "Birmingham",
     "event_links": [
       "https://www.artsbma.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_al_bundle_parser.py"
   },
   "Elaine Bailey Augustine Art Gallery": {
     "city": "Florence",
     "event_links": [
       "https://www.una.edu/art/university-art-gallery/exhibition-schedule.html"
-    ]
+    ],
+    "fail_implement": "Official link is an exhibition schedule page and does not expose a museum activity listing with qualifying talks, classes, workshops, or labs."
   },
   "Huntsville Museum of Art": {
     "city": "Huntsville",
     "event_links": [
       "https://hsvmuseum.org/eventscalendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_al_bundle_parser.py"
   },
   "Jule Collins Smith Museum of Fine Art": {
     "city": "Auburn",
     "event_links": [
       "https://jcsm.auburn.edu/events/"
-    ]
+    ],
+    "failed_test_comment": "Dry run parsed 0 rows because the current events feed only exposed tours and other non-qualifying items after applying the activity filters."
   },
   "Mobile Museum of Art": {
     "city": "Mobile",
     "event_links": [
       "https://www.mobilemuseumofart.com/event/"
-    ]
+    ],
+    "parser_script": "scripts/run_al_bundle_parser.py"
   },
   "Montgomery Museum of Fine Arts": {
     "city": "Montgomery",
     "event_links": [
       "https://mmfa.org/events/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_al_bundle_parser.py"
   },
   "Paul R. Jones Museum": {
     "city": "Tuscaloosa",
     "event_links": [
       "https://paulrjonescollection.ua.edu/category/events-exhibitions/"
-    ]
+    ],
+    "failed_test_comment": "Dry run parsed 0 rows because the current feed only exposed a book release and reading, which is excluded by the activity filters."
   },
   "Sarah Moody Gallery of Art": {
     "city": "Tuscaloosa",
     "event_links": [
       "https://art.ua.edu/venue/sarah-moody-gallery-of-art/"
-    ]
+    ],
+    "fail_implement":  "no activity."
   },
   "Sella-Granata Art Gallery": {
     "city": "Tuscaloosa",
     "event_links": [
       "https://art.ua.edu/venue/sella-granata-art-gallery/"
-    ]
+    ],
+    "fail_implement":  "no activity."
   },
   "Tennessee Valley Museum of Art": {
     "city": "Tuscumbia",
     "event_links": [
       "https://tennesseevalleyarts.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_al_bundle_parser.py"
   },
   "University of Alabama Gallery": {
     "city": "Tuscaloosa",
     "event_links": [
       "https://uagallery.as.ua.edu/current-exhibits/"
-    ]
+    ],
+    "fail_implement":  "no activity."
   },
   "Wiregrass Museum of Art": {
     "city": "Dothan",
     "event_links": [
       "https://www.wiregrassmuseum.org/calendar/"
-    ]
+    ],
+    "failed_test_comment": "Dry run parsed 0 rows because the official Tribe events endpoint currently returns no upcoming events."
   }
 }

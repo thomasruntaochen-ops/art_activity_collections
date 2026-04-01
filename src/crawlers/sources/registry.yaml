@@ -189,9 +189,29 @@ sources:
     adapter_type: blanton_programs
     crawl_frequency: daily
     active: false
+  - name: crow_events
+    base_url: https://crowmuseum.org/events/
+    adapter_type: crow_events
+    crawl_frequency: daily
+    active: false
+  - name: dma_events
+    base_url: https://dma.org/visit/calendar
+    adapter_type: dma_events
+    crawl_frequency: daily
+    active: false
+  - name: kimbell_events
+    base_url: https://kimbellart.org/calendar
+    adapter_type: kimbell_events
+    crawl_frequency: daily
+    active: false
   - name: mcnay_events
     base_url: https://www.mcnayart.org/events/
     adapter_type: mcnay_events
+    crawl_frequency: daily
+    active: false
+  - name: mfah_events
+    base_url: https://www.mfah.org/events?tag=families&period=year
+    adapter_type: mfah_events
     crawl_frequency: daily
     active: false
   - name: sama_events
@@ -584,6 +604,46 @@ sources:
     adapter_type: ga_telfair_events
     crawl_frequency: daily
     active: false
+  - name: alaska_state_museum_events
+    base_url: https://lam.alaska.gov/asm-events
+    adapter_type: alaska_state_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: anchorage_museum_events
+    base_url: https://www.anchoragemuseum.org/visit/calendar/categories/family-classes/
+    adapter_type: anchorage_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: al_aeiva_events
+    base_url: https://www.uab.edu/aeiva/events
+    adapter_type: al_aeiva_events
+    crawl_frequency: daily
+    active: false
+  - name: al_birmingham_museum_of_art_events
+    base_url: https://www.artsbma.org/events/list/
+    adapter_type: al_birmingham_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: al_huntsville_museum_of_art_events
+    base_url: https://hsvmuseum.org/eventscalendar/
+    adapter_type: al_huntsville_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: al_mobile_museum_of_art_events
+    base_url: https://www.mobilemuseumofart.com/event/
+    adapter_type: al_mobile_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: al_montgomery_museum_of_fine_arts_events
+    base_url: https://mmfa.org/events/calendar/
+    adapter_type: al_montgomery_museum_of_fine_arts_events
+    crawl_frequency: daily
+    active: false
+  - name: al_tennessee_valley_museum_of_art_events
+    base_url: https://tennesseevalleyarts.org/events/
+    adapter_type: al_tennessee_valley_museum_of_art_events
+    crawl_frequency: daily
+    active: false
   - name: akron_art_museum_events
     base_url: https://akronartmuseum.org/calendar/
     adapter_type: akron_art_museum_events
@@ -647,5 +707,245 @@ sources:
   - name: zanesville_museum_of_art_events
     base_url: https://www.zanesvilleart.org/calendar/
     adapter_type: zanesville_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: ar_arkmfa_events
+    base_url: https://arkmfa.org/events/
+    adapter_type: ar_arkmfa_events
+    crawl_frequency: daily
+    active: false
+  - name: ar_windgate_events
+    base_url: https://www.windgatemuseum.org/events/
+    adapter_type: ar_windgate_events
+    crawl_frequency: daily
+    active: false
+  - name: ar_crystal_bridges_events
+    base_url: https://crystalbridges.org/calendar/
+    adapter_type: ar_crystal_bridges_events
+    crawl_frequency: daily
+    active: false
+  - name: ar_momentary_events
+    base_url: https://themomentary.org/calendar/
+    adapter_type: ar_momentary_events
+    crawl_frequency: daily
+    active: false
+  - name: fort_smith_regional_art_museum_events
+    base_url: https://fsram.org/education/
+    adapter_type: fort_smith_regional_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: id_boise_art_museum_events
+    base_url: https://boiseartmuseum.org/programs-events/
+    adapter_type: id_boise_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: id_sun_valley_museum_of_art_events
+    base_url: https://svmoa.org/events
+    adapter_type: id_sun_valley_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: id_art_museum_of_eastern_idaho_events
+    base_url: https://www.theartmuseum.org/Calendar
+    adapter_type: id_art_museum_of_eastern_idaho_events
+    crawl_frequency: daily
+    active: false
+  - name: il_art_institute_of_chicago_events
+    base_url: https://www.artic.edu/events
+    adapter_type: il_art_institute_of_chicago_events
+    crawl_frequency: daily
+    active: false
+  - name: il_block_museum_events
+    base_url: https://www.blockmuseum.northwestern.edu/events/
+    adapter_type: il_block_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: il_elmhurst_art_museum_events
+    base_url: https://elmhurstartmuseum.org/events
+    adapter_type: il_elmhurst_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: il_krannert_art_museum_events
+    base_url: https://kam.illinois.edu/exhibitions-events/events
+    adapter_type: il_krannert_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: il_lizzadro_museum_events
+    base_url: https://lizzadromuseum.org/event/
+    adapter_type: il_lizzadro_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: il_mca_chicago_events
+    base_url: https://visit.mcachicago.org/events/
+    adapter_type: il_mca_chicago_events
+    crawl_frequency: daily
+    active: false
+  - name: il_mocp_events
+    base_url: https://www.mocp.org/events/
+    adapter_type: il_mocp_events
+    crawl_frequency: daily
+    active: false
+  - name: il_nmma_events
+    base_url: https://nationalmuseumofmexicanart.org/events
+    adapter_type: il_nmma_events
+    crawl_frequency: daily
+    active: false
+  - name: il_smart_museum_events
+    base_url: https://smartmuseum.uchicago.edu/public-practice/calendar-of-events/
+    adapter_type: il_smart_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: in_eiteljorg_events
+    base_url: https://eiteljorg.org/events/
+    adapter_type: in_eiteljorg_events
+    crawl_frequency: daily
+    active: false
+  - name: in_eskenazi_events
+    base_url: https://artmuseum.indiana.edu/news-events/calendar/index.html
+    adapter_type: in_eskenazi_events
+    crawl_frequency: daily
+    active: false
+  - name: in_fwmoa_events
+    base_url: https://fwmoa.org/events/
+    adapter_type: in_fwmoa_events
+    crawl_frequency: daily
+    active: false
+  - name: in_raclin_murphy_events
+    base_url: https://raclinmurphymuseum.nd.edu/visit/events/
+    adapter_type: in_raclin_murphy_events
+    crawl_frequency: daily
+    active: false
+  - name: in_south_bend_museum_of_art_events
+    base_url: https://southbendart.org/events/
+    adapter_type: in_south_bend_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: mn_artsmia_events
+    base_url: https://new.artsmia.org/visit/calendar
+    adapter_type: mn_artsmia_events
+    crawl_frequency: daily
+    active: false
+  - name: mn_mmam_events
+    base_url: https://mmam.org/calendar2
+    adapter_type: mn_mmam_events
+    crawl_frequency: daily
+    active: false
+  - name: mn_mmaa_events
+    base_url: https://mmaa.org/calendar/
+    adapter_type: mn_mmaa_events
+    crawl_frequency: daily
+    active: false
+  - name: mn_rourke_events
+    base_url: https://www.therourke.org/calendar.html
+    adapter_type: mn_rourke_events
+    crawl_frequency: daily
+    active: false
+  - name: mn_wam_events
+    base_url: https://wam.umn.edu/create-learn
+    adapter_type: mn_wam_events
+    crawl_frequency: daily
+    active: false
+  - name: mi_dia_events
+    base_url: https://dia.org/events
+    adapter_type: mi_dia_events
+    crawl_frequency: daily
+    active: false
+  - name: mi_grand_rapids_events
+    base_url: https://www.artmuseumgr.org/events
+    adapter_type: mi_grand_rapids_events
+    crawl_frequency: daily
+    active: false
+  - name: mi_kalamazoo_events
+    base_url: https://www.kiarts.org/events/
+    adapter_type: mi_kalamazoo_events
+    crawl_frequency: daily
+    active: false
+  - name: mi_msu_broad_events
+    base_url: https://broadmuseum.msu.edu/events/
+    adapter_type: mi_msu_broad_events
+    crawl_frequency: daily
+    active: false
+  - name: mi_muskegon_events
+    base_url: https://muskegonartmuseum.org/events/
+    adapter_type: mi_muskegon_events
+    crawl_frequency: daily
+    active: false
+  - name: mi_umma_events
+    base_url: https://umma.umich.edu/visit/events/
+    adapter_type: mi_umma_events
+    crawl_frequency: daily
+    active: false
+  - name: nm_okeeffe_events
+    base_url: https://www.okeeffemuseum.org/events/
+    adapter_type: nm_okeeffe_events
+    crawl_frequency: daily
+    active: false
+  - name: nm_nmart_events
+    base_url: https://www.nmartmuseum.org/events/
+    adapter_type: nm_nmart_events
+    crawl_frequency: daily
+    active: false
+  - name: nm_sitesf_events
+    base_url: https://www.sitesantafe.org/en/events/
+    adapter_type: nm_sitesf_events
+    crawl_frequency: daily
+    active: false
+  - name: chazen_events
+    base_url: https://chazen.wisc.edu/events/
+    adapter_type: chazen_events
+    crawl_frequency: daily
+    active: false
+  - name: leigh_yawkey_woodson_events
+    base_url: https://www.lywam.org/art-events-in-wausau/
+    adapter_type: leigh_yawkey_woodson_events
+    crawl_frequency: daily
+    active: false
+  - name: mmoca_events
+    base_url: https://www.mmoca.org/events/
+    adapter_type: mmoca_events
+    crawl_frequency: daily
+    active: false
+  - name: milwaukee_art_museum_events
+    base_url: https://mam.org/events/
+    adapter_type: milwaukee_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: museum_of_wisconsin_art_events
+    base_url: https://wisconsinart.org/events/
+    adapter_type: museum_of_wisconsin_art_events
+    crawl_frequency: daily
+    active: false
+  - name: knoxville_museum_of_art_events
+    base_url: https://knoxart.org/events/
+    adapter_type: knoxville_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: frist_events
+    base_url: https://fristartmuseum.org/events/
+    adapter_type: frist_events
+    crawl_frequency: daily
+    active: false
+  - name: hunter_events
+    base_url: https://www.huntermuseum.org/events
+    adapter_type: hunter_events
+    crawl_frequency: daily
+    active: false
+  - name: dixon_events
+    base_url: https://www.dixon.org/events
+    adapter_type: dixon_events
+    crawl_frequency: daily
+    active: false
+  - name: albrecht_kemper_events
+    base_url: https://www.albrecht-kemper.org/calendar
+    adapter_type: albrecht_kemper_events
+    crawl_frequency: daily
+    active: false
+  - name: slam_events
+    base_url: https://www.slam.org/events/
+    adapter_type: slam_events
+    crawl_frequency: daily
+    active: false
+  - name: nelson_atkins_events
+    base_url: https://cart.nelson-atkins.org/events?view=calendar+view=list&kid=11,165,216
+    adapter_type: nelson_atkins_events
     crawl_frequency: daily
     active: false

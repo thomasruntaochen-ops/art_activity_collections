@@ -17,19 +17,22 @@
     "city": "Dallas",
     "event_links": [
       "https://crowmuseum.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_crow_parser.py"
   },
   "Dallas Museum of Art": {
     "city": "Dallas",
     "event_links": [
       "https://dma.org/visit/calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_dma_parser.py"
   },
   "Kimbell Art Museum": {
     "city": "Fort Worth",
     "event_links": [
       "https://kimbellart.org/calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_kimbell_parser.py"
   },
   "Longview Museum of Fine Arts": {
     "city": "Longview",
@@ -49,13 +52,15 @@
     "city": "Houston",
     "event_links": [
       "https://www.mfah.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_mfah_parser.py"
   },
   "Nasher Sculpture Center": {
     "city": "Dallas",
     "event_links": [
       "https://www.nashersculpturecenter.org/programs-events/calendar"
-    ]
+    ],
+    "fail_implement": "Official calendar shell loads, but the underlying DesktopModules/NSC_Core/API/events/calendar endpoint returns a Cloudflare challenge page even in Playwright, so no stable event dataset or rendered event HTML is available to parse reliably."
   },
   "San Antonio Museum of Art": {
     "city": "San Antonio",

@@ -1,0 +1,37 @@
+{
+  "Minneapolis Institute of Art": {
+    "city": "Minneapolis",
+    "event_links": [
+      "https://new.artsmia.org/visit/calendar"
+    ],
+    "parser_script": "scripts/run_mn_bundle_parser.py"
+  },
+  "Minnesota Marine Art Museum": {
+    "city": "Winona",
+    "event_links": [
+      "https://mmam.org/calendar/"
+    ],
+    "parser_script": "scripts/run_mn_bundle_parser.py"
+  },
+  "Minnesota Museum of American Art": {
+    "city": "St. Paul",
+    "event_links": [
+      "https://mmaa.org/calendar/"
+    ],
+    "parser_script": "scripts/run_mn_bundle_parser.py"
+  },
+  "The Rourke Art Gallery + Museum": {
+    "city": "Moorhead",
+    "event_links": [
+      "https://www.therourke.org/calendar.html"
+    ],
+    "parser_script": "scripts/run_mn_bundle_parser.py"
+  },
+  "Weisman Art Museum": {
+    "city": "Minneapolis",
+    "event_links": [
+      "https://wam.umn.edu/create-learn"
+    ],
+    "parser_script": "scripts/run_mn_bundle_parser.py"
+  }
+}

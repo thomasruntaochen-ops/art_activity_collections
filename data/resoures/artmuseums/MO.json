@@ -1,0 +1,30 @@
+{
+  "Albrecht-Kemper Museum of Art": {
+    "city": "St. Joseph",
+    "event_links": [
+      "https://www.albrecht-kemper.org/calendar"
+    ],
+    "parser_script": "scripts/run_albrecht_kemper_parser.py"
+  },
+  "Daum Museum of Contemporary Art": {
+    "city": "Sedalia",
+    "event_links": [
+      "https://www.daummuseum.org/events/"
+    ],
+    "failed_test_comment": "Official Tribe API returned 4 upcoming events, all exhibitions or a vendor market, so the current dry run has 0 qualifying talks/classes/workshops/labs/conversations to ingest."
+  },
+  "Nelson-Atkins Museum of Art": {
+    "city": "Kansas City",
+    "event_links": [
+      "https://cart.nelson-atkins.org/events?view=calendar+view=list&kid=11,165,216"
+    ],
+    "parser_script": "scripts/run_nelson_atkins_parser.py"
+  },
+  "Saint Louis Art Museum": {
+    "city": "St. Louis",
+    "event_links": [
+      "https://www.slam.org/events/"
+    ],
+    "parser_script": "scripts/run_slam_parser.py"
+  }
+}

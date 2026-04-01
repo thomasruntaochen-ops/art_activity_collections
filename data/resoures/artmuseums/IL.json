@@ -3,72 +3,84 @@
     "city": "Chicago",
     "event_links": [
       "https://www.artic.edu/events"
-    ]
+    ],
+    "parser_script": "scripts/run_il_bundle_parser.py"
   },
   "Mary and Leigh Block Museum of Art": {
     "city": "Evanston",
     "event_links": [
       "https://www.blockmuseum.northwestern.edu/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_il_bundle_parser.py"
   },
   "Elmhurst Art Museum": {
     "city": "Elmhurst",
     "event_links": [
       "https://elmhurstartmuseum.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_il_bundle_parser.py"
   },
   "Intuit Art Museum": {
     "city": "Chicago",
     "event_links": [
       "https://art.org/events"
-    ]
+    ],
+    "failed_test_comment": "Current official events page review only surfaced an open call, a fundraiser/party, a movie screening, and a Spain travel listing, with no qualifying kids/teens art activity rows to parse."
   },
   "Krannert Art Museum": {
     "city": "Champaign",
     "event_links": [
       "https://kam.illinois.edu/exhibitions-events/events"
-    ]
+    ],
+    "parser_script": "scripts/run_il_bundle_parser.py"
   },
   "Lizzadro Museum of Lapidary Art": {
     "city": "Oak Brook",
     "event_links": [
       "https://lizzadromuseum.org/event/"
-    ]
+    ],
+    "parser_script": "scripts/run_il_bundle_parser.py"
   },
   "Museum of Contemporary Art Chicago": {
     "city": "Chicago",
     "event_links": [
       "https://visit.mcachicago.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_il_bundle_parser.py"
   },
   "Museum of Contemporary Photography": {
     "city": "Chicago",
     "event_links": [
       "https://www.mocp.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_il_bundle_parser.py"
   },
   "National Museum of Mexican Art": {
     "city": "Chicago",
     "event_links": [
       "https://nationalmuseumofmexicanart.org/events"
-    ]
+    ],
+    "parser_script": "scripts/run_il_bundle_parser.py"
   },
   "NIU Art Museum": {
     "city": "DeKalb",
     "event_links": [
       "https://www.niu.edu/artmuseum/events/index.shtml"
-    ]
+    ],
+    "failed_test_comment": "Current official NIU calendar widget review only surfaced ongoing exhibition entries and no qualifying workshop, talk, or family program rows to parse."
   },
   "Smart Museum of Art": {
     "city": "Chicago",
     "event_links": [
       "https://smartmuseum.uchicago.edu/public-practice/calendar-of-events/"
-    ]
+    ],
+    "parser_script": "scripts/run_il_bundle_parser.py"
   },
   "Ukrainian Institute of Modern Art": {
     "city": "Chicago",
     "event_links": [
       "https://uima-chicago.org/events-1-1/"
-    ]
+    ],
+    "failed_test_comment": "Current official events page review only exposed past October 2025 listings, so there were no upcoming qualifying rows to parse."
   }
 }

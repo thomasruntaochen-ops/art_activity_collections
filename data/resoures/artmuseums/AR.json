@@ -3,37 +3,43 @@
     "city": "Little Rock",
     "event_links": [
       "https://events.arkmfa.org/"
-    ]
+    ],
+    "parser_script": "scripts/run_ar_tribe_bundle_parser.py"
   },
   "Bradbury Art Museum": {
     "city": "Jonesboro",
     "event_links": [
       "https://bradburyartmuseum.org/event"
-    ]
+    ],
+    "failed_test_comment": "Dry run parsed 0 rows because the current upcoming Squarespace event list only exposed non-qualifying items and no upcoming workshop or talk entries after filtering."
   },
   "Crystal Bridges Museum of American Art": {
     "city": "Bentonville",
     "event_links": [
       "https://crystalbridges.org/calendar/",
       "https://crystalbridges.org/families/"
-    ]
+    ],
+    "parser_script": "scripts/run_ar_custom_calendar_bundle_parser.py"
   },
   "Fort Smith Regional Art Museum": {
     "city": "Fort Smith",
     "event_links": [
       "https://fsram.org/education/"
-    ]
+    ],
+    "parser_script": "scripts/run_fort_smith_regional_art_museum_parser.py"
   },
   "The Momentary": {
     "city": "Bentonville",
     "event_links": [
       "https://themomentary.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_ar_custom_calendar_bundle_parser.py"
   },
   "Windgate Museum of Art": {
     "city": "Conway",
     "event_links": [
-      "https://www.windgatemuseum.org/exhibitions/"
-    ]
+      "https://www.windgatemuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_ar_tribe_bundle_parser.py"
   }
 }

@@ -3,45 +3,49 @@
     "city": "Aspen",
     "event_links": [
       "https://aspenartmuseum.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_co_bundle_parser.py"
   },
   "Boulder Museum of Contemporary Art": {
     "city": "Boulder",
     "event_links": [
       "https://www.bmoca.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_co_bundle_parser.py"
   },
   "Clyfford Still Museum": {
     "city": "Denver",
     "event_links": [
-      "https://clyffordstillmuseum.org/exhibitions-events/",
       "https://clyffordstillmuseum.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_co_bundle_parser.py"
   },
   "Colorado Springs Fine Arts Center": {
     "city": "Colorado Springs",
     "event_links": [
-      "https://fac.coloradocollege.edu/events/",
-      "https://fac.coloradocollege.edu/museum/museum-events-programs/"
-    ]
+      "https://fac.coloradocollege.edu/events/"    
+    ],
+    "parser_script": "scripts/run_co_bundle_parser.py"
   },
   "CU Art Museum": {
     "city": "Boulder",
     "event_links": [
       "https://www.colorado.edu/cuartmuseum/programs-virtual-activities"
-    ]
+    ],
+    "parser_script": "scripts/run_co_bundle_parser.py"
   },
   "Gregory Allicar Museum of Art": {
     "city": "Fort Collins",
     "event_links": [
-      "https://artmuseum.colostate.edu/programs/",
       "https://artmuseum.colostate.edu/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_co_bundle_parser.py"
   },
   "Museo de las Americas": {
     "city": "Denver",
     "event_links": [
       "https://museo.org/museo-calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_co_bundle_parser.py"
   }
 }

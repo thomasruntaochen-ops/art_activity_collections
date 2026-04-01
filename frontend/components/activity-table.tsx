@@ -19,10 +19,10 @@ function decodeHtmlEntities(value: string): string {
 }
 
 function formatAgeRange(min: number | null, max: number | null): string {
-  if (min === null && max === null) return "Any";
-  if (min !== null && max !== null) return `${min}-${max}`;
-  if (min !== null) return `${min}+`;
-  return `<=${max}`;
+  if (min === null && max === null) return "Age TBD";
+  if (min !== null && max !== null) return `Ages ${min}-${max}`;
+  if (min !== null) return `Ages ${min}+`;
+  return `Up to ${max}`;
 }
 
 function formatDate(value: string): string {
@@ -47,6 +47,29 @@ function formatDate(value: string): string {
   });
 }
 
+function getFreeLabel(activity: Activity): string {
+  if (activity.is_free === true) {
+    return activity.free_verification_status === "confirmed" ? "Free confirmed" : "Likely free";
+  }
+  if (activity.free_verification_status === "uncertain") {
+    return "Price unclear";
+  }
+  return "Check price";
+}
+
+function getFreeTone(activity: Activity): string {
+  if (activity.is_free === true && activity.free_verification_status === "confirmed") {
+    return "confirmed";
+  }
+  if (activity.is_free === true) {
+    return "inferred";
+  }
+  if (activity.free_verification_status === "uncertain") {
+    return "warning";
+  }
+  return "neutral";
+}
+
 export function ActivityTable({ activities }: Props) {
   if (activities.length === 0) {
     return <p className="empty">No activities found for this filter.</p>;
@@ -67,31 +90,49 @@ export function ActivityTable({ activities }: Props) {
             <th>Type</th>
             <th>Drop-in</th>
             <th>Registration</th>
+            <th>Free</th>
             <th>Source</th>
           </tr>
         </thead>
         <tbody>
           {activities.map((activity) => (
             <tr key={activity.id}>
-              <td>{decodeHtmlEntities(activity.title)}</td>
+              <td className="activity-table__title-cell">{decodeHtmlEntities(activity.title)}</td>
               <td>{formatDate(activity.start_at)}</td>
               <td>{activity.venue_name ?? "-"}</td>
               <td>{activity.location_text ?? "-"}</td>
               <td>{activity.venue_city ?? "-"}</td>
               <td>{activity.venue_state ?? "-"}</td>
-              <td>{formatAgeRange(activity.age_min, activity.age_max)}</td>
-              <td>{activity.activity_type ?? "-"}</td>
-              <td>{activity.drop_in === null ? "?" : activity.drop_in ? "Yes" : "No"}</td>
               <td>
-                {activity.registration_required === null
-                  ? "?"
-                  : activity.registration_required
-                    ? "Required"
-                    : "Not required"}
+                <span className="meta-pill meta-pill--neutral">{formatAgeRange(activity.age_min, activity.age_max)}</span>
               </td>
               <td>
-                <a href={activity.source_url} target="_blank" rel="noreferrer">
-                  Link
+                {activity.activity_type ? (
+                  <span className="meta-pill meta-pill--soft">{activity.activity_type}</span>
+                ) : (
+                  "-"
+                )}
+              </td>
+              <td>
+                <span className="meta-pill meta-pill--neutral">
+                  {activity.drop_in === null ? "Unknown" : activity.drop_in ? "Drop-in" : "Scheduled"}
+                </span>
+              </td>
+              <td>
+                <span className="meta-pill meta-pill--neutral">
+                  {activity.registration_required === null
+                    ? "Unknown"
+                    : activity.registration_required
+                      ? "Required"
+                      : "Optional"}
+                </span>
+              </td>
+              <td>
+                <span className={`meta-pill meta-pill--${getFreeTone(activity)}`}>{getFreeLabel(activity)}</span>
+              </td>
+              <td>
+                <a className="table-link" href={activity.source_url} target="_blank" rel="noreferrer">
+                  View source
                 </a>
               </td>
             </tr>
