@@ -1,0 +1,52 @@
+{
+  "Blanden Memorial Art Museum": {
+    "city": "Fort Dodge",
+    "event_links": [
+      "https://www.blanden.org/classes-events",
+      "https://www.blanden.org/upcoming-events"
+    ]
+  },
+  "Cedar Rapids Museum of Art": {
+    "city": "Cedar Rapids",
+    "event_links": [
+      "https://www.crma.org/full-events-calendar"
+    ],
+    "parser_script": "scripts/run_crma_parser.py"
+  },
+  "Charles H. MacNider Art Museum": {
+    "city": "Mason City",
+    "event_links": [
+      "https://macniderart.org/events-calendar/"
+    ]
+  },
+  "Des Moines Art Center": {
+    "city": "Des Moines",
+    "event_links": [
+      "https://desmoinesartcenter.org/calendar/"
+    ]
+  },
+  "Dubuque Museum of Art": {
+    "city": "Dubuque",
+    "event_links": [
+      "http://dbqart.com/programs/"
+    ]
+  },
+  "Figge Art Museum": {
+    "city": "Davenport",
+    "event_links": [
+      "https://figgeartmuseum.org/programs-and-events/calendar"
+    ]
+  },
+  "Stanley Museum of Art": {
+    "city": "Iowa City",
+    "event_links": [
+      "https://stanleymuseum.uiowa.edu/programming-events/calendar"
+    ]
+  },
+  "University Museums - Iowa State University": {
+    "city": "Ames",
+    "event_links": [
+      "https://www.museums.iastate.edu/calendar"
+    ]
+  }
+}

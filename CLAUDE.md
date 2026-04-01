@@ -1,5 +1,5 @@
 ## Environment
-Before running any Python script, test, or tool that depends on local Python packages or shell-managed environment variables, run it in the same shell command after sourcing `~/.zshrc`.
+Before running any Python script, test, or tool that depends on local Python packages or shell-managed environment variables, run it in the same shell command after sourcing `~/.zshrc`. Note: use `python` instead of `python3` below.
 
 Examples:
 - `source ~/.zshrc && python script.py`
