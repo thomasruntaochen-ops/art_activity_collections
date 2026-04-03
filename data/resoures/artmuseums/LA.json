@@ -2,23 +2,21 @@
   "New Orleans Museum of Art": {
     "city": "New Orleans",
     "event_links": [
-      "https://noma.org/events/",
-      "https://noma.org/events/category/kids-families/"
+      "https://noma.org/events/"   
     ]
   },
   "Ogden Museum of Southern Art": {
     "city": "New Orleans",
     "event_links": [
-      "https://ogdenmuseum.org/visit/special-events/",
-      "https://ogdenmuseum.org/learn/kids/"
+      "https://ogdenmuseum.org/events/"
     ]
   },
   "Contemporary Arts Center New Orleans": {
     "city": "New Orleans",
     "event_links": [
-      "https://cacno.org/calendar",
-      "https://cacno.org/programs"
-    ]
+      "https://www.cacno.org/programming"
+    ],
+    "fail_implement": "no activities"
   },
   "LSU Museum of Art": {
     "city": "Baton Rouge",
@@ -30,8 +28,7 @@
   "Louisiana Art & Science Museum": {
     "city": "Baton Rouge",
     "event_links": [
-      "https://www.lasm.org/calendar/",
-      "https://www.lasm.org/public-programs/"
+      "https://www.lasm.org/calendar/"
     ]
   },
   "Hilliard Art Museum": {
@@ -43,8 +40,7 @@
   "R.W. Norton Art Gallery": {
     "city": "Shreveport",
     "event_links": [
-      "https://rwnaf.org/events/",
-      "https://rwnaf.org/events-and-exhibitions/"
+      "https://rwnaf.org/events/"
     ]
   },
   "Alexandria Museum of Art": {
