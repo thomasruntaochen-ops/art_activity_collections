@@ -1166,3 +1166,57 @@ parser_script_name = "scripts/run_crma_parser.py"
 batch_id = "batch_e"
 use_base_url = false
 args = ["--commit"]
+
+[[venues]]
+venue = "blanden"
+state = "IA"
+enabled = true
+parser_script_name = "scripts/run_blanden_parser.py"
+batch_id = "batch_e"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "macnider"
+state = "IA"
+enabled = true
+parser_script_name = "scripts/run_macnider_parser.py"
+batch_id = "batch_e"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "des_moines_art_center"
+state = "IA"
+enabled = true
+parser_script_name = "scripts/run_des_moines_art_center_parser.py"
+batch_id = "batch_e"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "dubuque_museum_of_art"
+state = "IA"
+enabled = true
+parser_script_name = "scripts/run_dubuque_museum_of_art_parser.py"
+batch_id = "batch_e"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "stanley"
+state = "IA"
+enabled = true
+parser_script_name = "scripts/run_stanley_parser.py"
+batch_id = "batch_e"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
+venue = "university_museums_iastate"
+state = "IA"
+enabled = true
+parser_script_name = "scripts/run_university_museums_iastate_parser.py"
+batch_id = "batch_e"
+use_base_url = false
+args = ["--commit"]

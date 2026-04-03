@@ -4,7 +4,8 @@
     "event_links": [
       "https://www.blanden.org/classes-events",
       "https://www.blanden.org/upcoming-events"
-    ]
+    ],
+    "parser_script": "scripts/run_blanden_parser.py"
   },
   "Cedar Rapids Museum of Art": {
     "city": "Cedar Rapids",
@@ -17,36 +18,42 @@
     "city": "Mason City",
     "event_links": [
       "https://macniderart.org/events-calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_macnider_parser.py"
   },
   "Des Moines Art Center": {
     "city": "Des Moines",
     "event_links": [
       "https://desmoinesartcenter.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_des_moines_art_center_parser.py"
   },
   "Dubuque Museum of Art": {
     "city": "Dubuque",
     "event_links": [
-      "http://dbqart.com/programs/"
-    ]
+      "https://dbqart.org/experiences"
+    ],
+    "parser_script": "scripts/run_dubuque_museum_of_art_parser.py"
   },
   "Figge Art Museum": {
     "city": "Davenport",
     "event_links": [
       "https://figgeartmuseum.org/programs-and-events/calendar"
-    ]
+    ],
+    "fail_implement": "Official calendar page is blocked by a Cloudflare managed challenge in direct HTTP and still returns the challenge page under Playwright, so no stable HTML or JSON event payload is available."
   },
   "Stanley Museum of Art": {
     "city": "Iowa City",
     "event_links": [
       "https://stanleymuseum.uiowa.edu/programming-events/calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_stanley_parser.py"
   },
   "University Museums - Iowa State University": {
     "city": "Ames",
     "event_links": [
       "https://www.museums.iastate.edu/calendar"
-    ]
+    ],
+    "parser_script": "scripts/run_university_museums_iastate_parser.py"
   }
 }
