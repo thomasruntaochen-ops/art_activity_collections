@@ -1,0 +1,14 @@
+{
+  "Marjorie Barrick Museum of Art": {
+    "city": "Las Vegas",
+    "event_links": [
+      "https://www.unlv.edu/barrickmuseum/events"
+    ]
+  },
+  "Nevada Museum of Art": {
+    "city": "Reno",
+    "event_links": [
+      "https://www.nevadaart.org/calendar/"
+    ]
+  }
+}
