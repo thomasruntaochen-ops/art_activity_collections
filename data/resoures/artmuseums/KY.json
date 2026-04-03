@@ -1,0 +1,46 @@
+{
+  "Speed Art Museum": {
+    "city": "Louisville",
+    "event_links": [
+      "https://www.speedmuseum.org/events/"
+    ]
+  },
+  "KMAC Museum": {
+    "city": "Louisville",
+    "event_links": [
+      "https://www.kmacmuseum.org/events",
+      "https://www.kmacmuseum.org/familyfunday"
+    ]
+  },
+  "University of Kentucky Art Museum": {
+    "city": "Lexington",
+    "event_links": [
+      "https://finearts.uky.edu/art-museum/events"
+    ]
+  },
+  "Headley-Whitney Museum": {
+    "city": "Lexington",
+    "event_links": [
+      "https://www.headley-whitney.org/upcoming-events"
+    ]
+  },
+  "Owensboro Museum of Fine Art": {
+    "city": "Owensboro",
+    "event_links": [
+      "https://omfa.us/calendar/"
+    ]
+  },
+  "Yeiser Art Center": {
+    "city": "Paducah",
+    "event_links": [
+      "https://theyeiser.org/events/"
+    ]
+  },
+  "Art Center of the Bluegrass": {
+    "city": "Danville",
+    "event_links": [
+      "https://artcenterky.org/events/",
+      "https://artcenterky.org/events/family-day/"
+    ]
+  }
+}
