@@ -1,0 +1,39 @@
+{
+  "BYU Museum of Art": {
+    "city": "Provo",
+    "event_links": [
+      "https://moa.byu.edu/events/"
+    ]
+  },
+  "Southern Utah Museum of Art": {
+    "city": "Cedar City",
+    "event_links": [
+      "https://events.suu.edu/ma"
+    ]
+  },
+  "Springville Museum of Art": {
+    "city": "Springville",
+    "event_links": [
+      "https://www.smofa.org/event-calendar"
+    ]
+  },
+  "UVU Museum of Art": {
+    "city": "Orem",
+    "event_links": [
+      "https://www.uvu.edu/museum/exhibitions/"
+    ],
+    "fail_implement": "no activities"
+  },
+  "Utah Museum of Contemporary Art": {
+    "city": "Salt Lake City",
+    "event_links": [
+      "https://utahmoca.org/events/"
+    ]
+  },
+  "Utah Museum of Fine Arts": {
+    "city": "Salt Lake City",
+    "event_links": [
+      "https://umfa.utah.edu/events/"
+    ]
+  }
+}
