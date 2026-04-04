@@ -1,0 +1,26 @@
+{
+  "Columbia Museum of Art": {
+    "city": "Columbia",
+    "event_links": [
+      "https://www.columbiamuseum.org/events"
+    ]
+  },
+  "Franklin G. Burroughs-Simeon B. Chapin Art Museum": {
+    "city": "Myrtle Beach",
+    "event_links": [
+      "https://myrtlebeachartmuseum.org/myrtle-beach-events/events-calendar/"
+    ]
+  },
+  "Gibbes Museum of Art": {
+    "city": "Charleston",
+    "event_links": [
+      "https://www.gibbesmuseum.org/programs-events/"
+    ]
+  },
+  "Greenville County Museum of Art": {
+    "city": "Greenville",
+    "event_links": [
+      "https://gcma.org/events/"
+    ]
+  }
+}
