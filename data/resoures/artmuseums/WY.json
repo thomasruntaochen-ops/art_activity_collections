@@ -1,0 +1,23 @@
+{
+  "National Museum of Wildlife Art": {
+    "city": "Jackson",
+    "event_links": [
+      "https://www.wildlifeart.org/learn/k-12"
+    ],
+    "fail_implement": "no activity"
+  },
+  "Nicolaysen Art Museum": {
+    "city": "Casper",
+    "event_links": [
+      "https://www.thenic.org/events"
+    ],
+    "fail_implement": "Official https://www.thenic.org/events resolves to a Wix single-event detail page with embedded data for only one sold-out opening reception, and no stable official upcoming-events listing or feed was found from the provided source even with Playwright."
+  },
+  "University of Wyoming Art Museum": {
+    "city": "Laramie",
+    "event_links": [
+      "https://www.uwyo.edu/artmuseum/events/index.html"
+    ],
+    "parser_script": "scripts/run_university_of_wyoming_art_museum_parser.py"
+  }
+}

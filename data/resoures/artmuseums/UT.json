@@ -3,19 +3,22 @@
     "city": "Provo",
     "event_links": [
       "https://moa.byu.edu/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_byu_moa_parser.py"
   },
   "Southern Utah Museum of Art": {
     "city": "Cedar City",
     "event_links": [
       "https://events.suu.edu/ma"
-    ]
+    ],
+    "parser_script": "scripts/run_suma_parser.py"
   },
   "Springville Museum of Art": {
     "city": "Springville",
     "event_links": [
       "https://www.smofa.org/event-calendar"
-    ]
+    ],
+    "fail_implement": "As of April 3, 2026, the official event calendar and Playwright-rendered detail URLs expose only tours, Mindful Mondays, an opening reception, and a concert for the visible month, and direct detail pages still render the calendar shell instead of stable first-party event metadata, so there is no reliable official source for qualifying art activities."
   },
   "UVU Museum of Art": {
     "city": "Orem",
@@ -28,12 +31,14 @@
     "city": "Salt Lake City",
     "event_links": [
       "https://utahmoca.org/events/"
-    ]
+    ],
+    "failed_test_comment": "Dry run on April 3, 2026 parsed 0 qualifying future rows: the official 2026 archive currently only exposes gala, residency, opening-reception, yoga, or already-past workshop/talk items after filtering, even though the archive/detail parser itself is working."
   },
   "Utah Museum of Fine Arts": {
     "city": "Salt Lake City",
     "event_links": [
       "https://umfa.utah.edu/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_umfa_parser.py"
   }
 }

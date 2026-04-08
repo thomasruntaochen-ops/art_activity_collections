@@ -1,0 +1,44 @@
+{
+  "Andres Institute of Art": {
+    "city": "Brookline",
+    "event_links": [
+      "https://andresinstitute.org/events/"
+    ],
+    "failed_test_comment": "Official calendar currently exposes only concert and fundraiser entries, so a qualifying activity dry run would parse 0 rows."
+  },
+  "Currier Museum of Art": {
+    "city": "Manchester",
+    "event_links": [
+      "https://www.currier.org/events-calendar"
+    ],
+    "parser_script": "scripts/run_nh_html_bundle_parser.py"
+  },
+  "Hood Museum of Art": {
+    "city": "Hanover",
+    "event_links": [
+      "https://hoodmuseum.dartmouth.edu/events"
+    ],
+    "parser_script": "scripts/run_nh_html_bundle_parser.py"
+  },
+  "New Hampshire Art Association": {
+    "city": "Portsmouth",
+    "event_links": [
+      "https://www.nhartassociation.org/events"
+    ],
+    "parser_script": "scripts/run_nh_html_bundle_parser.py"
+  },
+  "Rochester Museum of Fine Arts": {
+    "city": "Rochester",
+    "event_links": [
+      "https://www.rochestermfa.org/exhibitions/"
+    ],
+    "fail_implement": "Official pages currently expose exhibitions rather than a dated programs/workshops/talks listing; even a Playwright fetch still resolves to the exhibitions view instead of a parseable activity feed."
+  },
+  "Thorne-Sagendorph Art Gallery": {
+    "city": "Keene",
+    "event_links": [
+      "https://dept.keene.edu/tsag/current-exhibitions/"
+    ],
+    "fail_implement": "Official current-exhibitions page is exhibition-only and the gallery site does not expose a dedicated dated activity or program listing to parse."
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "Art Museum of WVU": {
+    "city": "Morgantown",
+    "event_links": [
+      "https://artmuseum.wvu.edu/events"
+    ],
+    "parser_script": "scripts/run_wv_bundle_parser.py"
+  },
+  "Huntington Museum of Art": {
+    "city": "Huntington",
+    "event_links": [
+      "https://hmoa.org/upcoming/"
+    ],
+    "parser_script": "scripts/run_wv_bundle_parser.py"
+  },
+  "Juliet Art Museum": {
+    "city": "Charleston",
+    "event_links": [
+      "https://www.theclaycenter.org/events"
+    ],
+    "failed_test_comment": "As of 2026-04-06, the official Clay Center events page tags Juliet Art Museum only on admission/open-closed/exhibit-closing items and currently lists no upcoming qualifying talk, class, workshop, or art-making rows, so a dry run would parse 0 qualifying activities."
+  },
+  "Stifel Fine Arts Center": {
+    "city": "Wheeling",
+    "event_links": [
+      "https://oionline.com/classes/art/"
+    ],
+    "parser_script": "scripts/run_wv_bundle_parser.py"
+  }
+}

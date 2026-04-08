@@ -1,0 +1,58 @@
+{
+  "Marianna Kistler Beach Museum of Art": {
+    "city": "Manhattan",
+    "event_links": [
+      "https://beach.k-state.edu/visit/events/"
+    ],
+    "parser_script": "scripts/run_ks_bundle_parser.py"
+  },
+  "Mulvane Art Museum": {
+    "city": "Topeka",
+    "event_links": [
+      "https://www.mulvaneartmuseum.org/calendar/"
+    ],
+    "parser_script": "scripts/run_ks_bundle_parser.py"
+  },
+  "Museum of Art + Light": {
+    "city": "Manhattan",
+    "event_links": [
+      "https://artlightmuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_ks_bundle_parser.py"
+  },
+  "Nerman Museum of Contemporary Art": {
+    "city": "Overland Park",
+    "event_links": [
+      "https://www.nermanmuseum.org/calendar/"
+    ],
+    "parser_script": "scripts/run_ks_bundle_parser.py"
+  },
+  "Spencer Museum of Art": {
+    "city": "Lawrence",
+    "event_links": [
+      "https://spencerart.ku.edu/exhibitions-and-events/events"
+    ],
+    "parser_script": "scripts/run_ks_bundle_parser.py"
+  },
+  "Ulrich Museum of Art": {
+    "city": "Wichita",
+    "event_links": [
+      "https://ulrich.wichita.edu/programs/"
+    ],
+    "parser_script": "scripts/run_ks_bundle_parser.py"
+  },
+  "Vernon Filley Art Museum": {
+    "city": "Pratt",
+    "event_links": [
+      "https://www.vernonfilleyartmuseum.org/calendar-of-events.cfm"
+    ],
+    "parser_script": "scripts/run_ks_bundle_parser.py"
+  },
+  "Wichita Art Museum": {
+    "city": "Wichita",
+    "event_links": [
+      "https://wam.org/events/"
+    ],
+    "parser_script": "scripts/run_ks_bundle_parser.py"
+  }
+}

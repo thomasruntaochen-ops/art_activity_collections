@@ -1,0 +1,65 @@
+{
+  "Bates College Museum of Art": {
+    "city": "Lewiston",
+    "event_links": [
+      "https://www.bates.edu/museum/upcoming-events/"
+    ],
+    "failed_test_comment": "Dry run parsed 0 rows because the current Upcoming Events page only surfaced a future exhibition opening/reception and no qualifying talk, class, workshop, lab, or conversation dated on or after April 4, 2026."
+  },
+  "Bowdoin College Museum of Art": {
+    "city": "Brunswick",
+    "event_links": [
+      "https://www.bowdoin.edu/art-museum/events/events-index.html"
+    ],
+    "parser_script": "scripts/run_me_html_bundle_parser.py"
+  },
+  "Center for Maine Contemporary Art": {
+    "city": "Rockland",
+    "event_links": [
+      "https://www.cmcanow.org/upcoming-events"
+    ],
+    "parser_script": "scripts/run_me_html_bundle_parser.py"
+  },
+  "Colby College Museum of Art": {
+    "city": "Waterville",
+    "event_links": [
+      "https://museum.colby.edu/events"
+    ],
+    "fail_implement": "Cloudflare blocked both direct HTTP requests and a Playwright browser session for https://museum.colby.edu/events, and no stable official HTML or JSON event feed was discoverable."
+  },
+  "Farnsworth Art Museum": {
+    "city": "Rockland",
+    "event_links": [
+      "https://www.farnsworthmuseum.org/events-calendar/"
+    ],
+    "parser_script": "scripts/run_me_html_bundle_parser.py"
+  },
+  "Institute of Contemporary Art at Maine College of Art & Design": {
+    "city": "Portland",
+    "event_links": [
+      "https://meca.edu/newsevent/ica/"
+    ],
+    "failed_test_comment": "Dry run parsed 0 rows because the ICA listing at https://meca.edu/newsevent/ica/ currently contains only past event entries and no upcoming qualifying activity dated on or after April 4, 2026."
+  },
+  "Ogunquit Museum of American Art": {
+    "city": "Ogunquit",
+    "event_links": [
+      "https://ogunquitmuseum.org/about-us/events/"
+    ],
+    "parser_script": "scripts/run_me_html_bundle_parser.py"
+  },
+  "Portland Museum of Art": {
+    "city": "Portland",
+    "event_links": [
+      "https://www.portlandmuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_me_html_bundle_parser.py"
+  },
+  "Zillman Art Museum": {
+    "city": "Bangor",
+    "event_links": [
+      "https://zam.umaine.edu/events/list/"
+    ],
+    "parser_script": "scripts/run_me_html_bundle_parser.py"
+  }
+}

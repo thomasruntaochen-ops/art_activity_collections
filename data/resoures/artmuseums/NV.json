@@ -3,12 +3,14 @@
     "city": "Las Vegas",
     "event_links": [
       "https://www.unlv.edu/barrickmuseum/events"
-    ]
+    ],
+    "parser_script": "scripts/run_nv_bundle_parser.py"
   },
   "Nevada Museum of Art": {
     "city": "Reno",
     "event_links": [
       "https://www.nevadaart.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_nv_bundle_parser.py"
   }
 }

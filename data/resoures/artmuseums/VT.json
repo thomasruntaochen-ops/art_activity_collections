@@ -1,0 +1,44 @@
+{
+  "Bennington Museum": {
+    "city": "Bennington",
+    "event_links": [
+      "https://benningtonmuseum.org/events-and-programs/"
+    ],
+    "parser_script": "scripts/run_vt_bundle_parser.py"
+  },
+  "Brattleboro Museum & Art Center": {
+    "city": "Brattleboro",
+    "event_links": [
+      "https://www.brattleboromuseum.org/calendar/"
+    ],
+    "parser_script": "scripts/run_vt_bundle_parser.py"
+  },
+  "Fleming Museum of Art": {
+    "city": "Burlington",
+    "event_links": [
+      "https://www.uvm.edu/fleming/events"
+    ],
+    "parser_script": "scripts/run_vt_bundle_parser.py"
+  },
+  "Middlebury College Museum of Art": {
+    "city": "Middlebury",
+    "event_links": [
+      "https://www.middlebury.edu/museum/events"
+    ],
+    "parser_script": "scripts/run_vt_bundle_parser.py"
+  },
+  "Shelburne Museum": {
+    "city": "Shelburne",
+    "event_links": [
+      "https://shelburnemuseum.org/calendar/"
+    ],
+    "parser_script": "scripts/run_vt_bundle_parser.py"
+  },
+  "T.W. Wood Museum": {
+    "city": "Montpelier",
+    "event_links": [
+      "https://twwoodmuseum.org/events/"
+    ],
+    "failed_test_comment": "As of April 6, 2026, the official T.W. Wood Museum events page and tribe endpoint expose 0 upcoming qualifying activities dated on or after April 6, 2026, so the VT bundle dry run currently parses 0 rows for this venue."
+  }
+}

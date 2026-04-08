@@ -1,0 +1,44 @@
+{
+  "Bozeman Art Museum": {
+    "city": "Bozeman",
+    "event_links": [
+      "https://bozemanartmuseum.org/events/"
+    ],
+    "failed_test_comment": "As of 2026-04-06, the official Bozeman Art Museum events calendar is reachable with Playwright, but the current upcoming calendar only lists exhibition and fundraiser rows and no qualifying talk, class, workshop, or art-making activities, so a dry run parses 0 rows."
+  },
+  "Holter Museum of Art": {
+    "city": "Helena",
+    "event_links": [
+      "https://holtermuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_mt_bundle_parser.py"
+  },
+  "Missoula Art Museum": {
+    "city": "Missoula",
+    "event_links": [
+      "https://missoulaartmuseum.org/events"
+    ],
+    "parser_script": "scripts/run_mt_bundle_parser.py"
+  },
+  "Montana Museum of Art and Culture": {
+    "city": "Missoula",
+    "event_links": [
+      "https://www.umt.edu/montana-museum/exhibitions_events/"
+    ],
+    "fail_implement": "no activity"
+  },
+  "Paris Gibson Square Museum of Art": {
+    "city": "Great Falls",
+    "event_links": [
+      "https://www.the-square.org/events"
+    ],
+    "parser_script": "scripts/run_mt_bundle_parser.py"
+  },
+  "Yellowstone Art Museum": {
+    "city": "Billings",
+    "event_links": [
+      "https://www.artmuseum.org/events-calendar/"
+    ],
+    "parser_script": "scripts/run_mt_bundle_parser.py"
+  }
+}

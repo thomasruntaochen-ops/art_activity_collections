@@ -2,14 +2,16 @@
   "New Orleans Museum of Art": {
     "city": "New Orleans",
     "event_links": [
-      "https://noma.org/events/"   
-    ]
+      "https://noma.org/events/"
+    ],
+    "parser_script": "scripts/run_la_tribe_bundle_parser.py"
   },
   "Ogden Museum of Southern Art": {
     "city": "New Orleans",
     "event_links": [
       "https://ogdenmuseum.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_la_tribe_bundle_parser.py"
   },
   "Contemporary Arts Center New Orleans": {
     "city": "New Orleans",
@@ -23,30 +25,35 @@
     "event_links": [
       "https://www.lsumoa.org/calendar",
       "https://www.lsumoa.org/museum-programs"
-    ]
+    ],
+    "parser_script": "scripts/run_lsumoa_parser.py"
   },
   "Louisiana Art & Science Museum": {
     "city": "Baton Rouge",
     "event_links": [
       "https://www.lasm.org/calendar/"
-    ]
+    ],
+    "parser_script": "scripts/run_lasm_parser.py"
   },
   "Hilliard Art Museum": {
     "city": "Lafayette",
     "event_links": [
       "https://hilliardartmuseum.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_la_tribe_bundle_parser.py"
   },
   "R.W. Norton Art Gallery": {
     "city": "Shreveport",
     "event_links": [
       "https://rwnaf.org/events/"
-    ]
+    ],
+    "failed_test_comment": "Dry run parsed 0 rows because the Tribe feed only exposed operating hours and exhibit or reception style listings, with no qualifying talks, classes, workshops, labs, or conversations."
   },
   "Alexandria Museum of Art": {
     "city": "Alexandria",
     "event_links": [
       "https://themuseum.org/all-events/"
-    ]
+    ],
+    "parser_script": "scripts/run_alexandria_museum_of_art_parser.py"
   }
 }

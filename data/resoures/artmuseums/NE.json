@@ -1,0 +1,31 @@
+{
+  "Bemis Center for Contemporary Arts": {
+    "city": "Omaha",
+    "event_links": [
+      "https://www.bemiscenter.org/events"
+    ],
+    "parser_script": "scripts/run_bemis_parser.py"
+  },
+  "Joslyn Art Museum": {
+    "city": "Omaha",
+    "event_links": [
+      "https://joslyn.org/visit/calendar"
+    ],
+    "parser_script": "scripts/run_joslyn_parser.py"
+  },
+  "Museum of Nebraska Art": {
+    "city": "Kearney",
+    "event_links": [
+      "https://mona.unk.edu/events/category/classes/",
+      "https://mona.unk.edu/events/category/programs/"
+    ],
+    "parser_script": "scripts/run_museum_of_nebraska_art_parser.py"
+  },
+  "Sheldon Museum of Art": {
+    "city": "Lincoln",
+    "event_links": [
+      "https://sheldonartmuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_sheldon_parser.py"
+  }
+}

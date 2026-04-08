@@ -109,6 +109,21 @@ sources:
     adapter_type: new_bedford_events
     crawl_frequency: daily
     active: false
+  - name: byu_moa_events
+    base_url: https://moa.byu.edu/events/
+    adapter_type: byu_moa_events
+    crawl_frequency: daily
+    active: false
+  - name: suma_events
+    base_url: https://events.suu.edu/ma/calendar
+    adapter_type: suma_events
+    crawl_frequency: daily
+    active: false
+  - name: umfa_events
+    base_url: https://umfa.utah.edu/events/
+    adapter_type: umfa_events
+    crawl_frequency: daily
+    active: false
   - name: ocma_calendar
     base_url: https://ocma.art/calendar/
     adapter_type: ocma_calendar
@@ -152,6 +167,21 @@ sources:
   - name: hammer_programs
     base_url: https://hammer.ucla.edu/programs-events?category[5326]=5326&category[5346]=5346&category[5341]=5341&category[5331]=5331
     adapter_type: hammer_programs
+    crawl_frequency: daily
+    active: false
+  - name: lasm_calendar
+    base_url: https://www.lasm.org/calendar/
+    adapter_type: lasm_calendar
+    crawl_frequency: daily
+    active: false
+  - name: lsumoa_programs
+    base_url: https://www.lsumoa.org/museum-programs
+    adapter_type: lsumoa_programs
+    crawl_frequency: daily
+    active: false
+  - name: alexandria_museum_of_art_events
+    base_url: https://themuseum.org/all-events/
+    adapter_type: alexandria_museum_of_art_events
     crawl_frequency: daily
     active: false
   - name: nortonsimon_calendar
@@ -604,6 +634,26 @@ sources:
     adapter_type: ga_telfair_events
     crawl_frequency: daily
     active: false
+  - name: ky_speed_events
+    base_url: https://www.speedmuseum.org/events/
+    adapter_type: ky_speed_events
+    crawl_frequency: daily
+    active: false
+  - name: ky_kmac_events
+    base_url: https://www.kmacmuseum.org/events
+    adapter_type: ky_kmac_events
+    crawl_frequency: daily
+    active: false
+  - name: ky_uk_art_museum_events
+    base_url: https://finearts.uky.edu/art-museum/events
+    adapter_type: ky_uk_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: ky_artcenter_events
+    base_url: https://artcenterky.org/events/
+    adapter_type: ky_artcenter_events
+    crawl_frequency: daily
+    active: false
   - name: alaska_state_museum_events
     base_url: https://lam.alaska.gov/asm-events
     adapter_type: alaska_state_museum_events
@@ -874,6 +924,26 @@ sources:
     adapter_type: mi_umma_events
     crawl_frequency: daily
     active: false
+  - name: mt_holter_museum_of_art_events
+    base_url: https://holtermuseum.org/events/
+    adapter_type: mt_holter_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: mt_missoula_art_museum_events
+    base_url: https://www.missoulaartmuseum.org/events
+    adapter_type: mt_missoula_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: mt_paris_gibson_square_museum_of_art_events
+    base_url: https://www.the-square.org/events
+    adapter_type: mt_paris_gibson_square_museum_of_art_events
+    crawl_frequency: daily
+    active: false
+  - name: mt_yellowstone_art_museum_events
+    base_url: https://www.artmuseum.org/events-calendar/
+    adapter_type: mt_yellowstone_art_museum_events
+    crawl_frequency: daily
+    active: false
   - name: nm_okeeffe_events
     base_url: https://www.okeeffemuseum.org/events/
     adapter_type: nm_okeeffe_events
@@ -947,5 +1017,95 @@ sources:
   - name: nelson_atkins_events
     base_url: https://cart.nelson-atkins.org/events?view=calendar+view=list&kid=11,165,216
     adapter_type: nelson_atkins_events
+    crawl_frequency: daily
+    active: false
+  - name: nh_currier_events
+    base_url: https://www.currier.org/events-calendar
+    adapter_type: nh_currier_events
+    crawl_frequency: daily
+    active: false
+  - name: nh_hood_events
+    base_url: https://hoodmuseum.dartmouth.edu/events
+    adapter_type: nh_hood_events
+    crawl_frequency: daily
+    active: false
+  - name: nh_nhaa_events
+    base_url: https://www.nhartassociation.org/events
+    adapter_type: nh_nhaa_events
+    crawl_frequency: daily
+    active: false
+  - name: vt_bennington_events
+    base_url: https://benningtonmuseum.org/events-and-programs/
+    adapter_type: vt_bennington_events
+    crawl_frequency: daily
+    active: false
+  - name: vt_brattleboro_events
+    base_url: https://www.brattleboromuseum.org/calendar/
+    adapter_type: vt_brattleboro_events
+    crawl_frequency: daily
+    active: false
+  - name: vt_fleming_events
+    base_url: https://www.uvm.edu/fleming/events
+    adapter_type: vt_fleming_events
+    crawl_frequency: daily
+    active: false
+  - name: vt_middlebury_events
+    base_url: https://www.middlebury.edu/museum/events
+    adapter_type: vt_middlebury_events
+    crawl_frequency: daily
+    active: false
+  - name: vt_shelburne_events
+    base_url: https://shelburnemuseum.org/calendar/
+    adapter_type: vt_shelburne_events
+    crawl_frequency: daily
+    active: false
+  - name: ok_gilcrease_events
+    base_url: https://my.gilcrease.org/events?view=list&span=month&k=public%20events
+    adapter_type: ok_gilcrease_events
+    crawl_frequency: daily
+    active: false
+  - name: ok_mgmoa_events
+    base_url: https://www.mgmoa.org/calendar/
+    adapter_type: ok_mgmoa_events
+    crawl_frequency: daily
+    active: false
+  - name: ok_okcmoa_events
+    base_url: https://www.okcmoa.com/events/
+    adapter_type: ok_okcmoa_events
+    crawl_frequency: daily
+    active: false
+  - name: ok_oklahoma_contemporary_events
+    base_url: https://oklahomacontemporary.org/events/calendar/
+    adapter_type: ok_oklahoma_contemporary_events
+    crawl_frequency: daily
+    active: false
+  - name: plains_art_museum_events
+    base_url: https://plainsart.org/events/
+    adapter_type: plains_art_museum_events
+    crawl_frequency: daily
+    active: false
+  - name: bemis_events
+    base_url: https://www.bemiscenter.org/events
+    adapter_type: bemis_events
+    crawl_frequency: daily
+    active: false
+  - name: joslyn_events
+    base_url: https://joslyn.org/visit/calendar
+    adapter_type: joslyn_events
+    crawl_frequency: daily
+    active: false
+  - name: museum_of_nebraska_art_events
+    base_url: https://mona.unk.edu/events/category/classes/
+    adapter_type: museum_of_nebraska_art_events
+    crawl_frequency: daily
+    active: false
+  - name: sheldon_events
+    base_url: https://sheldonartmuseum.org/events/
+    adapter_type: sheldon_events
+    crawl_frequency: daily
+    active: false
+  - name: university_of_wyoming_art_museum_events
+    base_url: https://www.uwyo.edu/artmuseum/events/index.html
+    adapter_type: university_of_wyoming_art_museum_events
     crawl_frequency: daily
     active: false

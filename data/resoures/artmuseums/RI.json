@@ -1,0 +1,37 @@
+{
+  "Jamestown Arts Center": {
+    "city": "Jamestown",
+    "event_links": [
+      "https://www.jamestownartcenter.org/events"
+    ],
+    "parser_script": "scripts/run_ri_bundle_parser.py"
+  },
+  "Newport Art Museum": {
+    "city": "Newport",
+    "event_links": [
+      "https://newportartmuseum.org/events/"
+    ],
+    "parser_script": "scripts/run_ri_bundle_parser.py"
+  },
+  "Providence Art Club": {
+    "city": "Providence",
+    "event_links": [
+      "https://providenceartclub.org/find-events/"
+    ],
+    "fail_implement": "no activity"
+  },
+  "RISD Museum": {
+    "city": "Providence",
+    "event_links": [
+      "https://risdmuseum.org/exhibitions-events/events"
+    ],
+    "parser_script": "scripts/run_ri_bundle_parser.py"
+  },
+  "Warwick Center for the Arts": {
+    "city": "Warwick",
+    "event_links": [
+      "https://warwickcfa.org/calendar-of-events/"
+    ],
+    "parser_script": "scripts/run_ri_bundle_parser.py"
+  }
+}

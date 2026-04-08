@@ -1,0 +1,51 @@
+{
+  "Fred Jones Jr. Museum of Art": {
+    "city": "Norman",
+    "event_links": [
+      "https://www.ou.edu/fjjma/Visit/events"
+    ],
+    "fail_implement": "Official events page did not expose any upcoming dated activity listings or detail pages to parse; the page is a static visit/events page without a machine-readable calendar."
+  },
+  "Gilcrease Museum": {
+    "city": "Tulsa",
+    "event_links": [
+      "https://my.gilcrease.org/events?view=list&span=month&k=public%20events"
+    ],
+    "parser_script": "scripts/run_ok_bundle_parser.py"
+  },
+  "Mabee-Gerrer Museum of Art": {
+    "city": "Shawnee",
+    "event_links": [
+      "https://www.mgmoa.org/calendar/"
+    ],
+    "parser_script": "scripts/run_ok_bundle_parser.py"
+  },
+  "OSU Museum of Art": {
+    "city": "Stillwater",
+    "event_links": [
+      "https://museum.okstate.edu/events-calendar.html"
+    ],
+    "failed_test_comment": "As of 2026-04-06, Playwright loaded the official calendar page but it only exposed stale 2025 items and no qualifying upcoming art activities, so the dry run parsed 0 rows."
+  },
+  "Oklahoma City Museum of Art": {
+    "city": "Oklahoma City",
+    "event_links": [
+      "https://www.okcmoa.com/events/"
+    ],
+    "parser_script": "scripts/run_ok_bundle_parser.py"
+  },
+  "Oklahoma Contemporary": {
+    "city": "Oklahoma City",
+    "event_links": [
+      "https://oklahomacontemporary.org/calendar"
+    ],
+    "parser_script": "scripts/run_ok_bundle_parser.py"
+  },
+  "Philbrook Museum of Art": {
+    "city": "Tulsa",
+    "event_links": [
+      "https://philbrook.org/calendar/"
+    ],
+    "failed_test_comment": "As of 2026-04-06, the official calendar feed only exposed non-qualifying upcoming items such as music, film, social, and meditation events, so the dry run parsed 0 upcoming art activity rows."
+  }
+}

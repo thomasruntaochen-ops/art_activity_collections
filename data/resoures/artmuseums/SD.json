@@ -1,0 +1,24 @@
+{
+  "Dahl Arts Center": {
+    "city": "Rapid City",
+    "event_links": [
+      "https://www.rapidcityartscouncil.org/events.html"
+    ],
+    "parser_script": "scripts/run_dahl_arts_center_parser.py"
+  },
+  "South Dakota Art Museum": {
+    "city": "Brookings",
+    "event_links": [
+      "https://www.sdstate.edu/event-calendar?field_booking_start_date%5Bdate_range%5D=all&field_booking_end_date_value%5Bdate%5D=&field_booking_start_date_value%5Bdate%5D=&combine=&departments=262866"
+    ],
+    "parser_script": "scripts/run_south_dakota_art_museum_parser.py"
+  },
+  "Washington Pavilion Visual Arts Center": {
+    "city": "Sioux Falls",
+    "event_links": [
+      "https://www.washingtonpavilion.org/programs/",
+      "https://www.washingtonpavilion.org/programs/kids-and-family-programs/"
+    ],
+    "fail_implement": "no activity"
+  }
+}

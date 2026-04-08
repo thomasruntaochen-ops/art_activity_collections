@@ -1,0 +1,33 @@
+{
+  "Lauren Rogers Museum of Art": {
+    "city": "Laurel",
+    "event_links": [
+      "https://lrma.org/visit/event-calendar.html"
+    ]
+  },
+  "Mississippi Museum of Art": {
+    "city": "Jackson",
+    "event_links": [
+      "https://www.msmuseumart.org/events/upcoming/"
+    ]
+  },
+  "Ohr-O'Keefe Museum of Art": {
+    "city": "Biloxi",
+    "event_links": [
+      "https://georgeohr.org/events/",
+      "https://georgeohr.org/events/category/classes/kids/"
+    ]
+  },
+  "University of Mississippi Museum": {
+    "city": "Oxford",
+    "event_links": [
+      "https://olemiss.edu/museum/education/"
+    ]
+  },
+  "Walter Anderson Museum of Art": {
+    "city": "Ocean Springs",
+    "event_links": [
+      "https://www.walterandersonmuseum.org/events"
+    ]
+  }
+}

@@ -3,44 +3,51 @@
     "city": "Louisville",
     "event_links": [
       "https://www.speedmuseum.org/events/"
-    ]
+    ],
+    "parser_script": "scripts/run_ky_bundle_parser.py"
   },
   "KMAC Museum": {
     "city": "Louisville",
     "event_links": [
       "https://www.kmacmuseum.org/events",
       "https://www.kmacmuseum.org/familyfunday"
-    ]
+    ],
+    "parser_script": "scripts/run_ky_bundle_parser.py"
   },
   "University of Kentucky Art Museum": {
     "city": "Lexington",
     "event_links": [
       "https://finearts.uky.edu/art-museum/events"
-    ]
+    ],
+    "parser_script": "scripts/run_ky_bundle_parser.py"
   },
   "Headley-Whitney Museum": {
     "city": "Lexington",
     "event_links": [
       "https://www.headley-whitney.org/upcoming-events"
-    ]
+    ],
+    "failed_test_comment": "As of April 3, 2026, the official Upcoming Events page only shows the Spring 2026 Rodney Hatfield & Lynn Sweet retrospective exhibition plus an April 19 artist reception, so the current first-party page exposes 0 qualifying upcoming workshop, talk, or activity rows."
   },
   "Owensboro Museum of Fine Art": {
     "city": "Owensboro",
     "event_links": [
       "https://omfa.us/calendar/"
-    ]
+    ],
+    "failed_test_comment": "As of April 3, 2026, a Playwright-loaded review of the official calendar shows 'There are no upcoming events,' so a dry run currently parses 0 upcoming qualifying rows from the first-party page."
   },
   "Yeiser Art Center": {
     "city": "Paducah",
     "event_links": [
       "https://theyeiser.org/events/"
-    ]
+    ],
+    "failed_test_comment": "As of April 3, 2026, the official events page shows one upcoming Fantastic Fibers 2026 Reception plus a past March 28 Artists at the Table meetup, so there are 0 upcoming qualifying workshop, talk, or activity rows to parse."
   },
   "Art Center of the Bluegrass": {
     "city": "Danville",
     "event_links": [
       "https://artcenterky.org/events/",
       "https://artcenterky.org/events/family-day/"
-    ]
+    ],
+    "parser_script": "scripts/run_ky_bundle_parser.py"
   }
 }

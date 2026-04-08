@@ -1,0 +1,17 @@
+{
+  "North Dakota Museum of Art": {
+    "city": "Grand Forks",
+    "event_links": [
+      "https://ndmoa.com/events/",
+      "https://ndmoa.com/family-day/"
+    ],
+    "fail_implement": "Event and education pages are static overview/gallery pages with no reliable upcoming activity dates to parse."
+  },
+  "Plains Art Museum": {
+    "city": "Fargo",
+    "event_links": [
+      "https://plainsart.org/events/"
+    ],
+    "parser_script": "scripts/run_plains_art_museum_parser.py"
+  }
+}
