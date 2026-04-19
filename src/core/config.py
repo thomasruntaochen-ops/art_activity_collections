@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     auth_jwks_url: str | None = None
 
     redis_url: str | None = None
-    rate_limit_guest_per_minute: int = 30
-    rate_limit_guest_per_day: int = 500
+    rate_limit_guest_per_minute: int = 60
+    rate_limit_guest_per_day: int = 2000
     rate_limit_user_per_minute: int = 120
     rate_limit_user_per_day: int = 5000
 

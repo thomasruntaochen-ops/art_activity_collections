@@ -1,8 +1,9 @@
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-from sqlalchemy import func, literal, select, tuple_
+from sqlalchemy import delete, func, literal, select, tuple_
 
 from src.crawlers.pipeline.datetime_utils import normalize_extracted_activity_datetimes
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -184,6 +185,16 @@ def upsert_extracted_activities_with_stats(
     """Upsert extracted activity rows and return deduped inputs plus write stats."""
     normalized = [normalize_extracted_activity_datetimes(item) for item in extracted]
     deduped = list({(a.source_url, a.title, a.start_at): a for a in normalized}.values())
+
+    # In production, drop activities too far in the future (> 3 months).
+    if os.getenv("APP_ENV") == "production":
+        max_future = datetime.utcnow() + timedelta(days=90)
+        before_filter = len(deduped)
+        deduped = [a for a in deduped if a.start_at is None or a.start_at <= max_future]
+        skipped = before_filter - len(deduped)
+        if skipped:
+            print(f"[upsert] Filtered out {skipped} activities with start_at > 3 months from now")
+
     if not deduped:
         return (
             deduped,
@@ -336,3 +347,13 @@ async def run_single_page(source_url: str, html: str):
 
     # 2) Persist with shared upsert logic used by other adapters.
     return upsert_extracted_activities(source_url=source_url, extracted=extracted, adapter_type="static_html")
+
+
+def prune_expired_activities(*, cutoff_days: int = 5) -> int:
+    """Delete activities with start_at older than cutoff_days ago. Returns count deleted."""
+    cutoff = datetime.utcnow() - timedelta(days=cutoff_days)
+    with SessionLocal() as db:
+        result = db.execute(delete(Activity).where(Activity.start_at < cutoff))
+        count = result.rowcount
+        db.commit()
+    return count

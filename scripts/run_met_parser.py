@@ -14,7 +14,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.crawlers.adapters.met import MET_TEENS_FREE_WORKSHOPS_URL, parse_met_events_html
+from src.crawlers.adapters.met import (
+    MET_TEENS_FREE_WORKSHOPS_URL,
+    fetch_met_events_page_playwright,
+    parse_met_events_html,
+)
 from src.crawlers.pipeline.script_runner import TargetRunSpec
 from src.crawlers.pipeline.script_runner import run_targets
 
@@ -139,6 +143,14 @@ async def main() -> None:
         ),
     )
     parser.add_argument(
+        "--fetch",
+        action="store_true",
+        help=(
+            "Fetch the MET events page directly via Playwright (headless browser) "
+            "instead of loading from a local HTML file. Bypasses Vercel bot detection."
+        ),
+    )
+    parser.add_argument(
         "--dump-text",
         action="store_true",
         help="Write normalized page text lines to a .txt file for parser debugging.",
@@ -150,16 +162,22 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    input_path = _resolve_input_html_path(
-        input_html=args.input_html,
-        cache_dir=Path(args.cache_dir),
-        remote_base_url=args.remote_base_url,
-    )
-    print(f"Loading HTML from file: {input_path}")
-    html = input_path.read_text(encoding="utf-8")
+    if args.fetch:
+        print("[met] Fetching live page via Playwright...")
+        html = await fetch_met_events_page_playwright(args.url)
+        print(f"[met] Fetched {len(html)} bytes")
+        input_path = None
+    else:
+        input_path = _resolve_input_html_path(
+            input_html=args.input_html,
+            cache_dir=Path(args.cache_dir),
+            remote_base_url=args.remote_base_url,
+        )
+        print(f"Loading HTML from file: {input_path}")
+        html = input_path.read_text(encoding="utf-8")
 
     if args.dump_text:
-        dump_path = _write_text_dump(html, Path(args.cache_dir), source_html_path=input_path)
+        dump_path = _write_text_dump(html, Path(args.cache_dir), source_html_path=input_path if input_path else None)
         print(f"Saved text dump to: {dump_path}")
 
     async def _load_cached_html() -> str:
@@ -177,7 +195,7 @@ async def main() -> None:
                 parsed_label="rows",
                 empty_parse_details={
                     "cache_dir": str(args.cache_dir),
-                    "input_html": str(input_path),
+                    "input_html": str(input_path) if input_path else "live-fetch",
                 },
             )
         ],

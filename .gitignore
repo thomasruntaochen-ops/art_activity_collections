@@ -16,3 +16,4 @@ data/rawhtml/
 PackageInstall.md
 *.egg-info/
 .claude/
+logs/

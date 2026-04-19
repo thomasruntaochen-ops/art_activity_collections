@@ -53,38 +53,39 @@ Ensure DB exists and schema is loaded (run in project root):
    - `cp .env.local.example .env.local`
    - `npm run dev`
 
-## Railway Crawler Guard
-- Use this as crawler service start command:
-  - `bash scripts/run_crawler_guarded.sh`
-- Required env var for guard:
-  - `RUN_CRAWLER=false` (default safe mode; crawler skips)
-- Config-driven venue list:
-  - `config/crawler_venues.toml` controls enabled venues, parser script path, and `batch_id`.
-  - Edit this file to enable/disable venues (or comment out venue blocks).
-- Optional env vars for config mode:
-  - `CRAWLER_CONFIG_PATH=config/crawler_venues.toml`
-  - `CRAWLER_BATCH_ID=batch_a` (run only one batch; useful for staggered cron schedules)
-  - Preview selected venues without running: `python3 scripts/run_crawler_batch.py --batch-id batch_a --list-only`
-  - Local test run (load `.env` into shell first): `set -a; source .env; set +a; RUN_CRAWLER=true bash scripts/run_crawler_guarded.sh`
-- Optional manual override:
-  - `CRAWLER_COMMAND=python3 scripts/run_mfa_parser.py --commit` (bypasses config-driven mode)
-- Optional alert webhook:
-  - `CRAWLER_ALERT_WEBHOOK_URL=` (JSON POST when a parser returns zero rows on `--commit`)
-- Optional remote raw-html base URL:
-  - `RAWHTML_BASE_URL=` (MET auto-download path: `<RAWHTML_BASE_URL>/met/latest_events.html`)
-- To run only on cron:
-  - Keep `RUN_CRAWLER=false` for normal deploys.
-  - In Railway Cron trigger, set `RUN_CRAWLER=true` for that run.
-  - Set `CRAWLER_BATCH_ID` per cron trigger (for example `batch_a` and `batch_b`) to stagger venue runs.
-- Safety behavior:
-  - Parser scripts abort DB writes when total parsed rows are `0` on `--commit` (non-zero exit to surface failure in Railway logs/cron).
-  - Manual alert test: `python3 scripts/test_crawler_alert.py`
-  - Full Zapier setup: `ZAPIER_ALERT_SETUP.md`
+## Running Crawlers
+
+Config-driven venue list: `config/crawler_venues.toml` controls enabled venues, parser script path, and `batch_id`. Edit this file to enable/disable venues.
+
+### Local MySQL (`scripts/run_crawler_local.sh`)
+Sources `.env` for local MySQL credentials. No remote HTML fallback or Zapier alerts.
+```bash
+# Run all batches
+./scripts/run_crawler_local.sh
+
+# Run a single batch
+./scripts/run_crawler_local.sh batch_a
+```
+
+### Railway MySQL (`scripts/run_crawler_mac.sh`)
+Sources `.env.railway` for Railway MySQL credentials. Includes remote HTML fallback and Zapier alerts.
+```bash
+# Run all batches
+./scripts/run_crawler_mac.sh
+
+# Run a single batch
+./scripts/run_crawler_mac.sh batch_a
+```
+
+### Useful commands
+- Preview selected venues without running: `python3 scripts/run_crawler_batch.py --batch-id batch_a --list-only`
+- Safety behavior: parser scripts abort DB writes when total parsed rows are `0` on `--commit`.
+- Manual alert test: `python3 scripts/test_crawler_alert.py`
+- Full Zapier setup: `ZAPIER_ALERT_SETUP.md`
 
 ## Railway Service Layout
 - `mysql` service: private database.
 - `api` service: FastAPI/uvicorn public endpoint for web + mobile apps.
-- `crawler` service: cron/batch ingestion only.
 - `frontend` service: Next.js website.
 
 ### `api` service
@@ -121,17 +122,15 @@ This scaffold includes:
 
 ## MET Source Parser
 - Source URL: `https://www.metmuseum.org/events?audience=teens&price=free&type=workshopsClasses`
-- Manually download html file and save to overwrite project's `data/rawhtml/met/latest_events.html` file
-- Default cache dir: `data/rawhtml/met`
-- Optional remote base URL: set `RAWHTML_BASE_URL`, parser auto-downloads `met/latest_events.html`
-- Dry run from latest saved HTML in `data/rawhtml/met` (print parsed rows only):
-  - `python3 scripts/run_met_parser.py`
-- Parse from saved HTML file (offline):
+- Fetches directly via Playwright (headless browser) to bypass Vercel bot detection.
+- Dry run (fetch live and print parsed rows):
+  - `python3 scripts/run_met_parser.py --fetch`
+- Fetch live and commit to MySQL:
+  - `python3 scripts/run_met_parser.py --fetch --commit`
+- Parse from saved HTML file (offline fallback):
   - `python3 scripts/run_met_parser.py --input-html data/rawhtml/met/<file>.html`
-- Parse from latest saved HTML and dump text:
-  - `python3 scripts/run_met_parser.py --dump-text`
-- Commit parsed rows to MySQL:
-  - `python3 scripts/run_met_parser.py --commit`
+- Dump normalized text for debugging:
+  - `python3 scripts/run_met_parser.py --fetch --dump-text`
 
 ## MoMA Source Parser
 - Teens URL: `https://www.moma.org/calendar/?happening_filter=For+teens`

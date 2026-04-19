@@ -115,7 +115,12 @@ async def fetch_met_events_page(
     raise RuntimeError("Unable to fetch MET events page after retries")
 
 
-async def fetch_met_events_page_playwright(url: str, *, timeout_ms: int = 45000) -> str:
+async def fetch_met_events_page_playwright(
+    url: str,
+    *,
+    timeout_ms: int = 45000,
+    checkpoint_wait_ms: int = 10000,
+) -> str:
     if async_playwright is None:
         raise RuntimeError(
             "Playwright is not installed. Install extras and browsers: "
@@ -123,16 +128,28 @@ async def fetch_met_events_page_playwright(url: str, *, timeout_ms: int = 45000)
         )
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
         context = await browser.new_context(
             user_agent=DEFAULT_HEADERS["User-Agent"],
             locale="en-US",
+            viewport={"width": 1920, "height": 1080},
+        )
+        await context.add_init_script(
+            'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
         )
         page = await context.new_page()
         print("[met-fetch] Playwright: opening page")
         await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-        await page.wait_for_timeout(3000)
+        # Vercel security checkpoint auto-resolves after a few seconds.
+        await page.wait_for_timeout(checkpoint_wait_ms)
         html = await page.content()
+        if "Security Checkpoint" in html:
+            print("[met-fetch] Playwright: still on checkpoint, waiting longer")
+            await page.wait_for_timeout(checkpoint_wait_ms)
+            html = await page.content()
         await context.close()
         await browser.close()
         return html
@@ -145,7 +162,7 @@ class MetEventsAdapter(BaseSourceAdapter):
         self.url = url
 
     async def fetch(self) -> list[str]:
-        html = await fetch_met_events_page(self.url)
+        html = await fetch_met_events_page(self.url, use_playwright_fallback=True)
         return [html]
 
     async def parse(self, payload: str) -> list[ExtractedActivity]:

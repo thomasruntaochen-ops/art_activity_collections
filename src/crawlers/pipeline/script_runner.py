@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -9,6 +10,7 @@ from typing import Callable
 from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse
 from src.crawlers.pipeline.datetime_utils import normalize_extracted_activity_datetimes
 from src.crawlers.pipeline.runner import UpsertStats
+from src.crawlers.pipeline.runner import prune_expired_activities
 from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -132,5 +134,10 @@ async def run_targets(
                 extracted=outcome.parsed,
                 adapter_type=outcome.spec.adapter_type,
             )
+
+        if os.getenv("APP_ENV") == "production":
+            pruned = prune_expired_activities(cutoff_days=5)
+            if pruned:
+                print(f"[prune] Deleted {pruned} activities with start_at > 5 days ago")
 
     return RunTargetsSummary(outcomes=outcomes)

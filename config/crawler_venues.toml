@@ -11,9 +11,8 @@ state = "NY"
 enabled = true
 parser_script_name = "scripts/run_met_parser.py"
 batch_id = "batch_a"
-use_base_url = true
-local_cache_glob = "data/rawhtml/met/*.html"
-args = ["--commit"]
+use_base_url = false
+args = ["--fetch", "--commit"]
 
 [[venues]]
 venue = "moma"
