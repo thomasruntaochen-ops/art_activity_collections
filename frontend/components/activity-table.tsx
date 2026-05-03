@@ -49,7 +49,7 @@ function formatDate(value: string): string {
 
 function getFreeLabel(activity: Activity): string {
   if (activity.is_free === true) {
-    return activity.free_verification_status === "confirmed" ? "Free confirmed" : "Likely free";
+    return activity.free_verification_status === "confirmed" ? "Free" : "Likely free";
   }
   if (activity.free_verification_status === "uncertain") {
     return "Price unclear";
