@@ -20,17 +20,6 @@ function hashString(value: string): number {
   return hash;
 }
 
-function formatDateLabel(value: string | null): string {
-  if (!value) return "Date pending";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 function formatActivityTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -97,34 +86,11 @@ function formatVenueLine(venue: VenueSummary | null): string {
   return parts.join(", ") || "Location pending";
 }
 
-function buildVenueDestination(venue: VenueSummary | null): string {
-  if (!venue) return "";
-  if (venue.venue_lat !== null && venue.venue_lng !== null) {
-    return `${venue.venue_lat},${venue.venue_lng}`;
-  }
-  const parts = [venue.venue_name, venue.venue_address, venue.venue_city, venue.venue_state].filter(Boolean);
-  return parts.join(", ");
-}
-
-function buildGoogleDirectionsUrl(destination: string): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
-}
-
-function buildAppleDirectionsUrl(destination: string): string {
-  return `https://maps.apple.com/?daddr=${encodeURIComponent(destination)}&dirflg=d`;
-}
-
-function buildWazeDirectionsUrl(destination: string): string {
-  return `https://waze.com/ul?q=${encodeURIComponent(destination)}&navigate=yes`;
-}
-
-function buildHeroStyle(seed: string, imageUrl?: string | null): CSSProperties {
+function buildVenueCardStyle(seed: string, imageUrl?: string | null): CSSProperties {
   const hue = hashString(seed) % 360;
   const secondaryHue = (hue + 42) % 360;
   const layers = [
-    "linear-gradient(180deg, rgba(15, 12, 8, 0.18), rgba(15, 12, 8, 0.72))",
-    `radial-gradient(circle at 18% 20%, hsla(${hue}, 90%, 72%, 0.5), transparent 32%)`,
-    `radial-gradient(circle at 82% 18%, hsla(${secondaryHue}, 78%, 78%, 0.42), transparent 28%)`,
+    "linear-gradient(180deg, rgba(22, 18, 14, 0.1), rgba(22, 18, 14, 0.76))",
   ];
   if (imageUrl) {
     layers.push(`url("${imageUrl}")`);
@@ -133,9 +99,9 @@ function buildHeroStyle(seed: string, imageUrl?: string | null): CSSProperties {
   }
   return {
     backgroundImage: layers.join(", "),
-    backgroundSize: imageUrl ? "auto, auto, auto, cover" : "auto",
-    backgroundPosition: imageUrl ? "center, center, center, center" : "center",
-    backgroundRepeat: imageUrl ? "no-repeat, no-repeat, no-repeat, no-repeat" : "no-repeat",
+    backgroundSize: imageUrl ? "auto, cover" : "auto",
+    backgroundPosition: "center",
+    backgroundRepeat: imageUrl ? "no-repeat, no-repeat" : "no-repeat",
   };
 }
 
@@ -171,7 +137,6 @@ export default function HomePage() {
   const [tableActivities, setTableActivities] = useState<Activity[]>([]);
   const [tableError, setTableError] = useState("");
   const [tableLoading, setTableLoading] = useState(false);
-  const [directionsOpen, setDirectionsOpen] = useState(false);
   const [mapViewportMode, setMapViewportMode] = useState<MapViewportMode>("fit");
   const dateFromIso = useMemo(() => toStartOfDayIso(dateFrom), [dateFrom]);
   const dateToIso = useMemo(() => toEndOfDayIso(dateTo), [dateTo]);
@@ -311,7 +276,6 @@ export default function HomePage() {
     if (!selectedVenueName) {
       setSelectedActivities([]);
       setActivityError("");
-      setDirectionsOpen(false);
       return;
     }
 
@@ -388,10 +352,6 @@ export default function HomePage() {
     };
   }, [viewMode, tableVenueName, selectedCity, selectedState, ageFilter, dropInFilter, dateFromIso, dateToIso, freeOnly]);
 
-  useEffect(() => {
-    setDirectionsOpen(false);
-  }, [selectedVenueName]);
-
   function handleViewChange(nextView: ViewMode) {
     if (nextView === "table" && !tableVenueName && selectedVenueName) {
       setTableVenueName(selectedVenueName);
@@ -399,24 +359,9 @@ export default function HomePage() {
     setViewMode(nextView);
   }
 
-  function handleOpenTableView() {
-    if (selectedVenueName) {
-      setTableVenueName(selectedVenueName);
-    }
-    setViewMode("table");
-  }
-
-  const heroActivity = selectedActivities[0] ?? null;
-  const selectedVenueMedia = getVenueMedia(selectedVenue?.venue_name);
-  const activityCountLabel = selectedVenue ? `${selectedVenue.activity_count} live programs` : "0 programs";
   const selectedLocation = formatVenueLine(selectedVenue);
   const visibleVenueCount = filteredVenues.length;
   const stateLabel = selectedState || "All states";
-  const selectedDestination = buildVenueDestination(selectedVenue);
-  const googleDirectionsUrl = selectedDestination ? buildGoogleDirectionsUrl(selectedDestination) : "";
-  const appleDirectionsUrl = selectedDestination ? buildAppleDirectionsUrl(selectedDestination) : "";
-  const wazeDirectionsUrl = selectedDestination ? buildWazeDirectionsUrl(selectedDestination) : "";
-  const heroCardHref = heroActivity?.source_url ?? "";
   const tableSummary = tableLoading
     ? "Loading matching activities..."
     : `${tableActivities.length} activities matching the current filters`;
@@ -529,25 +474,6 @@ export default function HomePage() {
             <p>{visibleVenueCount} museums with active kid and teen programs</p>
           </div>
 
-          <div className="explorer-menu">
-            <button type="button" className="explorer-menu__item">
-              <span className="explorer-menu__dot" />
-              Current Galleries
-            </button>
-            <button type="button" className="explorer-menu__item">
-              <span className="explorer-menu__dot" />
-              Daily Schedule
-            </button>
-            <button type="button" className="explorer-menu__item is-active">
-              <span className="explorer-menu__dot" />
-              Museum Guide
-            </button>
-            <button type="button" className="explorer-menu__item">
-              <span className="explorer-menu__dot" />
-              Saved Spots
-            </button>
-          </div>
-
           <div className="explorer-sidebar__list">
             <div className="explorer-sidebar__list-head">
               <span>{stateLabel}</span>
@@ -560,157 +486,38 @@ export default function HomePage() {
               <p className="status-note">No venues match this filter.</p>
             ) : null}
 
-            {filteredVenues.slice(0, 12).map((venue) => {
+            {filteredVenues.map((venue) => {
               const isActive = venue.venue_name === selectedVenueName;
+              const venueMedia = getVenueMedia(venue.venue_name);
               return (
                 <button
                   key={venue.venue_name}
                   type="button"
                   className={`venue-card${isActive ? " is-active" : ""}`}
+                  style={buildVenueCardStyle(venue.venue_name, venueMedia?.image_path)}
                   onClick={() => handleSelectVenue(venue.venue_name)}
                 >
-                  <span className="venue-card__title">{venue.venue_name}</span>
-                  <span className="venue-card__meta">
-                    {[venue.venue_city, venue.venue_state].filter(Boolean).join(", ") || "Location pending"}
+                  <span className="venue-card__content">
+                    <span className="venue-card__title">{venue.venue_name}</span>
+                    <span className="venue-card__meta">
+                      {[venue.venue_city, venue.venue_state].filter(Boolean).join(", ") || "Location pending"}
+                    </span>
+                    <span className="venue-card__count">{venue.activity_count} programs</span>
                   </span>
-                  <span className="venue-card__count">{venue.activity_count} programs</span>
                 </button>
               );
             })}
           </div>
-
-          <button type="button" className="explorer-cta" onClick={handleOpenTableView}>
-            Open Detailed Table
-          </button>
         </aside>
 
-        <section className="explorer-map">
-          <div className="explorer-map__frame">
-            <div className="explorer-map__surface is-live">
-              <VenueMap
-                venues={filteredVenues}
-                selectedVenueName={selectedVenueName}
-                viewportMode={mapViewportMode}
-                onSelectVenue={handleSelectVenue}
-              />
-            </div>
-          </div>
-        </section>
-
         <aside className="explorer-detail">
-          <p className="eyebrow">Selected Venue</p>
+          <p className="eyebrow">Venue Activities</p>
           <h2>{selectedVenue?.venue_name ?? "Select a museum"}</h2>
           <p className="explorer-detail__location">{selectedLocation}</p>
 
-          <div className="explorer-metrics">
-            <div>
-              <span className="explorer-metrics__label">Programs</span>
-              <strong>{activityCountLabel}</strong>
-            </div>
-            <div>
-              <span className="explorer-metrics__label">Next Date</span>
-              <strong>{formatDateLabel(selectedVenue?.next_activity_at ?? null)}</strong>
-            </div>
-          </div>
-
-          {selectedVenue ? (
-            <div className="explorer-detail__section">
-              <div className="explorer-detail__section-head">
-                <h3>Directions</h3>
-                <button
-                  type="button"
-                  className="directions-toggle"
-                  onClick={() => setDirectionsOpen((current) => !current)}
-                >
-                  {directionsOpen ? "Hide" : "Get directions"}
-                </button>
-              </div>
-
-              {directionsOpen ? (
-              <div className="directions-links">
-                  <a
-                    className="directions-link"
-                    href={googleDirectionsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Google Maps
-                  </a>
-                  <a
-                    className="directions-link"
-                    href={appleDirectionsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Apple Maps
-                  </a>
-                  <a
-                    className="directions-link"
-                    href={wazeDirectionsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Waze
-                  </a>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {heroCardHref ? (
-            <a
-              className="hero-card hero-card--link"
-              style={buildHeroStyle(heroActivity?.title ?? selectedVenue?.venue_name ?? "museum", selectedVenueMedia?.image_path)}
-              href={heroCardHref}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <div className="hero-card__overlay">
-                <span className="hero-card__label">Program Highlight</span>
-                <h3>{heroActivity?.title ?? "Select a venue to review its live activity feed"}</h3>
-                {heroActivity ? (
-                  <div className="hero-card__badges">
-                    <span className={`meta-pill meta-pill--${getFreeTone(heroActivity)}`}>
-                      {getFreeLabel(heroActivity)}
-                    </span>
-                    <span className="meta-pill meta-pill--neutral">
-                      {formatAgeRange(heroActivity.age_min, heroActivity.age_max)}
-                    </span>
-                  </div>
-                ) : null}
-                <p>{`${formatActivityTime(heroActivity.start_at)} • ${heroActivity.activity_type ?? "Museum activity"}`}</p>
-              </div>
-            </a>
-          ) : (
-            <div
-              className="hero-card"
-              style={buildHeroStyle(heroActivity?.title ?? selectedVenue?.venue_name ?? "museum", selectedVenueMedia?.image_path)}
-            >
-              <div className="hero-card__overlay">
-                <span className="hero-card__label">Program Highlight</span>
-                <h3>{heroActivity?.title ?? "Select a venue to review its live activity feed"}</h3>
-                {heroActivity ? (
-                  <div className="hero-card__badges">
-                    <span className={`meta-pill meta-pill--${getFreeTone(heroActivity)}`}>
-                      {getFreeLabel(heroActivity)}
-                    </span>
-                    <span className="meta-pill meta-pill--neutral">
-                      {formatAgeRange(heroActivity.age_min, heroActivity.age_max)}
-                    </span>
-                  </div>
-                ) : null}
-                <p>
-                  {heroActivity
-                    ? `${formatActivityTime(heroActivity.start_at)} • ${heroActivity.activity_type ?? "Museum activity"}`
-                    : "This panel now uses a local museum image when one is available, with a high-contrast fade overlay for readability."}
-                </p>
-              </div>
-            </div>
-          )}
-
           <div className="explorer-detail__section">
             <div className="explorer-detail__section-head">
-              <h3>Upcoming Activities</h3>
+              <h3>Activities</h3>
               <span>{activityLoading ? "Updating..." : `${selectedActivities.length} loaded`}</span>
             </div>
 
@@ -746,6 +553,19 @@ export default function HomePage() {
             ) : null}
           </div>
         </aside>
+
+        <section className="explorer-map">
+          <div className="explorer-map__frame">
+            <div className="explorer-map__surface is-live">
+              <VenueMap
+                venues={filteredVenues}
+                selectedVenueName={selectedVenueName}
+                viewportMode={mapViewportMode}
+                onSelectVenue={handleSelectVenue}
+              />
+            </div>
+          </div>
+        </section>
       </section>
       ) : (
         <section className="table-shell">
