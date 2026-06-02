@@ -9,7 +9,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.crawlers.adapters.decorative_arts_center_of_ohio import DECORATIVE_EVENTS_URL  # noqa: E402
-from src.crawlers.adapters.decorative_arts_center_of_ohio import DECORATIVE_LECTURES_URL  # noqa: E402
+from src.crawlers.adapters.decorative_arts_center_of_ohio import DECORATIVE_SOURCE_URLS  # noqa: E402
 from src.crawlers.adapters.decorative_arts_center_of_ohio import load_decorative_arts_center_of_ohio_payload  # noqa: E402
 from src.crawlers.adapters.decorative_arts_center_of_ohio import parse_decorative_arts_center_of_ohio_payload  # noqa: E402
 from src.crawlers.pipeline.script_runner import EmptyCommitGuard  # noqa: E402
@@ -33,14 +33,14 @@ async def main() -> None:
                 parser_name="run_decorative_arts_center_of_ohio_parser",
                 adapter_type="decorative_arts_center_of_ohio_events",
                 parsed_label="Decorative Arts Center of Ohio rows",
-                empty_parse_details={"event_links": [DECORATIVE_EVENTS_URL, DECORATIVE_LECTURES_URL]},
+                empty_parse_details={"event_links": list(DECORATIVE_SOURCE_URLS)},
             )
         ],
         commit=args.commit,
         empty_commit_guard=EmptyCommitGuard(
             parser_name="run_decorative_arts_center_of_ohio_parser",
             source_url=DECORATIVE_EVENTS_URL,
-            details={"event_links": [DECORATIVE_EVENTS_URL, DECORATIVE_LECTURES_URL]},
+            details={"event_links": list(DECORATIVE_SOURCE_URLS)},
         ),
     )
     if args.commit:

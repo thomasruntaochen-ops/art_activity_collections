@@ -730,7 +730,7 @@ sources:
     crawl_frequency: daily
     active: false
   - name: decorative_arts_center_of_ohio_events
-    base_url: https://www.decartsohio.org/events.html
+    base_url: https://www.decartsohio.org/classes-youth
     adapter_type: decorative_arts_center_of_ohio_events
     crawl_frequency: daily
     active: false

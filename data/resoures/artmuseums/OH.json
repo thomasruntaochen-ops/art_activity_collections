@@ -51,8 +51,10 @@
   "Decorative Arts Center of Ohio": {
     "city": "Lancaster",
     "event_links": [
-      "https://www.decartsohio.org/events.html",
-      "https://www.decartsohio.org/lectures.html"
+      "https://www.decartsohio.org/classes-youth",
+      "https://www.decartsohio.org/classes-highschool",
+      "https://www.decartsohio.org/summer-camp",
+      "https://www.decartsohio.org/lectures"
     ],
     "parser_script": "scripts/run_decorative_arts_center_of_ohio_parser.py"
   },

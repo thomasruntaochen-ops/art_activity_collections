@@ -9,12 +9,23 @@ import httpx
 from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
+try:
+    from playwright.async_api import Browser
+    from playwright.async_api import BrowserContext
+    from playwright.async_api import Playwright
+    from playwright.async_api import async_playwright
+except ImportError:  # pragma: no cover - optional dependency
+    Browser = None
+    BrowserContext = None
+    Playwright = None
+    async_playwright = None
+
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
-ELMUSEO_EVENTS_LIST_URL = "https://elmuseo.org/events/list/"
+ELMUSEO_EVENTS_LIST_URL = "https://elmuseo.org/events/"
 
 NY_TIMEZONE = "America/New_York"
 ELMUSEO_VENUE_NAME = "El Museo del Barrio"
@@ -76,6 +87,13 @@ BODY_EXCLUDE_KEYWORDS = (
     "storytime",
     "tour",
 )
+BLOCKED_PAGE_MARKERS = (
+    "403 forbidden",
+    "access denied",
+    "enable javascript and cookies to continue",
+    "just a moment...",
+    "managed challenge",
+)
 
 
 async def fetch_elmuseo_page(
@@ -118,32 +136,99 @@ async def fetch_elmuseo_page(
     raise RuntimeError("Unable to fetch El Museo del Barrio event pages after retries")
 
 
+async def fetch_elmuseo_page_playwright(
+    *,
+    context: BrowserContext,
+    url: str,
+    timeout_ms: int = 90000,
+    max_attempts: int = 2,
+) -> str:
+    for attempt in range(1, max_attempts + 1):
+        page = await context.new_page()
+        try:
+            print(f"[elmuseo-fetch] Playwright attempt {attempt}/{max_attempts}: {url}")
+            response = await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            html_text = await page.content()
+
+            for wait_ms in (3000, 6000):
+                if not _looks_like_blocked_page(html_text):
+                    return html_text
+                await page.wait_for_timeout(wait_ms)
+                html_text = await page.content()
+
+            status = response.status if response is not None else None
+            if (status is None or status < 400) and not _looks_like_blocked_page(html_text):
+                return html_text
+        finally:
+            await page.close()
+
+    raise RuntimeError(f"Unable to fetch El Museo del Barrio page via Playwright: {url}")
+
+
 async def load_elmuseo_payload(*, page_limit: int | None = None) -> dict:
     page_urls: list[str] = []
     page_html_by_url: dict[str, str] = {}
     current_url = ELMUSEO_EVENTS_LIST_URL
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
-        while current_url and current_url not in page_html_by_url:
-            if page_limit is not None and len(page_urls) >= max(page_limit, 1):
-                break
+        playwright_cm = None
+        playwright_manager: Playwright | None = None
+        browser: Browser | None = None
+        context: BrowserContext | None = None
 
-            current_html = await fetch_elmuseo_page(current_url, client=client)
-            page_urls.append(current_url)
-            page_html_by_url[current_url] = current_html
-            current_url = _extract_next_page_url(current_html, list_url=page_urls[-1])
+        async def fetch_page(url: str) -> str:
+            nonlocal browser, context, playwright_cm, playwright_manager
+            try:
+                return await fetch_elmuseo_page(url, client=client)
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                if status not in (403, 429):
+                    raise
+                if async_playwright is None:
+                    raise RuntimeError(
+                        "El Museo returned an HTTP block response and Playwright is unavailable. "
+                        "Install crawler extras and Chromium with `pip install -e .[crawler]` "
+                        "then `playwright install chromium`."
+                    ) from exc
+                if context is None:
+                    playwright_cm = async_playwright()
+                    playwright_manager = await playwright_cm.__aenter__()
+                    browser = await playwright_manager.chromium.launch(headless=True)
+                    context = await browser.new_context(
+                        locale="en-US",
+                        user_agent=DEFAULT_HEADERS["User-Agent"],
+                    )
+                print(f"[elmuseo-fetch] HTTP {status}; retrying with Playwright: {url}")
+                return await fetch_elmuseo_page_playwright(context=context, url=url)
 
-        page_events: list[dict] = []
-        detail_urls: set[str] = set()
-        for page_url in page_urls:
-            for event_obj in _extract_event_objects(page_html_by_url[page_url]):
-                event_obj["_list_url"] = page_url
-                page_events.append(event_obj)
-                source_url = _normalize_space(str(event_obj.get("url") or event_obj.get("@id") or ""))
-                if source_url:
-                    detail_urls.add(source_url)
+        try:
+            while current_url and current_url not in page_html_by_url:
+                if page_limit is not None and len(page_urls) >= max(page_limit, 1):
+                    break
 
-        detail_pages = await asyncio.gather(*(fetch_elmuseo_page(url, client=client) for url in sorted(detail_urls)))
+                current_html = await fetch_page(current_url)
+                page_urls.append(current_url)
+                page_html_by_url[current_url] = current_html
+                current_url = _extract_next_page_url(current_html, list_url=page_urls[-1])
+
+            page_events: list[dict] = []
+            detail_urls: set[str] = set()
+            for page_url in page_urls:
+                for event_obj in _extract_event_objects(page_html_by_url[page_url]):
+                    event_obj["_list_url"] = page_url
+                    page_events.append(event_obj)
+                    source_url = _normalize_space(str(event_obj.get("url") or event_obj.get("@id") or ""))
+                    if source_url:
+                        detail_urls.add(source_url)
+
+            detail_pages = await asyncio.gather(*(fetch_page(url) for url in sorted(detail_urls)))
+        finally:
+            if context is not None:
+                await context.close()
+            if browser is not None:
+                await browser.close()
+            if playwright_cm is not None:
+                await playwright_cm.__aexit__(None, None, None)
 
     return {
         "pages": [(page_url, page_html_by_url[page_url]) for page_url in page_urls],
@@ -415,6 +500,11 @@ def _extract_next_page_url(html_text: str, *, list_url: str) -> str | None:
         return None
     href = (link.get("href") or "").strip()
     return urljoin(list_url, href) if href else None
+
+
+def _looks_like_blocked_page(html_text: str) -> bool:
+    lowered = html_text.lower()
+    return any(marker in lowered for marker in BLOCKED_PAGE_MARKERS)
 
 
 def _parse_datetime(value: object) -> datetime | None:

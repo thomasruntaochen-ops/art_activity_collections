@@ -17,3 +17,4 @@ PackageInstall.md
 *.egg-info/
 .claude/
 logs/
+debug/
