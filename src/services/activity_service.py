@@ -47,8 +47,24 @@ def list_activities(
     if filters:
         stmt = stmt.where(*filters)
 
-    stmt = stmt.order_by(Activity.start_at.asc()).limit(200)
-    return list(db.scalars(stmt))
+    stmt = stmt.order_by(Activity.start_at.asc(), Activity.id.asc()).limit(400)
+    return _dedupe_activities_for_display(list(db.scalars(stmt)))[:200]
+
+
+def _dedupe_activities_for_display(activities: list[Activity]) -> list[Activity]:
+    unique: list[Activity] = []
+    seen: set[tuple[int | None, str, datetime]] = set()
+    for activity in activities:
+        key = (
+            activity.venue_id,
+            activity.title.strip().casefold(),
+            activity.start_at,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(activity)
+    return unique
 
 
 def get_filter_suggestions(

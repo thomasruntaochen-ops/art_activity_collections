@@ -139,7 +139,7 @@ def parse_bampfa_events_html(
 ) -> list[ExtractedActivity]:
     soup = BeautifulSoup(html, "html.parser")
     rows: list[ExtractedActivity] = []
-    seen: set[tuple[str, str, datetime]] = set()
+    seen: set[tuple[str, datetime]] = set()
     current_date = (now or datetime.now()).date()
 
     for popup in soup.select(".popupboxthing[data-popup]"):
@@ -218,7 +218,7 @@ def parse_bampfa_events_html(
             ]
         ).lower()
 
-        key = (source_url, title, start_at)
+        key = (title.casefold(), start_at)
         if key in seen:
             continue
         seen.add(key)
