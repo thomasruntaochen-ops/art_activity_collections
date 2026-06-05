@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import absolute_url
-from src.crawlers.adapters.oh_common import fetch_html
+from src.crawlers.adapters.oh_common import fetch_html as fetch_html_http
 from src.crawlers.adapters.oh_common import infer_activity_type
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_age_range
@@ -42,6 +42,12 @@ PLAYWRIGHT_LAUNCH_ARGS = (
     "--disable-blink-features=AutomationControlled",
     "--no-sandbox",
     "--disable-dev-shm-usage",
+)
+CHALLENGE_MARKERS = (
+    "attention required!",
+    "performing security verification",
+    "sorry, you have been blocked",
+    "just a moment...",
 )
 
 OK_INCLUDE_PATTERNS = (
@@ -295,6 +301,65 @@ async def fetch_playwright_body_text(url: str, *, timeout_ms: int = 90000) -> st
         body_text = await page.locator("body").inner_text()
         await browser.close()
         return body_text
+
+
+async def fetch_html(
+    url: str,
+    *,
+    referer: str | None = None,
+    client: httpx.AsyncClient | None = None,
+) -> str:
+    try:
+        html = await fetch_html_http(url, referer=referer, client=client)
+        if not _looks_like_challenge(html):
+            return html
+        print(f"[ok-bundle] HTTP response looked like a challenge for {url}; retrying with Playwright")
+    except Exception as exc:
+        print(f"[ok-bundle] HTTP fetch failed for {url}; retrying with Playwright: {exc}")
+
+    return await fetch_playwright_html(url, referer=referer)
+
+
+async def fetch_playwright_html(
+    url: str,
+    *,
+    referer: str | None = None,
+    timeout_ms: int = 90000,
+) -> str:
+    if async_playwright is None:
+        raise RuntimeError(
+            "Playwright is not installed. Install crawler extras and Chromium with "
+            "`pip install -e .[crawler]` then `playwright install chromium`."
+        )
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True, args=list(PLAYWRIGHT_LAUNCH_ARGS))
+        context = await browser.new_context(
+            user_agent=DEFAULT_HEADERS["User-Agent"],
+            locale="en-US",
+            timezone_id=OK_TIMEZONE,
+            viewport={"width": 1365, "height": 900},
+            screen={"width": 1365, "height": 900},
+        )
+        page = await context.new_page()
+        if referer:
+            await page.set_extra_http_headers({"Referer": referer})
+        try:
+            response = await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            await page.wait_for_timeout(7000)
+            html = await page.content()
+            status = response.status if response is not None else None
+            if _looks_like_challenge(html):
+                raise RuntimeError(f"challenge page returned for {url} status={status}")
+            return html
+        finally:
+            await context.close()
+            await browser.close()
+
+
+def _looks_like_challenge(html: str) -> bool:
+    probe = html[:4000].lower()
+    return any(marker in probe for marker in CHALLENGE_MARKERS)
 
 
 async def load_ok_bundle_payload(

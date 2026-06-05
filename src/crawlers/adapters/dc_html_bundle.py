@@ -1,5 +1,6 @@
 import asyncio
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urljoin
@@ -14,6 +15,7 @@ from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
 NY_TIMEZONE = "America/New_York"
+NPG_TRUMBA_RSS_URL = "https://www.trumba.com/calendars/npg-events.rss"
 
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -152,7 +154,7 @@ DC_HTML_VENUES: tuple[DcHtmlVenueConfig, ...] = (
         venue_name="National Portrait Gallery",
         city="Washington",
         state="DC",
-        list_urls=("https://npg.si.edu/events/family-programs",),
+        list_urls=("https://npg.si.edu/calendar",),
     ),
     DcHtmlVenueConfig(
         slug="kreeger",
@@ -237,6 +239,11 @@ async def load_dc_html_bundle_payload(
                 payload[venue.slug] = {"listing_urls": listing_urls, "detail_items": detail_items}
                 continue
 
+            if venue.slug == "npg":
+                rss_xml = await fetch_html(NPG_TRUMBA_RSS_URL, client=client)
+                payload[venue.slug] = {"listing_urls": listing_urls, "rss_xml": rss_xml}
+                continue
+
             seen_links: set[str] = set()
             link_candidates: list[tuple[str, str]] = []
             for listing_url in venue.list_urls:
@@ -263,6 +270,9 @@ async def load_dc_html_bundle_payload(
 
 
 def parse_dc_html_events(payload: dict, *, venue: DcHtmlVenueConfig) -> list[ExtractedActivity]:
+    if venue.slug == "npg" and payload.get("rss_xml"):
+        return _parse_npg_rss_events(str(payload.get("rss_xml") or ""), venue=venue)
+
     detail_items = payload.get("detail_items") or []
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
@@ -332,6 +342,13 @@ def _build_row(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | N
     if parsed is None:
         return None
 
+    if not _passes_common_activity_filter(parsed):
+        return None
+
+    return parsed
+
+
+def _passes_common_activity_filter(parsed: ExtractedActivity) -> bool:
     token_blob = _searchable_blob(
         " ".join(
             [
@@ -346,7 +363,7 @@ def _build_row(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | N
     exclude_hits = [pattern for pattern in STRICT_EXCLUDE_PATTERNS if pattern in token_blob]
 
     if not include_hits:
-        return None
+        return False
     hard_blockers = {
         " camp ",
         " camps ",
@@ -367,10 +384,10 @@ def _build_row(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | N
         " yoga ",
     }
     if any(pattern in hard_blockers for pattern in exclude_hits):
-        return None
+        return False
     if any(pattern in {" admission ", " storytime ", " tour ", " tours "} for pattern in exclude_hits) and not strong_activity:
-        return None
-    return parsed
+        return False
+    return True
 
 
 def _parse_asian_art_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | None:
@@ -461,6 +478,139 @@ def _parse_npg_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivit
         is_free=is_free,
         free_verification_status=free_verification_status,
     )
+
+
+def _parse_npg_rss_events(rss_xml: str, *, venue: DcHtmlVenueConfig) -> list[ExtractedActivity]:
+    current_date = datetime.now(ZoneInfo(NY_TIMEZONE)).date()
+    try:
+        root = ET.fromstring(rss_xml.lstrip("\ufeff").encode("utf-8"))
+    except ET.ParseError:
+        return []
+
+    channel = root.find("channel")
+    if channel is None:
+        return []
+
+    rows: list[ExtractedActivity] = []
+    seen: set[tuple[str, str, datetime]] = set()
+    for item in channel.findall("item"):
+        row = _parse_npg_rss_item(item, venue=venue)
+        if row is None or row.start_at.date() < current_date:
+            continue
+        key = (row.source_url, row.title, row.start_at)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(row)
+
+    rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
+    return rows
+
+
+def _parse_npg_rss_item(item: ET.Element, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | None:
+    title = _normalize_space(item.findtext("title"))
+    source_url = _normalize_space(item.findtext("link"))
+    description_html = item.findtext("description") or ""
+    if not title or not source_url or not description_html:
+        return None
+
+    date_line_html, body_html = _split_npg_rss_description(description_html)
+    date_line = _html_text(date_line_html)
+    body = _html_text(body_html)
+    match = re.match(
+        r"(?P<date>[A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}),\s*(?P<times>.+)$",
+        date_line,
+    )
+    if match is None:
+        return None
+
+    start_at, end_at = _parse_npg_rss_date_and_times(match.group("date"), match.group("times"))
+    if start_at is None:
+        return None
+
+    event_link = _find_xml_child_text(item, "weblink")
+    description = " | ".join(part for part in [body, f"Registration: {event_link}" if event_link else None] if part)
+    token_blob = _searchable_blob(" ".join(part for part in [title, description] if part))
+    if " ages 18 " in token_blob or " ages 18 and up " in token_blob or " camp " in token_blob:
+        return None
+    if not any(
+        pattern in token_blob
+        for pattern in (
+            " art studio ",
+            " children and families ",
+            " kids families ",
+            " portrait gallery kids ",
+            " teen ",
+            " teens ",
+            " visitors of all ages ",
+        )
+    ):
+        return None
+    is_free, free_verification_status = infer_price_classification(description, default_is_free=True)
+    age_min, age_max = _parse_age_range(" ".join(part for part in [title, description] if part))
+
+    return ExtractedActivity(
+        source_url=source_url,
+        title=title,
+        description=description or None,
+        venue_name=venue.venue_name,
+        location_text=f"{venue.city}, {venue.state}",
+        city=venue.city,
+        state=venue.state,
+        activity_type="workshop",
+        age_min=age_min,
+        age_max=age_max,
+        drop_in=("drop in" in token_blob or "drop-in" in token_blob),
+        registration_required=("registration required" in token_blob and "no registration required" not in token_blob),
+        start_at=start_at,
+        end_at=end_at,
+        timezone=NY_TIMEZONE,
+        is_free=is_free,
+        free_verification_status=free_verification_status,
+    )
+
+
+def _split_npg_rss_description(description_html: str) -> tuple[str, str]:
+    parts = re.split(r"<br\s*/?>\s*(?:<br\s*/?>)?", description_html, maxsplit=1, flags=re.IGNORECASE)
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], parts[1]
+
+
+def _parse_npg_rss_date_and_times(date_text: str, times_text: str) -> tuple[datetime | None, datetime | None]:
+    base_date = _parse_date(date_text)
+    if base_date is None:
+        return None, None
+
+    normalized = _normalize_space(times_text).replace("–", "-").replace("—", "-")
+    range_match = re.search(
+        r"(?P<start>\d{1,2}(?::\d{2})?\s*(?P<start_meridiem>[APap]\.?[Mm]\.?)?)\s*"
+        r"(?:-|to)\s*"
+        r"(?P<end>\d{1,2}(?::\d{2})?\s*(?P<end_meridiem>[APap]\.?[Mm]\.?))",
+        normalized,
+        re.IGNORECASE,
+    )
+    if range_match is not None:
+        end_meridiem = range_match.group("end_meridiem")
+        start_text = range_match.group("start")
+        if not range_match.group("start_meridiem"):
+            start_text = f"{start_text} {end_meridiem}"
+        start_time = _parse_time_value(start_text)
+        end_time = _parse_time_value(range_match.group("end"))
+        if start_time is None:
+            return None, None
+        start_at = datetime.combine(base_date.date(), start_time)
+        end_at = datetime.combine(base_date.date(), end_time) if end_time is not None else None
+        return start_at, end_at
+
+    return _parse_date_and_times(date_text, normalized)
+
+
+def _find_xml_child_text(item: ET.Element, local_name: str) -> str:
+    for child in item:
+        if child.tag == local_name or child.tag.endswith(f"}}{local_name}"):
+            return _normalize_space(child.text)
+    return ""
 
 
 def _parse_kreeger_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | None:

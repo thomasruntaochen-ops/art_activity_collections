@@ -404,7 +404,7 @@ class _JsLiteralParser:
             return self.parse_array()
         if char == '"':
             return self.parse_string()
-        if char in "-0123456789":
+        if char in "-.0123456789":
             return self.parse_number()
         if self.source.startswith("!0", self.index):
             self.index += 2

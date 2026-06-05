@@ -9,6 +9,11 @@ from urllib.parse import urljoin
 import httpx
 from bs4 import BeautifulSoup
 
+try:
+    from playwright.async_api import async_playwright
+except ImportError:  # pragma: no cover - optional crawler dependency
+    async_playwright = None
+
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
@@ -52,6 +57,22 @@ DEFAULT_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.moma.org/calendar/",
 }
+PLAYWRIGHT_LAUNCH_ARGS = (
+    "--disable-blink-features=AutomationControlled",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+)
+PLAYWRIGHT_INIT_SCRIPT = """
+Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+Object.defineProperty(navigator, 'platform', {get: () => 'MacIntel'});
+Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
+"""
+CHALLENGE_MARKERS = (
+    "attention required!",
+    "performing security verification",
+    "sorry, you have been blocked",
+    "just a moment...",
+)
 
 
 async def fetch_moma_events_page(
@@ -79,6 +100,9 @@ async def fetch_moma_events_page(
 
             print(f"[moma-fetch] attempt {attempt}/{max_attempts}: status={response.status_code}")
             if response.status_code < 400:
+                if _looks_like_challenge(response.text, title=""):
+                    print("[moma-fetch] HTTP response looked like a challenge; retrying with Playwright")
+                    return await _fetch_moma_events_page_playwright(url)
                 print(f"[moma-fetch] success on attempt {attempt}, bytes={len(response.text)}")
                 return response.text
 
@@ -95,11 +119,58 @@ async def fetch_moma_events_page(
                 await asyncio.sleep(wait_seconds)
                 continue
 
+            if response.status_code in (403, 429):
+                print(f"[moma-fetch] status={response.status_code}; retrying with Playwright")
+                return await _fetch_moma_events_page_playwright(url)
+
             response.raise_for_status()
 
     if last_exception is not None:
-        raise RuntimeError("Unable to fetch MoMA events page") from last_exception
+        try:
+            print("[moma-fetch] transport failed; retrying with Playwright")
+            return await _fetch_moma_events_page_playwright(url)
+        except Exception as fallback_exc:
+            raise RuntimeError("Unable to fetch MoMA events page") from fallback_exc
     raise RuntimeError("Unable to fetch MoMA events page after retries")
+
+
+async def _fetch_moma_events_page_playwright(url: str, *, timeout_ms: int = 90000) -> str:
+    if async_playwright is None:
+        raise RuntimeError(
+            "Playwright is not installed. Install crawler extras and Chromium with "
+            "`pip install -e .[crawler]` then `playwright install chromium`."
+        )
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True, args=list(PLAYWRIGHT_LAUNCH_ARGS))
+        context = await browser.new_context(
+            user_agent=DEFAULT_HEADERS["User-Agent"],
+            locale="en-US",
+            timezone_id=NY_TIMEZONE,
+            viewport={"width": 1365, "height": 900},
+            screen={"width": 1365, "height": 900},
+        )
+        await context.add_init_script(PLAYWRIGHT_INIT_SCRIPT)
+        page = await context.new_page()
+        try:
+            print(f"[moma-fetch] Playwright fetch: {url}")
+            response = await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            await page.wait_for_timeout(8000)
+            html = await page.content()
+            title = (await page.title()).strip()
+            status = response.status if response is not None else None
+            if _looks_like_challenge(html, title=title):
+                raise RuntimeError(f"challenge page returned for {url} status={status}")
+            print(f"[moma-fetch] Playwright success status={status} bytes={len(html)}")
+            return html
+        finally:
+            await context.close()
+            await browser.close()
+
+
+def _looks_like_challenge(html: str, *, title: str) -> bool:
+    probe = f"{title}\n{html[:4000]}".lower()
+    return any(marker in probe for marker in CHALLENGE_MARKERS)
 
 
 class MoMATeensAdapter(BaseSourceAdapter):

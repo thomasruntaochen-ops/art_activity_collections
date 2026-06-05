@@ -3,6 +3,7 @@ import json
 import re
 from datetime import datetime
 from urllib.parse import urljoin
+from urllib.parse import urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -34,6 +35,7 @@ DEFAULT_HEADERS = {
 PAGE_NUMBER_RE = re.compile(r"/calendar/(\d+)(?:[/?#]|$)")
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE)
+NUMERIC_SLUG_SUFFIX_RE = re.compile(r"-\d+$")
 
 INCLUDED_KEYWORDS = (
     "talk",
@@ -147,14 +149,14 @@ async def load_fairfield_calendar_payload(*, page_limit: int | None = None) -> d
 
 def parse_fairfield_calendar_payload(payload: dict) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
-    seen: set[tuple[str, str, datetime]] = set()
+    seen: set[tuple[str, datetime]] = set()
 
     for list_url, html in payload["pages"]:
         for event_obj in _extract_event_objects(html):
             row = _build_row_from_event_obj(event_obj=event_obj, list_url=list_url)
             if row is None:
                 continue
-            key = (row.source_url, row.title, row.start_at)
+            key = (_dedupe_key(row.source_url, row.title), row.start_at)
             if key in seen:
                 continue
             seen.add(key)
@@ -244,7 +246,10 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
     location_text = _build_location_text(event_obj.get("location"))
     age_min, age_max = _parse_age_range(description)
     text_blob = " ".join([title, description]).lower()
-    is_free, free_status = infer_price_classification(_extract_offer_price_text(event_obj.get("offers")))
+    price_text = " | ".join(
+        part for part in [_extract_offer_price_text(event_obj.get("offers")), description] if part
+    )
+    is_free, free_status = infer_price_classification(price_text)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -272,13 +277,22 @@ def _should_include_event(*, title: str, description: str) -> bool:
     if not blob:
         return False
 
-    if any(keyword in blob for keyword in EXCLUDED_KEYWORDS):
-        return False
-
     if "for adults" in blob or "adults," in blob or "adults " in blob:
         return False
 
+    if ("family-friendly" in blob or "family friendly" in blob) and (" art " in f" {blob} " or " arts " in f" {blob} "):
+        return True
+
+    if any(keyword in blob for keyword in EXCLUDED_KEYWORDS):
+        return False
+
     return any(keyword in blob for keyword in INCLUDED_KEYWORDS)
+
+
+def _dedupe_key(source_url: str, title: str) -> str:
+    slug = urlparse(source_url).path.rstrip("/").rsplit("/", 1)[-1]
+    slug = NUMERIC_SLUG_SUFFIX_RE.sub("", slug)
+    return slug or _normalize_space(title).lower()
 
 
 def _infer_activity_type(*, title: str, description: str) -> str:

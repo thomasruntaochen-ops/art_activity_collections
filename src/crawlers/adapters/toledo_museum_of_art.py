@@ -1,8 +1,15 @@
 from datetime import datetime
 
+import httpx
 from bs4 import BeautifulSoup
 
+try:
+    from playwright.async_api import async_playwright
+except ImportError:  # pragma: no cover - optional crawler dependency
+    async_playwright = None
+
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.adapters.oh_common import DEFAULT_HEADERS
 from src.crawlers.adapters.oh_common import NY_TIMEZONE
 from src.crawlers.adapters.oh_common import absolute_url
 from src.crawlers.adapters.oh_common import fetch_html
@@ -21,10 +28,57 @@ TOLEDO_VENUE_NAME = "Toledo Museum of Art"
 TOLEDO_CITY = "Toledo"
 TOLEDO_STATE = "OH"
 TOLEDO_LOCATION = "Toledo Museum of Art, Toledo, OH"
+PLAYWRIGHT_LAUNCH_ARGS = (
+    "--disable-blink-features=AutomationControlled",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+)
 
 
 async def load_toledo_museum_of_art_payload() -> str:
-    return await fetch_html(TOLEDO_EVENTS_URL)
+    try:
+        return await fetch_html(TOLEDO_EVENTS_URL)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code not in (403, 429):
+            raise
+        print(
+            "[toledo-fetch] HTTP fetch blocked "
+            f"status={exc.response.status_code}; retrying with Playwright"
+        )
+        return await fetch_toledo_museum_of_art_page_playwright(TOLEDO_EVENTS_URL)
+
+
+async def fetch_toledo_museum_of_art_page_playwright(
+    url: str,
+    *,
+    timeout_ms: int = 90000,
+) -> str:
+    if async_playwright is None:
+        raise RuntimeError(
+            "Playwright is not installed. Install crawler extras and Chromium with "
+            "`pip install -e .[crawler]` then `playwright install chromium`."
+        )
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True, args=list(PLAYWRIGHT_LAUNCH_ARGS))
+        context = await browser.new_context(
+            user_agent=DEFAULT_HEADERS["User-Agent"],
+            locale="en-US",
+            timezone_id=NY_TIMEZONE,
+            viewport={"width": 1365, "height": 900},
+            screen={"width": 1365, "height": 900},
+        )
+        page = await context.new_page()
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            try:
+                await page.wait_for_selector("li.item", timeout=15000)
+            except Exception:
+                await page.wait_for_timeout(5000)
+            return await page.content()
+        finally:
+            await context.close()
+            await browser.close()
 
 
 def parse_toledo_museum_of_art_payload(html: str) -> list[ExtractedActivity]:

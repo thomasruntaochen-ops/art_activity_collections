@@ -344,6 +344,9 @@ async def fetch_html(
                 await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
                 continue
 
+            if use_playwright_fallback and response.status_code in (403, 429):
+                return await fetch_html_playwright(url)
+
             response.raise_for_status()
     finally:
         if owns_client:
@@ -1243,7 +1246,23 @@ def _parse_explicit_datetime_range(text: str | None) -> tuple[datetime, datetime
         event_date = date(int(match.group(3)), month, int(match.group(2)))
         return _parse_time_range_on_date(match.group(4), event_date)
 
+    match = DATE_NO_YEAR_RE.search(normalized)
+    if match is not None:
+        month = MONTH_LOOKUP.get(match.group(1)[:3].lower())
+        if month is None:
+            return None
+        event_date = _infer_local_event_date(month=month, day=int(match.group(2)))
+        return _parse_time_range_on_date(match.group(3), event_date)
+
     return None
+
+
+def _infer_local_event_date(*, month: int, day: int) -> date:
+    today = datetime.now(ZoneInfo(IL_TIMEZONE)).date()
+    candidate = date(today.year, month, day)
+    if candidate < today and (today - candidate).days > 180:
+        return candidate.replace(year=candidate.year + 1)
+    return candidate
 
 
 def _parse_nmma_datetime(text: str | None) -> tuple[datetime, datetime | None] | None:

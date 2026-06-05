@@ -46,6 +46,13 @@ INLINE_TIME_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
+CURRIER_DATES_COST_RE = re.compile(r"\bDates:\s*(?P<dates>.+?)\s+Cost:\s*(?P<after_cost>.+)", re.IGNORECASE)
+CURRIER_CURRENT_TIME_RE = re.compile(
+    r"(?P<age>Ages?\s+\d{1,2}\s*(?:-|to)\s*\d{1,2}|One Day Adult Workshop)?\s*"
+    r"(?P<time>\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?|am|pm)\s*(?:-|–|—|to)\s*"
+    r"(?:Noon|Midnight|\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?|am|pm)))",
+    re.IGNORECASE,
+)
 HOOD_NEXT_OFFSET_RE = re.compile(r"(?:\?|&)offset=\d+", re.IGNORECASE)
 NHAA_EVENT_PATH_RE = re.compile(r"^/events/[^?#]+$", re.IGNORECASE)
 
@@ -298,8 +305,142 @@ def _parse_currier_events(payload: dict, *, venue: NhHtmlVenueConfig) -> list[Ex
             seen.add(key)
             rows.append(row)
 
+    if not rows:
+        for row in _parse_currier_blackbaud_fallback(
+            soup=soup,
+            venue=venue,
+            fetch_url=fetch_url,
+            today=today,
+        ):
+            if row.start_at.date() < today:
+                continue
+            key = (row.source_url, row.title, row.start_at)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(row)
+
     rows.sort(key=lambda row: (row.start_at, row.title))
     return rows
+
+
+def _parse_currier_blackbaud_fallback(
+    *,
+    soup: BeautifulSoup,
+    venue: NhHtmlVenueConfig,
+    fetch_url: str,
+    today: date,
+) -> list[ExtractedActivity]:
+    rows: list[ExtractedActivity] = []
+    seen_hrefs: set[str] = set()
+    for anchor in soup.find_all("a", href=True):
+        href = (anchor.get("href") or "").strip()
+        if "blackbaudhosting.com" not in href or href in seen_hrefs:
+            continue
+        if "annual-fund" in href.lower():
+            continue
+        seen_hrefs.add(href)
+
+        section = anchor.find_parent("section")
+        section_text = normalize_space(section.get_text(" ", strip=True) if section else "")
+        dates_match = CURRIER_DATES_COST_RE.search(section_text)
+        if section is None or dates_match is None:
+            continue
+
+        title = normalize_space(section_text[: dates_match.start()])
+        if not title:
+            continue
+
+        start_date = _parse_currier_current_start_date(dates_match.group("dates"), today=today)
+        if start_date is None:
+            continue
+
+        block_text = _currier_registration_block_text(anchor, section)
+        time_match = CURRIER_CURRENT_TIME_RE.search(block_text)
+        if time_match is None:
+            continue
+        age_text = normalize_space(time_match.group("age"))
+        time_text = _normalize_time_text(time_match.group("time"))
+        start_at, end_at = parse_time_range(base_date=start_date, time_text=time_text)
+        if start_at is None:
+            continue
+
+        age_min, age_max = parse_age_range(age_text)
+        cost_text, description = _split_currier_cost_description(dates_match.group("after_cost"))
+        row_title = f"{title} ({age_text})" if age_text else title
+        full_description = join_non_empty(
+            [
+                description,
+                f"Dates: {normalize_space(dates_match.group('dates'))}",
+                f"Cost: {cost_text}" if cost_text else None,
+                f"Schedule: {age_text} | {normalize_space(time_text)}" if age_text else f"Schedule: {normalize_space(time_text)}",
+                f"Registration: {href}",
+            ]
+        )
+        text_blob = join_non_empty([row_title, full_description])
+        if not _should_keep_event(title=row_title, description=text_blob):
+            continue
+
+        rows.append(
+            ExtractedActivity(
+                source_url=_fragment_url(fetch_url, f"{row_title}-{age_min or 'adult'}"),
+                title=row_title,
+                description=full_description,
+                venue_name=venue.venue_name,
+                location_text=venue.default_location,
+                city=venue.city,
+                state=venue.state,
+                activity_type="workshop",
+                age_min=age_min,
+                age_max=age_max,
+                drop_in=False,
+                registration_required=True,
+                start_at=start_at,
+                end_at=end_at,
+                timezone=NY_TIMEZONE,
+                **price_classification_kwargs(join_non_empty([text_blob, href]), default_is_free=None),
+            )
+        )
+    return rows
+
+
+def _currier_registration_block_text(anchor, section) -> str:
+    for parent in anchor.parents:
+        if parent is section:
+            break
+        text = normalize_space(parent.get_text(" ", strip=True))
+        if "Register" in text and "Dates:" not in text and CURRIER_CURRENT_TIME_RE.search(text):
+            return text
+    return normalize_space(anchor.parent.get_text(" ", strip=True) if anchor.parent else "")
+
+
+def _parse_currier_current_start_date(value: str | None, *, today: date) -> date | None:
+    text = normalize_space(value)
+    if not text:
+        return None
+    match = re.search(
+        r"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s*"
+        r"(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2})",
+        text,
+        re.IGNORECASE,
+    )
+    if match is None:
+        match = re.search(r"(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2})", text, re.IGNORECASE)
+    if match is None:
+        return None
+    return _build_inferred_date(match.group("month"), match.group("day"), today=today)
+
+
+def _split_currier_cost_description(value: str | None) -> tuple[str | None, str | None]:
+    text = normalize_space(value)
+    if not text:
+        return None, None
+    marker_match = re.search(r"\s(?:Ages?\s+\d{1,2}\s*(?:-|to)\s*\d{1,2}|One Day Adult Workshop)\b", text, re.IGNORECASE)
+    before_schedule = text[: marker_match.start()].strip() if marker_match else text
+    cost_match = re.match(r"(?P<cost>.+?\))\s+(?P<description>.+)", before_schedule)
+    if cost_match:
+        return normalize_space(cost_match.group("cost")), normalize_space(cost_match.group("description"))
+    return None, before_schedule
 
 
 def _parse_currier_adult_section(

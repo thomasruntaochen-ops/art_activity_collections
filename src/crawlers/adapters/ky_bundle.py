@@ -561,13 +561,21 @@ def _parse_kmac_events(payload: dict, *, venue: KyVenueConfig) -> list[Extracted
     if not _is_qualifying_event(title=title, description=text):
         return []
 
-    match = re.search(r"scheduled for (?P<date>Saturday,\s+[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?)", text, re.IGNORECASE)
+    match = re.search(
+        r"(?:scheduled for|is)\s+"
+        r"(?P<date>Saturday,\s+[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?)"
+        r"(?:\s+from\s+(?P<time>\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:-|–|—|to)\s*"
+        r"\d{1,2}(?::\d{2})?\s*(?:am|pm)))?",
+        text,
+        re.IGNORECASE,
+    )
     if match is None:
         return []
 
     event_date = _parse_yearless_weekday_date(match.group("date"), timezone_name=venue.timezone)
     if event_date is None:
         return []
+    start_at, end_at = _parse_time_range_for_date(event_date, match.group("time"))
 
     description = _extract_kmac_description(text)
     return [
@@ -584,8 +592,8 @@ def _parse_kmac_events(payload: dict, *, venue: KyVenueConfig) -> list[Extracted
             age_max=None,
             drop_in=False,
             registration_required=False,
-            start_at=datetime.combine(event_date, time.min),
-            end_at=None,
+            start_at=start_at or datetime.combine(event_date, time.min),
+            end_at=end_at,
             timezone=venue.timezone,
             is_free=True,
             free_verification_status="confirmed",

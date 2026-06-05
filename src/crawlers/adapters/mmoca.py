@@ -42,12 +42,18 @@ BULLET_SCHEDULE_RE = re.compile(
 INCLUDE_PATTERNS = (
     " class ",
     " classes ",
+    " ceramic ",
+    " ceramics ",
+    " craft ",
+    " crafts ",
     " discussion ",
     " draw ",
     " drawing ",
     " lecture ",
     " lectures ",
     " slow looking ",
+    " sketch ",
+    " sketching ",
     " talk ",
     " talks ",
     " workshop ",
@@ -55,10 +61,14 @@ INCLUDE_PATTERNS = (
 )
 REJECT_PATTERNS = (
     " art fair ",
+    " cinema ",
     " fashion show ",
+    " film ",
+    " films ",
     " gallery night ",
     " member tour ",
     " meditation ",
+    " music ",
     " tai chi ",
     " tour ",
     " tours ",
@@ -112,6 +122,21 @@ def parse_mmoca_payload(payload: dict) -> list[ExtractedActivity]:
 def _extract_listing_items(listing_html: str) -> dict[str, dict]:
     soup = BeautifulSoup(listing_html, "html.parser")
     items: dict[str, dict] = {}
+
+    for card in soup.select("div[data-event]"):
+        link = card.select_one("h3 a[href]") or card.select_one("a[href]")
+        title = normalize_space(card.select_one("h3").get_text(" ", strip=True) if card.select_one("h3") else "")
+        if not title and link is not None:
+            title = normalize_space(link.get_text(" ", strip=True))
+        if not title or title.lower() == "see event" or link is None:
+            continue
+        detail_url = absolute_url(MMOCA_EVENTS_URL, link.get("href"))
+        if "/events/" not in detail_url:
+            continue
+        items.setdefault(detail_url, {"title": title})
+
+    if items:
+        return items
 
     for container in soup.select("div[data-events]"):
         for anchor in container.select("a[href]"):
@@ -204,6 +229,10 @@ def _extract_description(text: str, title: str) -> str | None:
         marker_index = normalized.find(marker)
         if marker_index >= 0:
             normalized = normalized[marker_index + len(marker) :]
+    for marker in ("About the Teen Forum", "Related Events"):
+        marker_index = normalized.find(marker)
+        if marker_index >= 0:
+            normalized = normalized[:marker_index]
     normalized = normalized.strip()
     return normalized or None
 

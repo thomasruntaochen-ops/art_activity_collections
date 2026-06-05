@@ -34,7 +34,8 @@ def parse_allen_memorial_art_museum_payload(html: str) -> list[ExtractedActivity
         title = normalize_space(anchor.select_one("h5").get_text(" ", strip=True) if anchor.select_one("h5") else "")
         description = normalize_space(anchor.select_one("p:not(.heading)").get_text(" ", strip=True) if anchor.select_one("p:not(.heading)") else "")
         heading = normalize_space(anchor.select_one("p.heading").get_text(" ", strip=True) if anchor.select_one("p.heading") else "")
-        if not should_include_event(title=title, description=description):
+        text_blob = f"{title} {description}".lower()
+        if not should_include_event(title=title, description=description) and "chalk walk" not in text_blob:
             continue
 
         if " at " not in heading:

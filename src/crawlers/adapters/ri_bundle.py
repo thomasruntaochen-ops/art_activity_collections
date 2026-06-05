@@ -18,10 +18,15 @@ import httpx
 from bs4 import BeautifulSoup
 from bs4 import Tag
 
+try:
+    from playwright.async_api import async_playwright
+except ImportError:  # pragma: no cover - optional crawler dependency
+    async_playwright = None
+
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import NY_TIMEZONE
 from src.crawlers.adapters.oh_common import absolute_url
-from src.crawlers.adapters.oh_common import fetch_html
+from src.crawlers.adapters.oh_common import fetch_html as fetch_html_http
 from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_date_text
@@ -39,6 +44,17 @@ DEFAULT_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
+PLAYWRIGHT_LAUNCH_ARGS = (
+    "--disable-blink-features=AutomationControlled",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+)
+CHALLENGE_MARKERS = (
+    "attention required!",
+    "performing security verification",
+    "sorry, you have been blocked",
+    "just a moment...",
+)
 
 REGISTRATION_MARKERS = (
     "add to cart",
@@ -225,6 +241,65 @@ class RiBundleAdapter(BaseSourceAdapter):
 
     async def parse(self, payload: str) -> list[ExtractedActivity]:
         raise NotImplementedError("Use load_ri_bundle_payload/parse_ri_events from the script runner.")
+
+
+async def fetch_html(
+    url: str,
+    *,
+    referer: str | None = None,
+    client: httpx.AsyncClient | None = None,
+) -> str:
+    try:
+        html = await fetch_html_http(url, referer=referer, client=client)
+        if not _looks_like_challenge(html):
+            return html
+        print(f"[ri-bundle] HTTP response looked like a challenge for {url}; retrying with Playwright")
+    except Exception as exc:
+        print(f"[ri-bundle] HTTP fetch failed for {url}; retrying with Playwright: {exc}")
+
+    return await fetch_html_playwright(url, referer=referer)
+
+
+async def fetch_html_playwright(
+    url: str,
+    *,
+    referer: str | None = None,
+    timeout_ms: int = 90000,
+) -> str:
+    if async_playwright is None:
+        raise RuntimeError(
+            "Playwright is not installed. Install crawler extras and Chromium with "
+            "`pip install -e .[crawler]` then `playwright install chromium`."
+        )
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True, args=list(PLAYWRIGHT_LAUNCH_ARGS))
+        context = await browser.new_context(
+            user_agent=DEFAULT_HEADERS["User-Agent"],
+            locale="en-US",
+            timezone_id=NY_TIMEZONE,
+            viewport={"width": 1365, "height": 900},
+            screen={"width": 1365, "height": 900},
+        )
+        page = await context.new_page()
+        if referer:
+            await page.set_extra_http_headers({"Referer": referer})
+        try:
+            response = await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            await page.wait_for_timeout(7000)
+            html = await page.content()
+            status = response.status if response is not None else None
+            if _looks_like_challenge(html):
+                raise RuntimeError(f"challenge page returned for {url} status={status}")
+            return html
+        finally:
+            await context.close()
+            await browser.close()
+
+
+def _looks_like_challenge(html: str) -> bool:
+    probe = html[:4000].lower()
+    return any(marker in probe for marker in CHALLENGE_MARKERS)
 
 
 def get_ri_source_prefixes() -> tuple[str, ...]:
