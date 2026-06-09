@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.crawlers.adapters.met import (
-    MET_TEENS_FREE_WORKSHOPS_URL,
+    MET_WORKSHOPS_CLASSES_URL,
     fetch_met_events_page_playwright,
     parse_met_events_html,
 )
@@ -118,11 +118,11 @@ def _resolve_input_html_path(*, input_html: str | None, cache_dir: Path, remote_
 async def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Parse MET teens/free/workshops events from local HTML. "
+            "Parse MET workshops/classes events from local HTML. "
             "Print parsed rows, and optionally commit to DB."
         )
     )
-    parser.add_argument("--url", default=MET_TEENS_FREE_WORKSHOPS_URL)
+    parser.add_argument("--url", default=MET_WORKSHOPS_CLASSES_URL)
     parser.add_argument(
         "--cache-dir",
         default=str(DEFAULT_CACHE_DIR),

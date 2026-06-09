@@ -13,10 +13,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.crawlers.adapters.whitney import (  # noqa: E402
-    WHITNEY_TEEN_WORKSHOPS_URL,
+    WHITNEY_TALKS_READINGS_URL,
+    WHITNEY_WORKSHOPS_URL,
     fetch_whitney_events_page,
     parse_whitney_events_html,
 )
+from src.crawlers.pipeline.script_runner import EmptyCommitGuard  # noqa: E402
 from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
 from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
 from src.crawlers.pipeline.clear_utils import lookup_venue_ids  # noqa: E402
@@ -30,7 +32,7 @@ WHITNEY_SOURCE_URL_PREFIX = "https://whitney.org/%"
 def _write_html_cache(html: str, cache_dir: Path) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    output_path = cache_dir / f"whitney_teen_workshops_{stamp}.html"
+    output_path = cache_dir / f"whitney_workshops_{stamp}.html"
     output_path.write_text(html, encoding="utf-8")
     return output_path
 
@@ -46,7 +48,7 @@ def _write_text_dump(
         output_path = dump_dir / f"{source_html_path.stem}.txt"
     else:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        output_path = dump_dir / f"whitney_teen_workshops_{stamp}.txt"
+        output_path = dump_dir / f"whitney_workshops_{stamp}.txt"
 
     soup = BeautifulSoup(html, "html.parser")
     lines = [line.strip() for line in soup.get_text("\n").splitlines() if line.strip()]
@@ -146,11 +148,17 @@ def clear_whitney_entries() -> dict[str, int]:
 async def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Fetch and parse Whitney teen courses/workshops events page. "
+            "Fetch and parse Whitney workshops plus talks/readings event pages. "
             "Print parsed rows, and optionally commit to DB."
         )
     )
-    parser.add_argument("--url", default=WHITNEY_TEEN_WORKSHOPS_URL)
+    parser.add_argument(
+        "--url",
+        default=None,
+        help="Optional single custom Whitney event URL to parse instead of the default target set.",
+    )
+    parser.add_argument("--workshops-url", default=WHITNEY_WORKSHOPS_URL)
+    parser.add_argument("--talks-url", default=WHITNEY_TALKS_READINGS_URL)
     parser.add_argument("--input-html", default=None)
     parser.add_argument(
         "--save-html",
@@ -197,21 +205,6 @@ async def main() -> None:
     if args.clear and args.commit:
         print("Clear requested with --commit; deletion is deferred until non-empty parse is validated.")
 
-    html, source_html_path = await _load_html(
-        url=args.url,
-        input_html=args.input_html,
-        save_html=args.save_html,
-        cache_dir=Path(args.cache_dir),
-    )
-
-    if args.dump_text:
-        dump_path = _write_text_dump(
-            html,
-            Path(args.cache_dir),
-            source_html_path=source_html_path,
-        )
-        print(f"Saved Whitney text dump to: {dump_path}")
-
     clear_completed = False
 
     def _clear_before_commit() -> None:
@@ -228,40 +221,70 @@ async def main() -> None:
         )
         clear_completed = True
 
-    async def _load_cached_html() -> str:
-        return html
+    def _load_target_payload(*, target_url: str, input_html: str | None = None):
+        async def _load() -> str:
+            html, source_html_path = await _load_html(
+                url=target_url,
+                input_html=input_html,
+                save_html=args.save_html,
+                cache_dir=Path(args.cache_dir),
+            )
+            if args.dump_text:
+                dump_path = _write_text_dump(
+                    html,
+                    Path(args.cache_dir),
+                    source_html_path=source_html_path,
+                )
+                print(f"Saved Whitney text dump to: {dump_path}")
+            return html
+
+        return _load
+
+    if args.url or args.input_html:
+        target_definitions = [("whitney_custom", args.url or args.workshops_url, args.input_html)]
+    else:
+        target_definitions = [
+            ("whitney_workshops", args.workshops_url, None),
+            ("whitney_talks_readings", args.talks_url, None),
+        ]
 
     summary = await run_targets(
         targets=[
             TargetRunSpec(
-                name="whitney",
-                source_url=args.url,
-                load_payload=_load_cached_html,
-                parse_payload=lambda payload: parse_whitney_events_html(html=payload, list_url=args.url),
+                name=name,
+                source_url=target_url,
+                load_payload=_load_target_payload(target_url=target_url, input_html=input_html),
+                parse_payload=lambda payload, list_url=target_url: parse_whitney_events_html(
+                    html=payload,
+                    list_url=list_url,
+                ),
                 parser_name="whitney",
-                adapter_type="whitney_teen_workshops",
-                parsed_label="rows",
+                adapter_type="whitney_events",
+                parsed_label=f"{name} rows",
                 before_commit=_clear_before_commit if args.clear else None,
                 empty_parse_details={"cache_dir": str(args.cache_dir)},
             )
+            for name, target_url, input_html in target_definitions
         ],
         commit=args.commit,
+        empty_commit_guard=EmptyCommitGuard(
+            parser_name="whitney",
+            source_url=args.url,
+            details={"cache_dir": str(args.cache_dir), "target_count": len(target_definitions)},
+        ),
     )
 
     if not args.commit:
         print("Dry run only. Pass --commit to write to DB.")
         return
 
-    outcome = summary.outcomes[0]
-    assert outcome.stats is not None
     print(
         "MySQL write summary: "
-        f"input={outcome.stats.input_rows}, "
-        f"deduped_input={outcome.stats.deduped_rows}, "
-        f"inserted={outcome.stats.inserted}, "
-        f"updated={outcome.stats.updated}, "
-        f"unchanged={outcome.stats.unchanged}, "
-        f"written={outcome.stats.written_rows}"
+        f"parsed={summary.total_parsed}, "
+        f"inserted={summary.total_inserted}, "
+        f"updated={summary.total_updated}, "
+        f"unchanged={summary.total_unchanged}, "
+        f"written={summary.total_inserted + summary.total_updated}"
     )
 
 

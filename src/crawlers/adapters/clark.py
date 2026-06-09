@@ -50,10 +50,21 @@ EXCLUDED_TYPES = {
     "Music",
     "Performing Arts",
 }
+INCLUDED_TYPES = {
+    "Community Program",
+    "Family Program",
+    "Lecture",
+    "Nature Program",
+    "Special Event",
+}
 EXCLUDED_TITLE_MARKERS = (
     "concert",
     "screening",
     "soundscape",
+)
+EXCLUDED_SPECIAL_EVENT_TITLE_MARKERS = (
+    "graduate program",
+    "reception",
 )
 
 SINGLE_DATE_RE = re.compile(r"^(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2}),\s*(?P<year>\d{4})$")
@@ -223,10 +234,17 @@ def parse_clark_events_html(
             continue
         if type_label in EXCLUDED_TYPES:
             continue
+        if type_label not in INCLUDED_TYPES:
+            continue
 
         combined_title = title
         if subtitle and subtitle.lower() not in title.lower():
             combined_title = f"{title}: {subtitle}"
+
+        if type_label == "Special Event" and any(
+            marker in combined_title.lower() for marker in EXCLUDED_SPECIAL_EVENT_TITLE_MARKERS
+        ):
+            continue
 
         token_blob = " ".join([type_label, combined_title, date_text]).lower()
         if any(marker in token_blob for marker in EXCLUDED_TITLE_MARKERS):
@@ -254,6 +272,7 @@ def parse_clark_events_html(
                 city=CLARK_CITY,
                 state=CLARK_STATE,
                 activity_type=_infer_activity_type(type_label=type_label, title=combined_title),
+                audience_segment=_infer_audience_segment(type_label=type_label),
                 age_min=None,
                 age_max=None,
                 drop_in=True if "free sunday" in token_blob or "drop" in token_blob else None,
@@ -291,6 +310,14 @@ def _infer_activity_type(*, type_label: str, title: str) -> str:
     if any(keyword in combined for keyword in ("lecture", "talk", "forum", "scholarly")):
         return "lecture"
     return "workshop"
+
+
+def _infer_audience_segment(*, type_label: str) -> str:
+    if type_label == "Family Program":
+        return "kids"
+    if type_label == "Community Program":
+        return "all_ages"
+    return "adults"
 
 
 def _parse_start_at(date_text: str) -> datetime | None:

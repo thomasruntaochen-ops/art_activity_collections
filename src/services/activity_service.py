@@ -5,7 +5,16 @@ from collections.abc import Sequence
 from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from src.models.activity import Activity, Venue
+from src.models.activity import Activity, AudienceSegment, Venue
+
+
+def _audience_filter(value: str | None) -> AudienceSegment | None:
+    if not value:
+        return None
+    try:
+        return AudienceSegment(value)
+    except ValueError:
+        return None
 
 
 def list_activities(
@@ -18,6 +27,7 @@ def list_activities(
     date_from: datetime | None,
     date_to: datetime | None,
     free_only: bool,
+    audience: str | None = None,
 ) -> list[Activity]:
     stmt: Select[tuple[Activity]] = select(Activity).where(Activity.status.in_(("active", "needs_review")))
     if free_only:
@@ -31,6 +41,9 @@ def list_activities(
     if age is not None:
         filters.append(or_(Activity.age_min.is_(None), Activity.age_min <= age))
         filters.append(or_(Activity.age_max.is_(None), Activity.age_max >= age))
+    audience_segment = _audience_filter(audience)
+    if audience_segment is not None:
+        filters.append(Activity.audience_segment == audience_segment)
     if drop_in is not None:
         filters.append(Activity.drop_in.is_(drop_in))
     if venue:
@@ -124,11 +137,15 @@ def get_filter_options(
     state: str | None = None,
     city: str | None = None,
     free_only: bool = False,
+    audience: str | None = None,
 ) -> dict[str, list[str]]:
     """Return dropdown option values constrained to current activity data."""
     base_conditions = [Activity.status.in_(("active", "needs_review")), Activity.venue_id.is_not(None)]
     if free_only:
         base_conditions.append(Activity.is_free.is_(True))
+    audience_segment = _audience_filter(audience)
+    if audience_segment is not None:
+        base_conditions.append(Activity.audience_segment == audience_segment)
     filters = list(base_conditions)
     if state:
         filters.append(Venue.state == state.strip().upper())
@@ -171,11 +188,15 @@ def list_venue_summaries(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     free_only: bool = False,
+    audience: str | None = None,
     limit: int = 150,
 ) -> Sequence:
     conditions = [Activity.status.in_(("active", "needs_review")), Activity.venue_id.is_not(None)]
     if free_only:
         conditions.append(Activity.is_free.is_(True))
+    audience_segment = _audience_filter(audience)
+    if audience_segment is not None:
+        conditions.append(Activity.audience_segment == audience_segment)
     if state:
         conditions.append(Venue.state == state.strip().upper())
     if city:

@@ -1,3 +1,4 @@
+from datetime import date
 from datetime import datetime
 
 from src.crawlers.adapters.dixon import parse_dixon_payload
@@ -70,7 +71,7 @@ def test_dixon_parser_keeps_paid_and_recurring_art_programs() -> None:
         ]
     }
 
-    rows = parse_dixon_payload(payload)
+    rows = parse_dixon_payload(payload, current_date=date(2026, 3, 1))
 
     assert [row.title for row in rows] == [
         "Mini Masters (ages 2-4)",
@@ -178,7 +179,7 @@ def test_dixon_parser_excludes_non_art_and_social_rows() -> None:
         ]
     }
 
-    assert parse_dixon_payload(payload) == []
+    assert parse_dixon_payload(payload, current_date=date(2026, 3, 1)) == []
 
 
 def test_dixon_parser_marks_plus_ages_and_excludes_garden_lectures() -> None:
@@ -245,7 +246,7 @@ def test_dixon_parser_marks_plus_ages_and_excludes_garden_lectures() -> None:
         ]
     }
 
-    rows = parse_dixon_payload(payload)
+    rows = parse_dixon_payload(payload, current_date=date(2026, 3, 1))
 
     assert [row.title for row in rows] == [
         "Stage & Sketch (ages 18+)",

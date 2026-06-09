@@ -92,15 +92,15 @@ def clear_nga_entries() -> dict[str, int]:
 async def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Fetch and parse National Gallery of Art kid-friendly and teen "
-            "calendar pages with Playwright. Print parsed rows, and optionally commit to DB."
+            "Fetch and parse National Gallery of Art activity calendar pages "
+            "with Playwright. Print parsed rows, and optionally commit to DB."
         )
     )
     parser.add_argument(
         "--audience",
-        choices=["kids", "teens", "both"],
-        default="both",
-        help="Which NGA audience filters to parse (default: both).",
+        choices=["all", "adults", "kids", "teens", "both"],
+        default="all",
+        help="Which NGA audience filters to parse (default: all).",
     )
     parser.add_argument(
         "--timeout-ms",

@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover - optional dependency
     BrowserContext = None
     async_playwright = None
 
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -145,6 +146,8 @@ AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE
 RESULT_COUNT_RE = re.compile(r"(\d+)\s+results\s+found", re.IGNORECASE)
 
 NGA_AUDIENCE_URLS = {
+    "all": NGA_CALENDAR_BASE_URL,
+    "adults": NGA_CALENDAR_BASE_URL,
     "kids": NGA_KIDS_CALENDAR_URL,
     "teens": NGA_TEENS_CALENDAR_URL,
 }
@@ -415,7 +418,16 @@ def _build_row_from_detail_html(
         **price_classification_kwargs_from_amount(
             price_amount,
             text=full_description,
-            default_is_free=True,
+            default_is_free=None,
+        ),
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=full_description,
+            category=category,
+            tags=tags,
+            age_min=age_min,
+            age_max=age_max,
+            default=_default_segment_for_audience(listing_entry.audience),
         ),
     )
 
@@ -459,8 +471,14 @@ def _build_row_from_listing(listing_entry: NgaListingEntry) -> ExtractedActivity
         start_at=listing_entry.start_at,
         end_at=listing_entry.end_at,
         timezone=NGA_TIMEZONE,
-        free_verification_status="inferred",
-        is_free=True,
+        audience_segment=infer_audience_segment(
+            title=listing_entry.title,
+            description=full_description,
+            category=listing_entry.category,
+            tags=listing_entry.tags,
+            default=_default_segment_for_audience(listing_entry.audience),
+        ),
+        **price_classification_kwargs_from_amount(None, text=full_description, default_is_free=None),
     )
 
 
@@ -468,9 +486,20 @@ def _normalize_audience(audience: str) -> list[str]:
     normalized = _normalize_space(audience).lower()
     if normalized == "both":
         return ["kids", "teens"]
+    if normalized in {"all", "adults", "adult", "general"}:
+        return ["all"]
     if normalized in NGA_AUDIENCE_URLS:
         return [normalized]
     raise ValueError(f"Unsupported audience: {audience}")
+
+
+def _default_segment_for_audience(audience: str) -> str | None:
+    normalized = _normalize_space(audience).lower()
+    if normalized == "kids":
+        return "kids"
+    if normalized == "teens":
+        return "teens"
+    return None
 
 
 def _discover_listing_page_count(html: str) -> int:
@@ -663,20 +692,15 @@ def _should_include_event(
     if not blob:
         return False
 
-    has_youth_focus = any(marker in blob for marker in YOUTH_MARKERS)
-    if not has_youth_focus:
-        return False
-
-    if any(marker in blob for marker in EXCLUDED_MARKERS):
-        return False
-
     normalized_category = _normalize_space(category).lower()
-    if normalized_category in {"hands-on activities", "talks & conversations"}:
-        return True
-
-    if any(marker in blob for marker in HANDS_ON_MARKERS):
-        return True
-    if any(marker in blob for marker in TALK_MARKERS):
+    has_activity = (
+        normalized_category in {"hands-on activities", "talks & conversations"}
+        or any(marker in blob for marker in HANDS_ON_MARKERS)
+        or any(marker in blob for marker in TALK_MARKERS)
+    )
+    if any(marker in blob for marker in EXCLUDED_MARKERS) and not has_activity:
+        return False
+    if has_activity:
         return True
 
     return False

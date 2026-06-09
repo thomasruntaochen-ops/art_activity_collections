@@ -1,3 +1,5 @@
+export type AudienceSegment = "kids" | "teens" | "adults" | "all_ages" | "unknown";
+
 export type Activity = {
   id: number;
   title: string;
@@ -9,6 +11,7 @@ export type Activity = {
   activity_type: string | null;
   age_min: number | null;
   age_max: number | null;
+  audience_segment: AudienceSegment;
   drop_in: boolean | null;
   registration_required: boolean | null;
   start_at: string;
@@ -35,6 +38,7 @@ export type VenueSummary = {
 
 export type ActivityFilters = {
   age?: number;
+  audience?: AudienceSegment;
   drop_in?: boolean;
   venue?: string;
   city?: string;
@@ -56,4 +60,5 @@ export type ActivityFilterOptionFilters = {
   city?: string;
   state?: string;
   free_only?: boolean;
+  audience?: AudienceSegment;
 };

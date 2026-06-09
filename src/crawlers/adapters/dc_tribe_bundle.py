@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -30,9 +31,19 @@ AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE
 
 INCLUDE_PATTERNS = (
     " art making ",
+    " class ",
+    " classes ",
+    " conversation ",
+    " conversations ",
+    " discussion ",
+    " discussions ",
     " family ",
     " kids ",
+    " lecture ",
+    " lectures ",
     " studio ",
+    " talk ",
+    " talks ",
     " teen ",
     " teens ",
     " workshop ",
@@ -70,10 +81,9 @@ DC_TRIBE_VENUES: tuple[DcTribeVenueConfig, ...] = (
         venue_name="Hirshhorn Museum and Sculpture Garden",
         city="Washington",
         state="DC",
-        list_url="https://hirshhorn.si.edu/explore/teen-studio/",
+        list_url="https://hirshhorn.si.edu/events/",
         api_urls=(
-            "https://hirshhorn.si.edu/wp-json/tribe/events/v1/events?per_page=50&categories=teens",
-            "https://hirshhorn.si.edu/wp-json/tribe/events/v1/events?per_page=50&categories=hirshhorn-kids",
+            "https://hirshhorn.si.edu/wp-json/tribe/events/v1/events?per_page=50",
         ),
     ),
 )
@@ -221,15 +231,16 @@ def _build_row(event_obj: dict, *, venue: DcTribeVenueConfig) -> ExtractedActivi
     full_description = " | ".join(description_parts) if description_parts else None
 
     token_blob = _searchable_blob(" ".join([title, full_description or "", " ".join(category_names)]))
-    if any(pattern in token_blob for pattern in EXCLUDE_PATTERNS):
+    has_include = any(pattern in token_blob for pattern in INCLUDE_PATTERNS)
+    if any(pattern in token_blob for pattern in EXCLUDE_PATTERNS) and not has_include:
         return None
-    if not any(pattern in token_blob for pattern in INCLUDE_PATTERNS):
+    if not has_include:
         return None
 
     age_min, age_max = _parse_age_range(title=title, description=full_description)
     is_free, free_verification_status = infer_price_classification(
         " ".join(part for part in [cost_text, full_description] if part),
-        default_is_free=True,
+        default_is_free=None,
     )
 
     return ExtractedActivity(
@@ -250,6 +261,13 @@ def _build_row(event_obj: dict, *, venue: DcTribeVenueConfig) -> ExtractedActivi
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_verification_status,
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=full_description,
+            category=", ".join(category_names),
+            age_min=age_min,
+            age_max=age_max,
+        ),
     )
 
 

@@ -21,3 +21,4 @@ class ExtractedActivity:
     timezone: str
     free_verification_status: str
     is_free: bool | None = None
+    audience_segment: str = "unknown"

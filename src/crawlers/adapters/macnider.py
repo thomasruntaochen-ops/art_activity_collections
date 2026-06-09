@@ -19,6 +19,7 @@ from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_month_day_year
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -161,8 +162,28 @@ def _build_row(item: dict[str, str]) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=MACNIDER_TIMEZONE,
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=description,
+            category=category_text,
+            source_url=item.get("category_url"),
+            age_min=age_min,
+            age_max=age_max,
+            default=_default_segment_for_category_url(item.get("category_url")),
+        ),
         **price_classification_kwargs_from_amount(amount, text=price_text or description_text),
     )
+
+
+def _default_segment_for_category_url(category_url: str | None) -> str | None:
+    if not category_url:
+        return None
+    lowered = category_url.lower()
+    if "youth" in lowered:
+        return "kids"
+    if "multiage" in lowered or "multi-age" in lowered:
+        return "all_ages"
+    return None
 
 
 def _should_skip_listing(title: str) -> bool:

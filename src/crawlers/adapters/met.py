@@ -14,10 +14,15 @@ except ImportError:  # pragma: no cover - optional dependency
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
-MET_TEENS_FREE_WORKSHOPS_URL = (
+MET_WORKSHOPS_CLASSES_URL = (
+    "https://www.metmuseum.org/events?type=workshopsClasses"
+)
+MET_TEENS_FREE_WORKSHOPS_URL = MET_WORKSHOPS_CLASSES_URL
+MET_LEGACY_TEENS_FREE_WORKSHOPS_URL = (
     "https://www.metmuseum.org/events?audience=teens&price=free&type=workshopsClasses"
 )
 NY_TIMEZONE = "America/New_York"
@@ -156,7 +161,7 @@ async def fetch_met_events_page_playwright(
 
 
 class MetEventsAdapter(BaseSourceAdapter):
-    source_name = "met_teens_free_workshops"
+    source_name = "met_workshops_classes"
 
     def __init__(self, url: str = MET_TEENS_FREE_WORKSHOPS_URL):
         self.url = url
@@ -265,7 +270,14 @@ def parse_met_events_html(
                 start_at=start_at,
                 end_at=None,
                 timezone=NY_TIMEZONE,
-                **price_classification_kwargs(price_line, default_is_free=True),
+                audience_segment=infer_audience_segment(
+                    title=title,
+                    description=normalized_description,
+                    age_min=age_min,
+                    age_max=age_max,
+                    default=_default_audience_from_url(list_url),
+                ),
+                **price_classification_kwargs(price_line, default_is_free=None),
             )
         )
 
@@ -289,8 +301,6 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
         paid = str(source_obj.get("paid", "")).lower()
         is_paid = bool(source_obj.get("isPaid"))
         audiences = [str(v).lower() for v in source_obj.get("audiences", [])]
-        if not any("teen" in audience for audience in audiences):
-            continue
 
         url = source_obj.get("url")
         title = source_obj.get("title")
@@ -322,11 +332,13 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
         programs = source_obj.get("programs") or []
         if programs:
             description_parts.append(f"Programs: {', '.join(str(v) for v in programs)}")
+        if audiences:
+            description_parts.append(f"Audiences: {', '.join(audiences)}")
         description = " | ".join(description_parts) if description_parts else None
 
         age_min, age_max = _parse_age_range(title, description)
         category_blob = " ".join(str(v) for v in source_obj.get("searchCategories", []))
-        text_blob = f"{title} {description or ''} {category_blob}".lower()
+        text_blob = f"{title} {description or ''} {category_blob} {' '.join(audiences)}".lower()
         key = (url, title, start_at)
         if key in seen_keys:
             continue
@@ -336,7 +348,7 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
         elif paid == "free":
             price_kwargs = {"is_free": True, "free_verification_status": "confirmed"}
         else:
-            price_kwargs = {"is_free": True, "free_verification_status": "inferred"}
+            price_kwargs = price_classification_kwargs(" ".join([paid, description or ""]), default_is_free=None)
 
         rows.append(
             ExtractedActivity(
@@ -355,6 +367,14 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
+                audience_segment=infer_audience_segment(
+                    title=title,
+                    description=description,
+                    category=category_blob,
+                    tags=audiences,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 **price_kwargs,
             )
         )
@@ -403,6 +423,17 @@ def _parse_age_range(title: str, description: str | None) -> tuple[int | None, i
     if not match:
         return None, None
     return int(match.group(1)), int(match.group(2))
+
+
+def _default_audience_from_url(url: str) -> str | None:
+    lowered = url.lower()
+    if "audience=teens" in lowered:
+        return "teens"
+    if "audience=famil" in lowered or "audience=kids" in lowered:
+        return "kids"
+    if "audience=adult" in lowered:
+        return "adults"
+    return None
 
 
 def _strip_html_fragment(value: str) -> str:

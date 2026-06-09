@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity } from "../lib/types";
+import type { Activity, AudienceSegment } from "../lib/types";
 
 type Props = {
   activities: Activity[];
@@ -23,6 +23,21 @@ function formatAgeRange(min: number | null, max: number | null): string {
   if (min !== null && max !== null) return `Ages ${min}-${max}`;
   if (min !== null) return `Ages ${min}+`;
   return `Up to ${max}`;
+}
+
+function formatAudienceSegment(value: AudienceSegment): string {
+  switch (value) {
+    case "kids":
+      return "Kids";
+    case "teens":
+      return "Teens";
+    case "adults":
+      return "Adults";
+    case "all_ages":
+      return "All ages";
+    default:
+      return "Audience TBD";
+  }
 }
 
 function formatDate(value: string): string {
@@ -87,6 +102,7 @@ export function ActivityTable({ activities }: Props) {
             <th>City</th>
             <th>State</th>
             <th>Age</th>
+            <th>Audience</th>
             <th>Type</th>
             <th>Drop-in</th>
             <th>Registration</th>
@@ -105,6 +121,9 @@ export function ActivityTable({ activities }: Props) {
               <td>{activity.venue_state ?? "-"}</td>
               <td>
                 <span className="meta-pill meta-pill--neutral">{formatAgeRange(activity.age_min, activity.age_max)}</span>
+              </td>
+              <td>
+                <span className="meta-pill meta-pill--neutral">{formatAudienceSegment(activity.audience_segment)}</span>
               </td>
               <td>
                 {activity.activity_type ? (

@@ -1,3 +1,4 @@
+from datetime import date
 from datetime import datetime
 
 from src.crawlers.adapters.frist import parse_frist_payload
@@ -81,7 +82,7 @@ def test_frist_parser_keeps_paid_free_and_family_programs() -> None:
         ]
     }
 
-    rows = parse_frist_payload(payload)
+    rows = parse_frist_payload(payload, current_date=date(2026, 3, 1))
 
     assert [row.title for row in rows] == [
         "Teen ARTlab: Words on Wear-Custom Hoodie",
@@ -138,4 +139,4 @@ def test_frist_parser_excludes_music_tours_and_member_events() -> None:
         ]
     }
 
-    assert parse_frist_payload(payload) == []
+    assert parse_frist_payload(payload, current_date=date(2026, 3, 1)) == []

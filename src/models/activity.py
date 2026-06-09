@@ -14,6 +14,14 @@ class FreeVerificationStatus(str, Enum):
     uncertain = "uncertain"
 
 
+class AudienceSegment(str, Enum):
+    kids = "kids"
+    teens = "teens"
+    adults = "adults"
+    all_ages = "all_ages"
+    unknown = "unknown"
+
+
 class ExtractionMethod(str, Enum):
     hardcoded = "hardcoded"
     llm = "llm"
@@ -64,6 +72,9 @@ class Activity(Base):
     activity_type: Mapped[str | None] = mapped_column(String(100))
     age_min: Mapped[int | None]
     age_max: Mapped[int | None]
+    audience_segment: Mapped[AudienceSegment] = mapped_column(
+        SqlEnum(AudienceSegment), nullable=False, default=AudienceSegment.unknown
+    )
 
     is_free: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
     free_verification_status: Mapped[FreeVerificationStatus] = mapped_column(

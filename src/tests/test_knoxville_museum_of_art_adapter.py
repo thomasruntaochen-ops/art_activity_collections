@@ -1,3 +1,4 @@
+from datetime import date
 from datetime import datetime
 
 from src.crawlers.adapters.knoxville_museum_of_art import parse_knoxville_payload
@@ -64,7 +65,7 @@ def test_knoxville_parser_keeps_paid_and_free_qualifying_events() -> None:
         ]
     }
 
-    rows = parse_knoxville_payload(payload)
+    rows = parse_knoxville_payload(payload, current_date=date(2026, 3, 1))
 
     assert [row.title for row in rows] == [
         "Drop-in Figure Drawing",
@@ -140,4 +141,4 @@ def test_knoxville_parser_excludes_tours_fundraisers_films_and_brew_events() -> 
         ]
     }
 
-    assert parse_knoxville_payload(payload) == []
+    assert parse_knoxville_payload(payload, current_date=date(2026, 3, 1)) == []

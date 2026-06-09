@@ -27,6 +27,7 @@ def get_activities(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     free_only: bool = False,
+    audience: Literal["kids", "teens", "adults", "all_ages", "unknown"] | None = None,
     db: Session = Depends(get_db),
 ) -> list[ActivityRead]:
     activities = list_activities(
@@ -39,6 +40,7 @@ def get_activities(
         date_from=date_from,
         date_to=date_to,
         free_only=free_only,
+        audience=audience,
     )
     result: list[ActivityRead] = []
     for activity in activities:
@@ -57,6 +59,7 @@ def get_activities(
                 activity_type=activity.activity_type,
                 age_min=activity.age_min,
                 age_max=activity.age_max,
+                audience_segment=activity.audience_segment.value,
                 drop_in=activity.drop_in,
                 registration_required=activity.registration_required,
                 start_at=activity.start_at,
@@ -87,9 +90,10 @@ def get_activity_filter_options(
     state: str | None = Query(default=None, min_length=2, max_length=2),
     city: str | None = None,
     free_only: bool = False,
+    audience: Literal["kids", "teens", "adults", "all_ages", "unknown"] | None = None,
     db: Session = Depends(get_db),
 ) -> ActivityFilterOptions:
-    options = get_filter_options(db, state=state, city=city, free_only=free_only)
+    options = get_filter_options(db, state=state, city=city, free_only=free_only, audience=audience)
     return ActivityFilterOptions(
         venues=options["venues"],
         states=options["states"],
@@ -104,6 +108,7 @@ def get_activity_venues(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     free_only: bool = False,
+    audience: Literal["kids", "teens", "adults", "all_ages", "unknown"] | None = None,
     limit: int = Query(default=150, ge=1, le=300),
     db: Session = Depends(get_db),
 ) -> list[VenueSummaryRead]:
@@ -114,6 +119,7 @@ def get_activity_venues(
         date_from=date_from,
         date_to=date_to,
         free_only=free_only,
+        audience=audience,
         limit=limit,
     )
     return [

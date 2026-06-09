@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from datetime import date
 from datetime import datetime
 from decimal import Decimal
 
@@ -142,8 +143,8 @@ async def load_frist_payload(*, page_limit: int | None = None) -> dict:
     return {"events": events}
 
 
-def parse_frist_payload(payload: dict) -> list[ExtractedActivity]:
-    current_date = datetime.now(ZoneInfo(NY_TIMEZONE)).date()
+def parse_frist_payload(payload: dict, *, current_date: date | None = None) -> list[ExtractedActivity]:
+    current_date = current_date or datetime.now(ZoneInfo(NY_TIMEZONE)).date()
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
 

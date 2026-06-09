@@ -14,10 +14,11 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
-MFAH_EVENTS_URL = "https://www.mfah.org/events?tag=families&period=year"
+MFAH_EVENTS_URL = "https://www.mfah.org/events?period=year"
 MFAH_TIMEZONE = "America/Chicago"
 MFAH_VENUE_NAME = "Museum of Fine Arts, Houston"
 MFAH_CITY = "Houston"
@@ -30,11 +31,15 @@ MFAH_INCLUDE_KEYWORDS = (
     "art encounters",
     "artists",
     "class",
+    "conversation",
+    "drawing",
     "family",
     "families",
+    "lecture",
     "little artists",
     "playdate",
     "studio",
+    "talk",
     "workshop",
     "zone",
 )
@@ -248,6 +253,13 @@ def parse_mfah_payload(payload: dict[str, object]) -> list[ExtractedActivity]:
             timezone=MFAH_TIMEZONE,
             is_free=is_free,
             free_verification_status=free_status,
+            audience_segment=infer_audience_segment(
+                title=entry["title"],
+                description=description,
+                category=entry["kind"],
+                age_min=age_min,
+                age_max=age_max,
+            ),
         )
         key = (item.source_url, item.title, item.start_at)
         if key in seen:

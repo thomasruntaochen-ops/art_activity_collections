@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -28,9 +29,8 @@ SAAM_VENUE_NAME = "Smithsonian American Art Museum"
 SAAM_CITY = "Washington"
 SAAM_STATE = "DC"
 SAAM_DEFAULT_LOCATION = "Smithsonian American Art Museum, Washington, DC"
-SAAM_KIDS_FAMILIES_CATEGORY_ID = "2616"
 SAAM_LOCATION_ID = "1558"
-SAAM_SOURCE_NAME = "saam_family_events"
+SAAM_SOURCE_NAME = "saam_events"
 SAAM_RESULTS_PER_PAGE = 16
 SAAM_MAX_PAGE_GUARD = 6
 
@@ -161,7 +161,6 @@ class SaamEventsAdapter(BaseSourceAdapter):
 def build_saam_search_url(*, page: int | None = None) -> str:
     params: list[tuple[str, str]] = [
         ("content_type", "event"),
-        ("event_categories[]", SAAM_KIDS_FAMILIES_CATEGORY_ID),
         ("locations[]", SAAM_LOCATION_ID),
     ]
     if page is not None and page > 1:
@@ -319,6 +318,14 @@ def parse_saam_events_payload(payload: dict) -> list[ExtractedActivity]:
                 start_at=start_at,
                 end_at=end_at,
                 timezone=SAAM_TIMEZONE,
+                audience_segment=infer_audience_segment(
+                    title=entry.title,
+                    description=full_description,
+                    category=categories_blob,
+                    tags=detail.series,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 **price_classification_kwargs(pricing_text, default_is_free=None),
             )
         )
@@ -571,26 +578,17 @@ def _should_include_event(*, entry: SaamListingEntry, detail: SaamDetailFields) 
     series_blob = " | ".join(detail.series)
     combined = _normalized_blob(entry.title, detail.description, categories_blob, series_blob, entry.cost_text)
 
-    has_youth_context = (
-        "kids & families" in categories_blob.lower()
-        or "family programs" in series_blob.lower()
-        or "kids and families" in series_blob.lower()
-        or any(marker in combined for marker in YOUTH_CONTEXT_MARKERS)
-    )
-    if not has_youth_context:
-        return False
-
     has_activity = any(marker in combined for marker in ACTIVITY_MARKERS)
     has_talk = any(marker in combined for marker in TALK_MARKERS)
     has_exclusion = any(marker in combined for marker in STRONG_EXCLUSION_MARKERS)
 
+    if has_exclusion and not (has_activity or has_talk):
+        return False
     if has_activity or has_talk:
         return True
     if "family celebration" in combined:
         return True
-    if has_exclusion:
-        return False
-    return True
+    return False
 
 
 def _infer_activity_type(title: str, description: str | None) -> str:

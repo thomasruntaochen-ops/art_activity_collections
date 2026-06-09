@@ -9,10 +9,15 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
-WHITNEY_TEEN_WORKSHOPS_URL = (
+WHITNEY_WORKSHOPS_URL = "https://whitney.org/events?tags[]=discussions_and_workshops"
+WHITNEY_TALKS_READINGS_URL = "https://whitney.org/events?tags[]=talks_and_readings"
+WHITNEY_TEEN_WORKSHOPS_URL = WHITNEY_WORKSHOPS_URL
+WHITNEY_LEGACY_TEEN_WORKSHOPS_URL = (
     "https://whitney.org/events?tags[]=courses_and_workshops&tags[]=teen_events"
 )
 
@@ -22,6 +27,38 @@ WHITNEY_CITY = "New York"
 WHITNEY_STATE = "NY"
 WHITNEY_DEFAULT_LOCATION = "New York, NY"
 WHITNEY_EVENT_PATH_RE = re.compile(r"/events/[^\s?#]+", re.IGNORECASE)
+ACTIVITY_MARKERS = (
+    " class ",
+    " classes ",
+    " conversation ",
+    " conversations ",
+    " course ",
+    " courses ",
+    " discussion ",
+    " discussions ",
+    " drawing ",
+    " lecture ",
+    " lectures ",
+    " seminar ",
+    " studio ",
+    " talk ",
+    " talks ",
+    " workshop ",
+    " workshops ",
+)
+EXCLUDED_MARKERS = (
+    " admission ",
+    " concert ",
+    " exhibition ",
+    " film ",
+    " films ",
+    " member event ",
+    " music ",
+    " performance ",
+    " reception ",
+    " tour ",
+    " tours ",
+)
 
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|\u2013|to)\s*(\d{1,2})\b", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\+\b", re.IGNORECASE)
@@ -95,9 +132,9 @@ async def fetch_whitney_events_page(
 
 
 class WhitneyTeenWorkshopsAdapter(BaseSourceAdapter):
-    source_name = "whitney_teen_workshops"
+    source_name = "whitney_workshops"
 
-    def __init__(self, url: str = WHITNEY_TEEN_WORKSHOPS_URL):
+    def __init__(self, url: str = WHITNEY_WORKSHOPS_URL):
         self.url = url
 
     async def fetch(self) -> list[str]:
@@ -206,13 +243,17 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
         description_parts.append(f"Category: {category_blob}")
 
     full_description = " | ".join(description_parts) if description_parts else None
-    text_blob = " ".join([title, full_description or ""]).lower()
-    age_min, age_max = _parse_age_range(title=title, description=full_description)
+    offers_text = _normalize_text(event_obj.get("offers"))
+    text_blob = " ".join([title, full_description or "", offers_text or ""]).lower()
+    if not _should_include_event(title=title, description=full_description, list_url=list_url):
+        return None
+    age_min, age_max = _parse_age_range(
+        title=title,
+        description=full_description,
+        default_segment=_default_segment_from_url(list_url),
+    )
 
-    if "free" in text_blob:
-        free_status = "confirmed"
-    else:
-        free_status = "inferred"
+    price_kwargs = price_classification_kwargs(" ".join([offers_text or "", full_description or ""]), default_is_free=None)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -222,7 +263,7 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
         location_text=WHITNEY_DEFAULT_LOCATION,
         city=WHITNEY_CITY,
         state=WHITNEY_STATE,
-        activity_type="workshop",
+        activity_type=_activity_type_from_url_or_category(list_url=list_url, category=category_blob, title=title),
         age_min=age_min,
         age_max=age_max,
         drop_in=("drop-in" in text_blob or "drop in" in text_blob),
@@ -230,7 +271,15 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        free_verification_status=free_status,
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=full_description,
+            category=category_blob,
+            age_min=age_min,
+            age_max=age_max,
+            default=_default_segment_from_url(list_url),
+        ),
+        **price_kwargs,
     )
 
 
@@ -258,7 +307,13 @@ def _parse_from_dom_fallback(html: str, *, list_url: str) -> list[ExtractedActiv
         if start_at is None:
             continue
 
-        age_min, age_max = _parse_age_range(title=title, description=blob)
+        if not _should_include_event(title=title, description=blob, list_url=list_url):
+            continue
+        age_min, age_max = _parse_age_range(
+            title=title,
+            description=blob,
+            default_segment=_default_segment_from_url(list_url),
+        )
         description = blob if blob != title else None
         text_blob = f"{title} {blob}".lower()
 
@@ -267,10 +322,7 @@ def _parse_from_dom_fallback(html: str, *, list_url: str) -> list[ExtractedActiv
             continue
         seen.add(key)
 
-        if "free" in text_blob:
-            free_status = "confirmed"
-        else:
-            free_status = "inferred"
+        price_kwargs = price_classification_kwargs(text_blob, default_is_free=None)
 
         rows.append(
             ExtractedActivity(
@@ -281,7 +333,7 @@ def _parse_from_dom_fallback(html: str, *, list_url: str) -> list[ExtractedActiv
                 location_text=WHITNEY_DEFAULT_LOCATION,
                 city=WHITNEY_CITY,
                 state=WHITNEY_STATE,
-                activity_type="workshop",
+                activity_type=_activity_type_from_url_or_category(list_url=list_url, category=blob, title=title),
                 age_min=age_min,
                 age_max=age_max,
                 drop_in=("drop-in" in text_blob or "drop in" in text_blob),
@@ -289,7 +341,14 @@ def _parse_from_dom_fallback(html: str, *, list_url: str) -> list[ExtractedActiv
                 start_at=start_at,
                 end_at=None,
                 timezone=NY_TIMEZONE,
-                free_verification_status=free_status,
+                audience_segment=infer_audience_segment(
+                    title=title,
+                    description=blob,
+                    age_min=age_min,
+                    age_max=age_max,
+                    default=_default_segment_from_url(list_url),
+                ),
+                **price_kwargs,
             )
         )
 
@@ -447,7 +506,12 @@ def _extract_location_name(location_obj: object) -> str | None:
     return None
 
 
-def _parse_age_range(*, title: str, description: str | None) -> tuple[int | None, int | None]:
+def _parse_age_range(
+    *,
+    title: str,
+    description: str | None,
+    default_segment: str | None = None,
+) -> tuple[int | None, int | None]:
     blob = f"{title} {description or ''}"
 
     range_match = AGE_RANGE_RE.search(blob)
@@ -458,8 +522,35 @@ def _parse_age_range(*, title: str, description: str | None) -> tuple[int | None
     if plus_match:
         return int(plus_match.group(1)), None
 
-    # Default for teen_events-tag feed.
-    return 13, 17
+    if default_segment == "teens":
+        return 13, 17
+    return None, None
+
+
+def _default_segment_from_url(url: str) -> str | None:
+    lowered = url.lower()
+    if "teen_events" in lowered or "teen" in lowered:
+        return "teens"
+    if "family" in lowered or "famil" in lowered or "kids" in lowered:
+        return "kids"
+    return "adults"
+
+
+def _activity_type_from_url_or_category(*, list_url: str, category: str | None, title: str) -> str:
+    blob = f" {list_url} {category or ''} {title} ".lower()
+    if "talks_and_readings" in blob or " talks " in blob or " readings " in blob or " lecture " in blob:
+        return "talk"
+    return "workshop"
+
+
+def _should_include_event(*, title: str, description: str | None, list_url: str) -> bool:
+    default_segment = _default_segment_from_url(list_url)
+    if default_segment in {"kids", "teens"}:
+        return True
+    blob = f" {' '.join([title, description or '']).lower()} "
+    if any(marker in blob for marker in EXCLUDED_MARKERS) and not any(marker in blob for marker in ACTIVITY_MARKERS):
+        return False
+    return any(marker in blob for marker in ACTIVITY_MARKERS)
 
 
 def _normalize_space(text: str) -> str:

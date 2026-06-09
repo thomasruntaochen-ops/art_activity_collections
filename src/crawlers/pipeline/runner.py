@@ -6,10 +6,12 @@ from urllib.parse import urlparse
 from sqlalchemy import delete, func, literal, select, tuple_
 
 from src.crawlers.pipeline.datetime_utils import normalize_extracted_activity_datetimes
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.audience import normalize_audience_segment
 from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.extractors.hardcoded import extract_from_event_page
 from src.db.session import SessionLocal
-from src.models.activity import Activity, FreeVerificationStatus, Source, Venue
+from src.models.activity import Activity, AudienceSegment, FreeVerificationStatus, Source, Venue
 from src.services.venue_geocoding import populate_venue_geocodes
 
 _UPSERT_BATCH_SIZE = 500
@@ -41,6 +43,23 @@ def _resolve_is_free(item: ExtractedActivity, free_status: FreeVerificationStatu
     if free_status == FreeVerificationStatus.uncertain:
         return None
     return True
+
+
+def _to_audience_segment(item: ExtractedActivity) -> AudienceSegment:
+    value = normalize_audience_segment(item.audience_segment)
+    if value == "unknown":
+        value = infer_audience_segment(
+            title=item.title,
+            description=item.description,
+            category=item.activity_type,
+            source_url=item.source_url,
+            age_min=item.age_min,
+            age_max=item.age_max,
+        )
+    try:
+        return AudienceSegment(value)
+    except ValueError:
+        return AudienceSegment.unknown
 
 
 def _normalize_optional_text(value: str | None) -> str | None:
@@ -91,6 +110,7 @@ def _has_meaningful_activity_change(
     venue_id: int | None,
     is_free: bool | None,
     free_status: FreeVerificationStatus,
+    audience_segment: AudienceSegment,
 ) -> bool:
     return any(
         (
@@ -98,6 +118,7 @@ def _has_meaningful_activity_change(
             current.activity_type != item.activity_type,
             current.age_min != item.age_min,
             current.age_max != item.age_max,
+            current.audience_segment != audience_segment,
             current.drop_in != item.drop_in,
             current.registration_required != item.registration_required,
             current.end_at != item.end_at,
@@ -252,6 +273,7 @@ def upsert_extracted_activities_with_stats(
             venue = venues_by_key.get(venue_key) if venue_key is not None else None
             free_status = _to_free_status(item.free_verification_status)
             is_free = _resolve_is_free(item, free_status)
+            audience_segment = _to_audience_segment(item)
             if current is None:
                 db.add(
                     Activity(
@@ -262,6 +284,7 @@ def upsert_extracted_activities_with_stats(
                         activity_type=item.activity_type,
                         age_min=item.age_min,
                         age_max=item.age_max,
+                        audience_segment=audience_segment,
                         drop_in=item.drop_in,
                         registration_required=item.registration_required,
                         start_at=item.start_at,
@@ -286,6 +309,7 @@ def upsert_extracted_activities_with_stats(
                 venue_id=venue_id,
                 is_free=is_free,
                 free_status=free_status,
+                audience_segment=audience_segment,
             ):
                 unchanged += 1
                 continue
@@ -294,6 +318,7 @@ def upsert_extracted_activities_with_stats(
             current.activity_type = item.activity_type
             current.age_min = item.age_min
             current.age_max = item.age_max
+            current.audience_segment = audience_segment
             current.drop_in = item.drop_in
             current.registration_required = item.registration_required
             current.end_at = item.end_at

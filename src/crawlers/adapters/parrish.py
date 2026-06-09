@@ -7,10 +7,11 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
-PARRISH_EVENTS_URL = "https://parrishart.org/education/childrens-workshops/"
+PARRISH_EVENTS_URL = "https://parrishart.org/events/"
 PARRISH_EVENTS_API_URL = "https://parrishart.org/wp-json/tribe/events/v1/events"
 
 NY_TIMEZONE = "America/New_York"
@@ -237,6 +238,11 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=description,
+            category=", ".join(category_names),
+        ),
     )
 
 

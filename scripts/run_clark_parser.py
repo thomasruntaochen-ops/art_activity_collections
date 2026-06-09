@@ -27,7 +27,8 @@ from src.models.activity import Activity, Source, Venue  # noqa: E402
 
 
 DEFAULT_CACHE_DIR = Path("data") / "html" / "clark"
-CLARK_SOURCE_URL_PREFIX = "https://events.clarkart.edu/%"
+CLARK_SOURCE_BASE_URL = "https://events.clarkart.edu"
+CLARK_SOURCE_URL_PREFIX = f"{CLARK_SOURCE_BASE_URL}/%"
 
 
 def _write_html_cache(payload: dict, cache_dir: Path) -> list[Path]:
@@ -71,8 +72,12 @@ def clear_clark_entries() -> dict[str, int]:
         source_ids = db.scalars(
             select(Source.id).where(
                 or_(
+                    Source.base_url == CLARK_SOURCE_BASE_URL,
                     Source.base_url.like(CLARK_SOURCE_URL_PREFIX),
+                    Source.base_url.like("https://www.clarkart.edu%"),
+                    Source.name == "events.clarkart.edu",
                     Source.name.like("clark_%"),
+                    Source.name.like("%clark%"),
                 )
             )
         ).all()

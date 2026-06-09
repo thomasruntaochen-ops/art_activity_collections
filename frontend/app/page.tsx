@@ -6,11 +6,20 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityTable } from "../components/activity-table";
 import { fetchActivities, fetchFilterOptions, fetchVenueSummaries } from "../lib/api";
 import { getVenueMedia } from "../lib/venue-media";
-import { Activity, VenueSummary } from "../lib/types";
+import type { Activity, AudienceSegment, VenueSummary } from "../lib/types";
 
 const NAV_ITEMS = ["Exhibitions", "Map Explorer", "Activities", "Member Portal"];
 type MapViewportMode = "fit" | "focus";
 type ViewMode = "map" | "table";
+
+const AUDIENCE_OPTIONS: { value: "" | AudienceSegment; label: string }[] = [
+  { value: "", label: "All audiences" },
+  { value: "kids", label: "Kids" },
+  { value: "teens", label: "Teens" },
+  { value: "adults", label: "Adults" },
+  { value: "all_ages", label: "All ages" },
+  { value: "unknown", label: "Unknown" },
+];
 
 function hashString(value: string): number {
   let hash = 0;
@@ -51,6 +60,21 @@ function formatAgeRange(min: number | null, max: number | null): string {
   if (min !== null && max !== null) return `Ages ${min}-${max}`;
   if (min !== null) return `Ages ${min}+`;
   return `Up to ${max}`;
+}
+
+function formatAudienceSegment(value: AudienceSegment): string {
+  switch (value) {
+    case "kids":
+      return "Kids";
+    case "teens":
+      return "Teens";
+    case "adults":
+      return "Adults";
+    case "all_ages":
+      return "All ages";
+    default:
+      return "Audience TBD";
+  }
 }
 
 function getFreeLabel(activity: Activity): string {
@@ -127,6 +151,7 @@ export default function HomePage() {
   const [selectedCity, setSelectedCity] = useState("");
   const [searchValue, setSearchValue] = useState("");
   const [ageFilter, setAgeFilter] = useState("");
+  const [audienceFilter, setAudienceFilter] = useState<"" | AudienceSegment>("");
   const [dropInFilter, setDropInFilter] = useState("");
   const [dateFrom, setDateFrom] = useState(() => formatDateInput(new Date()));
   const [dateTo, setDateTo] = useState("");
@@ -165,16 +190,18 @@ export default function HomePage() {
 
     async function loadOptions() {
       try {
-        const basePromise = fetchFilterOptions({ free_only: freeOnly });
+        const audience = audienceFilter || undefined;
+        const basePromise = fetchFilterOptions({ free_only: freeOnly, audience });
         const [baseOptions, stateScopedOptions, cityScopedOptions, combinedOptions] = await Promise.all([
           basePromise,
-          selectedState ? fetchFilterOptions({ state: selectedState, free_only: freeOnly }) : basePromise,
-          selectedCity ? fetchFilterOptions({ city: selectedCity, free_only: freeOnly }) : basePromise,
+          selectedState ? fetchFilterOptions({ state: selectedState, free_only: freeOnly, audience }) : basePromise,
+          selectedCity ? fetchFilterOptions({ city: selectedCity, free_only: freeOnly, audience }) : basePromise,
           selectedState || selectedCity
             ? fetchFilterOptions({
                 state: selectedState || undefined,
                 city: selectedCity || undefined,
                 free_only: freeOnly,
+                audience,
               })
             : basePromise,
         ]);
@@ -199,7 +226,7 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedCity, selectedState, freeOnly]);
+  }, [selectedCity, selectedState, freeOnly, audienceFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,6 +241,7 @@ export default function HomePage() {
           date_from: dateFromIso,
           date_to: dateToIso,
           free_only: freeOnly,
+          audience: audienceFilter || undefined,
           limit: 150,
         });
         if (cancelled) return;
@@ -232,7 +260,7 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedState, selectedCity, dateFromIso, dateToIso, freeOnly]);
+  }, [selectedState, selectedCity, dateFromIso, dateToIso, freeOnly, audienceFilter]);
 
   const filteredVenues = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
@@ -248,7 +276,7 @@ export default function HomePage() {
 
   useEffect(() => {
     setMapViewportMode("fit");
-  }, [selectedState, selectedCity, searchValue, dateFromIso, dateToIso, freeOnly]);
+  }, [selectedState, selectedCity, searchValue, dateFromIso, dateToIso, freeOnly, audienceFilter]);
 
   useEffect(() => {
     if (filteredVenues.length === 0) {
@@ -292,6 +320,7 @@ export default function HomePage() {
           date_from: dateFromIso,
           date_to: dateToIso,
           free_only: freeOnly,
+          audience: audienceFilter || undefined,
         });
         if (cancelled) return;
         setSelectedActivities(rows);
@@ -310,7 +339,7 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedVenueName, selectedCity, selectedState, dateFromIso, dateToIso, freeOnly]);
+  }, [selectedVenueName, selectedCity, selectedState, dateFromIso, dateToIso, freeOnly, audienceFilter]);
 
   useEffect(() => {
     if (viewMode !== "table") {
@@ -332,6 +361,7 @@ export default function HomePage() {
           date_from: dateFromIso,
           date_to: dateToIso,
           free_only: freeOnly,
+          audience: audienceFilter || undefined,
         });
         if (cancelled) return;
         setTableActivities(rows);
@@ -350,7 +380,18 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [viewMode, tableVenueName, selectedCity, selectedState, ageFilter, dropInFilter, dateFromIso, dateToIso, freeOnly]);
+  }, [
+    viewMode,
+    tableVenueName,
+    selectedCity,
+    selectedState,
+    ageFilter,
+    audienceFilter,
+    dropInFilter,
+    dateFromIso,
+    dateToIso,
+    freeOnly,
+  ]);
 
   function handleViewChange(nextView: ViewMode) {
     if (nextView === "table" && !tableVenueName && selectedVenueName) {
@@ -447,6 +488,20 @@ export default function HomePage() {
         </label>
 
         <label className="explorer-filterbar__control">
+          <span>Audience</span>
+          <select
+            value={audienceFilter}
+            onChange={(event) => setAudienceFilter(event.target.value as "" | AudienceSegment)}
+          >
+            {AUDIENCE_OPTIONS.map((option) => (
+              <option key={option.value || "all"} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="explorer-filterbar__control">
           <span>From</span>
           <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
         </label>
@@ -471,7 +526,7 @@ export default function HomePage() {
         <aside className="explorer-sidebar">
           <div className="explorer-sidebar__heading">
             <h1>Venue Explorer</h1>
-            <p>{visibleVenueCount} museums with active kid and teen programs</p>
+            <p>{visibleVenueCount} museums with active art programs</p>
           </div>
 
           <div className="explorer-sidebar__list">
@@ -543,6 +598,9 @@ export default function HomePage() {
                       <span className="meta-pill meta-pill--neutral">
                         {formatAgeRange(activity.age_min, activity.age_max)}
                       </span>
+                      <span className="meta-pill meta-pill--neutral">
+                        {formatAudienceSegment(activity.audience_segment)}
+                      </span>
                       {activity.activity_type ? (
                         <span className="meta-pill meta-pill--soft">{activity.activity_type}</span>
                       ) : null}
@@ -608,6 +666,20 @@ export default function HomePage() {
                 {venueOptions.map((venue) => (
                   <option key={venue} value={venue}>
                     {venue}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="explorer-filterbar__control">
+              <span>Audience</span>
+              <select
+                value={audienceFilter}
+                onChange={(event) => setAudienceFilter(event.target.value as "" | AudienceSegment)}
+              >
+                {AUDIENCE_OPTIONS.map((option) => (
+                  <option key={option.value || "all"} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>

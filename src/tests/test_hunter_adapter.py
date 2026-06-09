@@ -1,3 +1,4 @@
+from datetime import date
 from datetime import datetime
 
 from src.crawlers.adapters.hunter import parse_hunter_payload
@@ -60,7 +61,7 @@ def test_hunter_parser_keeps_paid_and_free_qualifying_events() -> None:
         ]
     }
 
-    rows = parse_hunter_payload(payload)
+    rows = parse_hunter_payload(payload, current_date=date(2026, 3, 1))
 
     assert [row.title for row in rows] == [
         "Crafts and Coffee",
@@ -127,4 +128,4 @@ def test_hunter_parser_excludes_yoga_social_and_performance_rows() -> None:
         ]
     }
 
-    assert parse_hunter_payload(payload) == []
+    assert parse_hunter_payload(payload, current_date=date(2026, 3, 1)) == []

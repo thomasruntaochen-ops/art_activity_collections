@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.crawlers.adapters.moma import (
+    MOMA_ADULTS_CALENDAR_URL,
     MOMA_KIDS_CALENDAR_URL,
     MOMA_TEENS_CALENDAR_URL,
     fetch_moma_events_page,
@@ -161,18 +162,20 @@ def clear_moma_entries() -> dict[str, int]:
 async def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Fetch and parse MoMA teens/kids calendar pages. "
+            "Fetch and parse MoMA adult, teen, and kid calendar pages. "
             "Print parsed rows, and optionally commit to DB."
         )
     )
     parser.add_argument(
         "--audience",
-        choices=["teens", "kids", "both"],
-        default="both",
-        help="Which MoMA audience pages to parse (default: both).",
+        choices=["adults", "teens", "kids", "all", "both"],
+        default="all",
+        help="Which MoMA audience pages to parse (default: all).",
     )
+    parser.add_argument("--adults-url", default=MOMA_ADULTS_CALENDAR_URL)
     parser.add_argument("--teens-url", default=MOMA_TEENS_CALENDAR_URL)
     parser.add_argument("--kids-url", default=MOMA_KIDS_CALENDAR_URL)
+    parser.add_argument("--input-adults-html", default=None)
     parser.add_argument("--input-teens-html", default=None)
     parser.add_argument("--input-kids-html", default=None)
     parser.add_argument(
@@ -221,9 +224,11 @@ async def main() -> None:
         print("Clear requested with --commit; deletion is deferred until non-empty parse is validated.")
 
     audience_targets: list[tuple[str, str, str | None]] = []
-    if args.audience in ("teens", "both"):
+    if args.audience in ("adults", "all"):
+        audience_targets.append(("adults", args.adults_url, args.input_adults_html))
+    if args.audience in ("teens", "both", "all"):
         audience_targets.append(("teens", args.teens_url, args.input_teens_html))
-    if args.audience in ("kids", "both"):
+    if args.audience in ("kids", "both", "all"):
         audience_targets.append(("kids", args.kids_url, args.input_kids_html))
 
     clear_completed = False

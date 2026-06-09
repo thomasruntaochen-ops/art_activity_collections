@@ -1,4 +1,4 @@
-import {
+import type {
   Activity,
   ActivityFilterOptionFilters,
   ActivityFilterOptions,
@@ -13,6 +13,7 @@ export async function fetchActivities(filters: ActivityFilters): Promise<Activit
   const params = new URLSearchParams();
 
   if (filters.age !== undefined) params.set("age", String(filters.age));
+  if (filters.audience !== undefined) params.set("audience", filters.audience);
   if (filters.drop_in !== undefined) params.set("drop_in", String(filters.drop_in));
   if (filters.venue) params.set("venue", filters.venue);
   if (filters.city) params.set("city", filters.city);
@@ -53,6 +54,7 @@ export async function fetchFilterOptions(
   if (filters.state) params.set("state", filters.state);
   if (filters.city) params.set("city", filters.city);
   if (filters.free_only !== undefined) params.set("free_only", String(filters.free_only));
+  if (filters.audience !== undefined) params.set("audience", filters.audience);
   const query = params.toString();
   const url = `${API_BASE_URL}/api/activities/filter-options${query ? `?${query}` : ""}`;
   const response = await fetch(url, { cache: "no-store" });
@@ -68,6 +70,7 @@ export async function fetchVenueSummaries(params?: {
   date_from?: string;
   date_to?: string;
   free_only?: boolean;
+  audience?: string;
   limit?: number;
 }): Promise<VenueSummary[]> {
   const search = new URLSearchParams();
@@ -76,6 +79,7 @@ export async function fetchVenueSummaries(params?: {
   if (params?.date_from) search.set("date_from", params.date_from);
   if (params?.date_to) search.set("date_to", params.date_to);
   if (params?.free_only !== undefined) search.set("free_only", String(params.free_only));
+  if (params?.audience !== undefined) search.set("audience", params.audience);
   if (params?.limit !== undefined) search.set("limit", String(params.limit));
 
   const query = search.toString();

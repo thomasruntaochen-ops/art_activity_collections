@@ -16,11 +16,15 @@ except ImportError:  # pragma: no cover - optional crawler dependency
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
+MOMA_GENERAL_CALENDAR_URL = "https://www.moma.org/calendar/"
 MOMA_TEENS_CALENDAR_URL = "https://www.moma.org/calendar/?happening_filter=For+teens"
 MOMA_KIDS_CALENDAR_URL = "https://www.moma.org/calendar/?happening_filter=For+kids"
+MOMA_ADULTS_CALENDAR_URL = MOMA_GENERAL_CALENDAR_URL
 
 NY_TIMEZONE = "America/New_York"
 MOMA_VENUE_NAME = "MoMA"
@@ -72,6 +76,40 @@ CHALLENGE_MARKERS = (
     "performing security verification",
     "sorry, you have been blocked",
     "just a moment...",
+)
+ADULT_ACTIVITY_MARKERS = (
+    " art making ",
+    " art-making ",
+    " class ",
+    " classes ",
+    " conversation ",
+    " conversations ",
+    " course ",
+    " courses ",
+    " drawing ",
+    " lecture ",
+    " lectures ",
+    " studio ",
+    " talk ",
+    " talks ",
+    " workshop ",
+    " workshops ",
+)
+GENERAL_EXCLUDED_MARKERS = (
+    " admission ",
+    " concert ",
+    " exhibition ",
+    " exhibitions ",
+    " film ",
+    " films ",
+    " member ",
+    " members ",
+    " music ",
+    " performance ",
+    " performances ",
+    " reception ",
+    " tour ",
+    " tours ",
 )
 
 
@@ -201,6 +239,20 @@ class MoMAKidsAdapter(BaseSourceAdapter):
         return parse_moma_events_html(payload, audience="kids", list_url=self.url)
 
 
+class MoMAAdultsAdapter(BaseSourceAdapter):
+    source_name = "moma_adults"
+
+    def __init__(self, url: str = MOMA_ADULTS_CALENDAR_URL):
+        self.url = url
+
+    async def fetch(self) -> list[str]:
+        html = await fetch_moma_events_page(self.url)
+        return [html]
+
+    async def parse(self, payload: str) -> list[ExtractedActivity]:
+        return parse_moma_events_html(payload, audience="adults", list_url=self.url)
+
+
 def parse_moma_events_html(
     html: str,
     *,
@@ -287,15 +339,18 @@ def _build_row_from_event_obj(
 
     full_description = " | ".join(description_parts) if description_parts else None
 
+    offers_text = _normalize_text(event_obj.get("offers"))
     text_blob = " ".join(
         [
             title,
             full_description or "",
             _normalize_text(event_obj.get("eventAttendanceMode")) or "",
-            _normalize_text(event_obj.get("offers")) or "",
+            offers_text or "",
         ]
     ).lower()
     age_min, age_max = _parse_age_range(title=title, description=full_description, audience=audience)
+    if not _should_include_event(title=title, description=full_description, audience=audience):
+        return None
 
     return ExtractedActivity(
         source_url=source_url,
@@ -313,7 +368,14 @@ def _build_row_from_event_obj(
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        free_verification_status="inferred",
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=full_description,
+            age_min=age_min,
+            age_max=age_max,
+            default=_default_segment_for_audience(audience),
+        ),
+        **price_classification_kwargs(" ".join([offers_text or "", full_description or ""]), default_is_free=None),
     )
 
 
@@ -349,6 +411,8 @@ def _parse_from_dom_fallback(
             continue
 
         description = " | ".join(detail_lines) if detail_lines else None
+        if not _should_include_event(title=title, description=description, audience=audience):
+            continue
         start_at = _parse_start_datetime_for_day(current_day, title=title, detail_lines=detail_lines)
         if start_at is None:
             start_at = current_day
@@ -377,7 +441,14 @@ def _parse_from_dom_fallback(
                 start_at=start_at,
                 end_at=None,
                 timezone=NY_TIMEZONE,
-                free_verification_status="inferred",
+                audience_segment=infer_audience_segment(
+                    title=title,
+                    description=description,
+                    age_min=age_min,
+                    age_max=age_max,
+                    default=_default_segment_for_audience(audience),
+                ),
+                **price_classification_kwargs(description, default_is_free=None),
             )
         )
 
@@ -656,3 +727,26 @@ def _parse_age_range(
         return None, KIDS_DEFAULT_AGE_MAX
 
     return None, None
+
+
+def _default_segment_for_audience(audience: str) -> str | None:
+    normalized = audience.lower()
+    if normalized == "teens":
+        return "teens"
+    if normalized == "kids":
+        return "kids"
+    if normalized in {"adults", "adult", "general"}:
+        return "adults"
+    return None
+
+
+def _should_include_event(*, title: str, description: str | None, audience: str) -> bool:
+    if audience.lower() in {"kids", "teens"}:
+        return True
+
+    blob = f" {' '.join([title, description or '']).lower()} "
+    if any(marker in blob for marker in GENERAL_EXCLUDED_MARKERS) and not any(
+        marker in blob for marker in ADULT_ACTIVITY_MARKERS
+    ):
+        return False
+    return any(marker in blob for marker in ADULT_ACTIVITY_MARKERS)

@@ -15,6 +15,7 @@ class ActivityRead(BaseModel):
     activity_type: str | None
     age_min: int | None
     age_max: int | None
+    audience_segment: str
     drop_in: bool | None
     registration_required: bool | None
     start_at: datetime
@@ -31,6 +32,7 @@ class ActivityRead(BaseModel):
 
 class ActivityFilter(BaseModel):
     age: int | None = None
+    audience: str | None = None
     drop_in: bool | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None

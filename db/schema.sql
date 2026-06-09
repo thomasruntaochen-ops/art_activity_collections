@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS activities (
   activity_type VARCHAR(100) NULL,
   age_min INT NULL,
   age_max INT NULL,
+  audience_segment ENUM('kids','teens','adults','all_ages','unknown') NOT NULL DEFAULT 'unknown',
 
   is_free BOOLEAN NULL DEFAULT NULL,
   free_verification_status ENUM('confirmed','inferred','uncertain') NOT NULL DEFAULT 'inferred',
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS activities (
   CONSTRAINT fk_activities_venue FOREIGN KEY (venue_id) REFERENCES venues(id),
 
   INDEX idx_activities_status_start_at (status, start_at),
+  INDEX idx_activities_status_audience_start_at (status, audience_segment, start_at),
   INDEX idx_activities_status_venue (status, venue_id),
   INDEX idx_activities_source_lookup (source_id, source_url(191), title(191), start_at),
   INDEX idx_activities_source_url (source_url(255))
