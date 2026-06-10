@@ -11,6 +11,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -79,7 +80,6 @@ TEXT_EXCLUDED_KEYWORDS = (
 
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE)
-TRAILING_NUMERIC_SUFFIX_RE = re.compile(r"\s+#\d+\s*$")
 
 
 async def fetch_florence_griswold_events_json(
@@ -220,11 +220,18 @@ def _build_row_from_event(event_obj: dict) -> ExtractedActivity | None:
     location_text = _build_location_text(venue)
     text_blob = _normalize_space(" ".join([title, combined_description])).lower()
     age_min, age_max = _parse_age_range(text_blob)
-    is_free, free_status = infer_price_classification(text_blob)
+    is_free, free_status = _classify_price(text_blob)
+    audience_segment = _infer_florence_griswold_audience(
+        title=title,
+        description=combined_description,
+        category_names=category_names,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
     return ExtractedActivity(
         source_url=source_url,
-        title=TRAILING_NUMERIC_SUFFIX_RE.sub("", title),
+        title=title,
         description=combined_description or None,
         venue_name=FLORENCE_GRISWOLD_VENUE_NAME,
         location_text=location_text,
@@ -240,6 +247,7 @@ def _build_row_from_event(event_obj: dict) -> ExtractedActivity | None:
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=audience_segment,
     )
 
 
@@ -266,6 +274,52 @@ def _infer_activity_type(*, title: str, description: str) -> str:
     if any(keyword in text_blob for keyword in ("class", "course", "studies")):
         return "class"
     return "workshop"
+
+
+def _classify_price(text_blob: str) -> tuple[bool | None, str]:
+    searchable = _normalize_space(text_blob).lower()
+    if any(
+        marker in searchable
+        for marker in (
+            "included with admission",
+            "included with museum admission",
+            "free with admission",
+            "with paid admission",
+        )
+    ):
+        return False, "confirmed"
+    return infer_price_classification(text_blob)
+
+
+def _infer_florence_griswold_audience(
+    *,
+    title: str,
+    description: str,
+    category_names: list[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    category_blob = f" {' '.join(' '.join(category_names).lower().split())} "
+    text_blob = f" {' '.join(f'{title} {description}'.lower().split())} "
+
+    if (
+        " childrens programs " in category_blob
+        and " adult programs " in category_blob
+    ) or " visitors of all ages " in text_blob:
+        return "all_ages"
+    if " childrens programs " in category_blob:
+        return "kids"
+    if " adult programs " in category_blob or " art bar " in category_blob:
+        return "adults"
+
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=", ".join(category_names),
+        tags=category_names,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
 
 def _has_registration_signal(text_blob: str) -> bool:

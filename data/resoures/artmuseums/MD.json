@@ -2,7 +2,7 @@
   "Academy Art Museum": {
     "city": "Easton",
     "event_links": [
-      "https://academyartmuseum.org/education/adult/events/"
+      "https://academyartmuseum.org/events/"
     ],
     "parser_script": "scripts/run_academy_art_museum_parser.py"
   },

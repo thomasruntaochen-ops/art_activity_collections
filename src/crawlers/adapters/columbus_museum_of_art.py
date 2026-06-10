@@ -15,8 +15,10 @@ from src.crawlers.adapters.oh_common import fetch_html
 from src.crawlers.adapters.oh_common import infer_activity_type
 from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
+from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.adapters.oh_common import should_include_event
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -31,6 +33,15 @@ PAGE_PART_ID_RE = re.compile(r"pagePartId:\s*([0-9]+)")
 API_TOKEN_RE = re.compile(r"apiToken:\s*'([^']+)'")
 DATE_TIME_TEXT_RE = re.compile(
     r"(?P<weekday>[A-Za-z]+),\s+(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2})\s*\|\s*(?P<time>.+)$"
+)
+COLUMBUS_TITLE_EXCLUDE_PATTERNS = (
+    " summer art breaks ",
+)
+COLUMBUS_TAG_EXCLUDE_PATTERNS = (
+    " jazz ",
+    " music ",
+    " music performance ",
+    " performance ",
 )
 
 
@@ -180,6 +191,12 @@ def _extract_listing_cards(content: str) -> list[dict]:
 
 
 def _should_include_listing(card: dict) -> bool:
+    title_blob = _searchable_blob(card["title"])
+    tags_blob = _searchable_blob(" ".join(card.get("tags", [])))
+    if any(pattern in title_blob for pattern in COLUMBUS_TITLE_EXCLUDE_PATTERNS):
+        return False
+    if any(pattern in tags_blob for pattern in COLUMBUS_TAG_EXCLUDE_PATTERNS):
+        return False
     return should_include_event(
         title=card["title"],
         description=card.get("summary"),
@@ -223,6 +240,8 @@ def _build_row(*, card: dict, detail_html: str | None, today: date) -> Extracted
 
     full_description = join_non_empty([detail_text, f"Tags: {', '.join(tags)}" if tags else None])
     price_text = full_description
+    age_min, age_max = parse_age_range(full_description)
+    activity_type = infer_activity_type(title, full_description, ", ".join(tags))
     return ExtractedActivity(
         source_url=card["source_url"],
         title=title,
@@ -231,14 +250,23 @@ def _build_row(*, card: dict, detail_html: str | None, today: date) -> Extracted
         location_text=location_text,
         city=COLUMBUS_CITY,
         state=COLUMBUS_STATE,
-        activity_type=infer_activity_type(title, full_description, ", ".join(tags)),
-        age_min=None,
-        age_max=None,
+        activity_type=activity_type,
+        age_min=age_min,
+        age_max=age_max,
         drop_in=("drop-in" in (full_description or "").lower() or "drop in" in (full_description or "").lower()),
         registration_required="register" in (full_description or "").lower(),
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
+        audience_segment=_infer_columbus_audience(
+            title=title,
+            description=full_description,
+            tags=tags,
+            source_url=card["source_url"],
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+        ),
         **price_classification_kwargs(price_text),
     )
 
@@ -273,3 +301,38 @@ def _require_match(pattern: re.Pattern[str], text: str, label: str) -> str:
     if match is None:
         raise RuntimeError(f"Columbus Museum of Art page missing {label}")
     return match.group(1)
+
+
+def _infer_columbus_audience(
+    *,
+    title: str,
+    description: str | None,
+    tags: list[str],
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str,
+) -> str:
+    title_tag_blob = _searchable_blob(" ".join([title, " ".join(tags)]))
+    full_blob = _searchable_blob(" ".join([title, description or "", " ".join(tags)]))
+    if " all ages " in full_blob:
+        return "all_ages"
+    if any(pattern in title_tag_blob for pattern in (" teen ", " teens ")):
+        return "teens"
+    if any(pattern in title_tag_blob for pattern in (" youth ", " family ", " families ", " kids ")):
+        return "kids"
+    if activity_type in {"lecture", "talk"}:
+        return "adults"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=", ".join(tags) or activity_type,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
+
+
+def _searchable_blob(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", " ", value.lower())
+    return f" {' '.join(normalized.split())} "

@@ -9,6 +9,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -58,11 +59,6 @@ TITLE_EXCLUDED_KEYWORDS = (
     "writers workshop",
     "writing",
     "members only",
-)
-ADULT_ONLY_KEYWORDS = (
-    "adult workshop",
-    "for adults",
-    "adults only",
 )
 AGE_RANGE_MARKERS = (
     "ages ",
@@ -195,6 +191,15 @@ def _build_row_from_event(event_obj: dict) -> ExtractedActivity | None:
     text_blob = " ".join(part for part in [title, combined_description] if part).lower()
     age_min, age_max = _parse_age_range(combined_description)
     is_free, free_status = infer_price_classification(text_blob)
+    activity_type = _infer_activity_type(title=title, description=combined_description)
+    audience_segment = _infer_mocact_audience(
+        title=title,
+        description=combined_description,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+        activity_type=activity_type,
+    )
 
     return ExtractedActivity(
         source_url=source_url,
@@ -204,7 +209,7 @@ def _build_row_from_event(event_obj: dict) -> ExtractedActivity | None:
         location_text=location_text,
         city=_normalize_space(str(venue.get("city") or MOCACT_CITY)),
         state=_normalize_space(str(venue.get("stateprovince") or venue.get("state") or MOCACT_STATE)),
-        activity_type=_infer_activity_type(title=title, description=combined_description),
+        activity_type=activity_type,
         age_min=age_min,
         age_max=age_max,
         drop_in=("drop-in" in text_blob or "drop in" in text_blob),
@@ -214,6 +219,7 @@ def _build_row_from_event(event_obj: dict) -> ExtractedActivity | None:
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=audience_segment,
     )
 
 
@@ -226,8 +232,6 @@ def _should_include_event(*, title: str, description: str) -> bool:
 
     if any(keyword in normalized_title for keyword in TITLE_EXCLUDED_KEYWORDS):
         return False
-    if any(keyword in text_blob for keyword in ADULT_ONLY_KEYWORDS):
-        return False
 
     return any(keyword in text_blob for keyword in INCLUDED_KEYWORDS)
 
@@ -237,6 +241,29 @@ def _infer_activity_type(*, title: str, description: str) -> str:
     if any(keyword in text_blob for keyword in ("talk", "lecture", "conversation", "discussion", "gallery talk")):
         return "talk"
     return "workshop"
+
+
+def _infer_mocact_audience(
+    *,
+    title: str,
+    description: str,
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str,
+) -> str:
+    audience = infer_audience_segment(
+        title=title,
+        description=description,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if audience != "unknown":
+        return audience
+    if activity_type in {"talk", "workshop"}:
+        return "adults"
+    return audience
 
 
 def _has_registration_signal(*, event_obj: dict, text_blob: str) -> bool:

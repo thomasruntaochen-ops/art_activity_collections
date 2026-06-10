@@ -113,3 +113,26 @@ def test_met_workshops_classes_url_keeps_paid_adult_fallback_row() -> None:
     assert rows[0].free_verification_status == "confirmed"
     assert rows[0].audience_segment == "adults"
     assert rows[0].start_at == datetime(2026, 6, 19, 18, 0)
+
+
+def test_met_family_program_url_classifies_fallback_row_as_kids() -> None:
+    html = """
+    <html>
+      <body>
+        <h2>Friday, June 19</h2>
+        <a href="https://engage.metmuseum.org/events/education/workshops-and-classes/family-programs/fy26/storytime-at-the-met/">
+          Storytime at The Met
+        </a>
+        <p>Look, listen, sing, and have fun with picture-book readings connected to objects in The Met collection.</p>
+        <p>10:15 AM The Met Fifth Avenue</p>
+        <p>Free with Museum admission</p>
+      </body>
+    </html>
+    """
+
+    rows = parse_met_events_html(html, list_url=MET_WORKSHOPS_CLASSES_URL, now=datetime(2026, 6, 1))
+
+    assert len(rows) == 1
+    assert rows[0].title == "Storytime at The Met"
+    assert rows[0].audience_segment == "kids"
+    assert rows[0].is_free is True

@@ -9,7 +9,9 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 MFA_PROGRAMS_URL_TEMPLATE = "https://www.mfa.org/programs?page={page}"
@@ -47,6 +49,50 @@ DEFAULT_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.mfa.org/programs",
 }
+
+MFA_INCLUDE_MARKERS = (
+    " abstract painting ",
+    " art cart ",
+    " art making ",
+    " beyond the spectrum ",
+    " class ",
+    " classes ",
+    " course ",
+    " discovery cart ",
+    " drawing ",
+    " drop in art making ",
+    " drop-in art making ",
+    " gallery explorations ",
+    " lecture ",
+    " painting ",
+    " studio art classes ",
+    " teen ",
+    " teens ",
+    " workshop ",
+)
+MFA_REJECT_TITLE_MARKERS = (
+    " member hours ",
+    " third thursday ",
+    " tour ",
+    " tours ",
+)
+MFA_REJECT_TEXT_MARKERS = (
+    " admission is free ",
+    " general admission ",
+    " open house ",
+    " pay what you wish general admission ",
+)
+MFA_REJECT_URL_MARKERS = (
+    "/event/open-house/",
+)
+MFA_SPECIAL_EVENT_URL_MARKER = "/event/special-event/"
+MFA_ALL_AGES_TITLE_MARKERS = (
+    " art cart ",
+    " discovery cart ",
+    " drop in art making ",
+    " drop-in art making ",
+    " gallery explorations ",
+)
 
 
 def build_mfa_program_urls(*, start_page: int = MFA_PAGE_START, end_page: int = MFA_PAGE_END) -> list[str]:
@@ -202,11 +248,17 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
         description_parts.append(f"Category: {category_blob}")
 
     full_description = " | ".join(description_parts) if description_parts else None
-    if _should_exclude_event(title=title, description=full_description, category=category_blob):
+    if _should_exclude_event(
+        title=title,
+        description=full_description,
+        category=category_blob,
+        source_url=source_url,
+    ):
         return None
 
     text_blob = " ".join([title, full_description or "", category_blob or ""]).lower()
     age_min, age_max = _parse_age_range(title=title, description=full_description)
+    activity_type = _infer_activity_type(title=title, description=full_description, category=category_blob)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -216,7 +268,7 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
         location_text=MFA_DEFAULT_LOCATION,
         city=MFA_CITY,
         state=MFA_STATE,
-        activity_type="workshop",
+        activity_type=activity_type,
         age_min=age_min,
         age_max=age_max,
         drop_in=("drop-in" in text_blob or "drop in" in text_blob),
@@ -224,7 +276,15 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+        audience_segment=_infer_mfa_audience(
+            title=title,
+            description=full_description,
+            category=category_blob or activity_type,
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+        ),
+        **price_classification_kwargs(full_description, default_is_free=None),
     )
 
 
@@ -263,7 +323,7 @@ def _parse_from_dom_fallback(html: str, *, list_url: str) -> list[ExtractedActiv
         if not blob:
             continue
 
-        if _should_exclude_event(title=title, description=blob, category=None):
+        if _should_exclude_event(title=title, description=blob, category=None, source_url=source_url):
             continue
 
         start_at = _parse_datetime(blob)
@@ -273,6 +333,7 @@ def _parse_from_dom_fallback(html: str, *, list_url: str) -> list[ExtractedActiv
         age_min, age_max = _parse_age_range(title=title, description=blob)
         description = blob if blob != title else None
         text_blob = f"{title} {blob}".lower()
+        activity_type = _infer_activity_type(title=title, description=description, category=None)
 
         key = (source_url, title, start_at)
         if key in seen:
@@ -288,7 +349,7 @@ def _parse_from_dom_fallback(html: str, *, list_url: str) -> list[ExtractedActiv
                 location_text=MFA_DEFAULT_LOCATION,
                 city=MFA_CITY,
                 state=MFA_STATE,
-                activity_type="workshop",
+                activity_type=activity_type,
                 age_min=age_min,
                 age_max=age_max,
                 drop_in=("drop-in" in text_blob or "drop in" in text_blob),
@@ -296,7 +357,15 @@ def _parse_from_dom_fallback(html: str, *, list_url: str) -> list[ExtractedActiv
                 start_at=start_at,
                 end_at=None,
                 timezone=NY_TIMEZONE,
-                free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+                audience_segment=_infer_mfa_audience(
+                    title=title,
+                    description=description,
+                    category=activity_type,
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
+                **price_classification_kwargs(description, default_is_free=None),
             )
         )
 
@@ -468,9 +537,68 @@ def _parse_age_range(*, title: str, description: str | None) -> tuple[int | None
     return None, None
 
 
-def _should_exclude_event(*, title: str, description: str | None, category: str | None) -> bool:
-    blob = " ".join([title, description or "", category or ""])
-    return bool(GUIDED_TOUR_RE.search(blob) or UNAVAILABLE_TICKETS_RE.search(blob))
+def _should_exclude_event(
+    *,
+    title: str,
+    description: str | None,
+    category: str | None,
+    source_url: str | None = None,
+) -> bool:
+    source = (source_url or "").lower()
+    title_blob = _searchable_blob(title)
+    blob = _searchable_blob(" ".join([title, description or "", category or "", source]))
+
+    if GUIDED_TOUR_RE.search(" ".join([title, description or "", category or ""])):
+        return True
+    if UNAVAILABLE_TICKETS_RE.search(" ".join([title, description or "", category or ""])):
+        return True
+    if any(marker in source for marker in MFA_REJECT_URL_MARKERS):
+        return True
+    if any(marker in title_blob for marker in MFA_REJECT_TITLE_MARKERS):
+        return True
+    if any(marker in blob for marker in MFA_REJECT_TEXT_MARKERS):
+        return True
+
+    include_hit = any(marker in blob for marker in MFA_INCLUDE_MARKERS)
+    if MFA_SPECIAL_EVENT_URL_MARKER in source and not include_hit:
+        return True
+    return not include_hit
+
+
+def _infer_activity_type(*, title: str, description: str | None, category: str | None) -> str:
+    blob = _searchable_blob(" ".join([title, description or "", category or ""]))
+    if any(marker in blob for marker in (" lecture ", " talk ", " talks ", " conversation ", " discussion ")):
+        return "lecture"
+    if any(marker in blob for marker in (" class ", " classes ", " course ", " studio art classes ")):
+        return "class"
+    return "workshop"
+
+
+def _infer_mfa_audience(
+    *,
+    title: str,
+    description: str | None,
+    category: str | None,
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    title_blob = _searchable_blob(title)
+    if any(marker in title_blob for marker in MFA_ALL_AGES_TITLE_MARKERS):
+        return "all_ages"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
+
+
+def _searchable_blob(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9+]+", " ", value.lower())
+    return f" {' '.join(normalized.split())} "
 
 
 def _normalize_space(text: str) -> str:
@@ -544,7 +672,13 @@ def _parse_from_text_lines(
             ):
                 description = candidate_desc
 
-        if _should_exclude_event(title=title, description=description, category=category_line):
+        source_url = title_to_links[title][0]
+        if _should_exclude_event(
+            title=title,
+            description=description,
+            category=category_line,
+            source_url=source_url,
+        ):
             i += 1
             continue
 
@@ -554,6 +688,7 @@ def _parse_from_text_lines(
 
         age_min, age_max = _parse_age_range(title=title, description=description)
         text_blob = f"{category_line} {title} {description or ''}".lower()
+        activity_type = _infer_activity_type(title=title, description=description, category=category_line)
         key = (source_url, title, start_at)
         if key in seen:
             i += 1
@@ -569,7 +704,7 @@ def _parse_from_text_lines(
                 location_text=MFA_DEFAULT_LOCATION,
                 city=MFA_CITY,
                 state=MFA_STATE,
-                activity_type="workshop",
+                activity_type=activity_type,
                 age_min=age_min,
                 age_max=age_max,
                 drop_in=("drop-in" in text_blob or "drop in" in text_blob),
@@ -577,7 +712,15 @@ def _parse_from_text_lines(
                 start_at=start_at,
                 end_at=None,
                 timezone=NY_TIMEZONE,
-                free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+                audience_segment=_infer_mfa_audience(
+                    title=title,
+                    description=description,
+                    category=category_line or activity_type,
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
+                **price_classification_kwargs(description, default_is_free=None),
             )
         )
         i += 1

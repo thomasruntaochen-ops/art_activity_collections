@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -91,8 +92,10 @@ LECTURE_TOPIC_EXCLUDE_PATTERNS = (
     " clematis ",
     " flowering shrub ",
     " flowering shrubs ",
+    " forest to your floor ",
     " gardening ",
     " hydrangea ",
+    " music ",
     " plant sale ",
     " shrubs ",
     " wrestling ",
@@ -323,6 +326,10 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         ]
     )
     is_free, free_status = infer_price_classification(full_description)
+    age_min = _extract_age_min(age_text)
+    age_max = _extract_age_max(age_text)
+
+    activity_type = _infer_activity_type(token_blob)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -332,9 +339,9 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         location_text=_extract_location(article) or DIXON_DEFAULT_LOCATION,
         city=DIXON_CITY,
         state=DIXON_STATE,
-        activity_type=_infer_activity_type(token_blob),
-        age_min=_extract_age_min(age_text),
-        age_max=_extract_age_max(age_text),
+        activity_type=activity_type,
+        age_min=age_min,
+        age_max=age_max,
         drop_in=(" drop-in " in token_blob or " drop in " in token_blob),
         registration_required=_requires_registration(token_blob),
         start_at=start_at,
@@ -342,6 +349,16 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=_infer_dixon_audience(
+            title=title,
+            description=full_description,
+            tags=tags,
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+            token_blob=token_blob,
+        ),
     )
 
 
@@ -487,6 +504,43 @@ def _infer_activity_type(token_blob: str) -> str | None:
     ):
         return "workshop"
     return None
+
+
+def _infer_dixon_audience(
+    *,
+    title: str,
+    description: str | None,
+    tags: list[str],
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str | None,
+    token_blob: str,
+) -> str:
+    title_tag_blob = _normalized_token_blob(" ".join([title, " ".join(tags)]))
+    if " all ages " in title_tag_blob or " all ages " in token_blob:
+        return "all_ages"
+    if age_min is not None or age_max is not None:
+        return infer_audience_segment(age_min=age_min, age_max=age_max)
+    if any(pattern in title_tag_blob for pattern in (" youth ", " family ", " mini masters ", " kaleidoscope ")):
+        return infer_audience_segment(
+            title=title,
+            description=description,
+            category=", ".join(tags),
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+        )
+    if activity_type == "lecture":
+        return "adults"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=", ".join(tags),
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
 
 def _requires_registration(token_blob: str) -> bool | None:

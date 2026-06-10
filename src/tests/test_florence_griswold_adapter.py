@@ -64,23 +64,26 @@ def test_florence_griswold_parser_keeps_paid_and_free_qualifying_events() -> Non
     assert [row.title for row in rows] == [
         "LECTURE: Teaching as Transformation: Women, Art, and the Power of Education",
         "CERAMICS WORKSHOP: Make a Mosaic Tile",
-        "Creative Arts Workshop for Elementary Students",
+        "Creative Arts Workshop for Elementary Students #1",
     ]
 
     assert rows[0].activity_type == "talk"
     assert rows[0].is_free is True
     assert rows[0].free_verification_status == "confirmed"
     assert rows[0].registration_required is True
+    assert rows[0].audience_segment == "adults"
 
     assert rows[1].activity_type == "workshop"
     assert rows[1].is_free is False
     assert rows[1].free_verification_status == "confirmed"
     assert rows[1].registration_required is True
+    assert rows[1].audience_segment == "adults"
     assert rows[1].start_at == datetime(2026, 3, 7, 13, 0)
 
-    assert rows[2].title == "Creative Arts Workshop for Elementary Students"
+    assert rows[2].title == "Creative Arts Workshop for Elementary Students #1"
     assert rows[2].is_free is False
     assert rows[2].free_verification_status == "confirmed"
+    assert rows[2].audience_segment == "kids"
     assert rows[2].age_min is None
     assert rows[2].age_max is None
 
@@ -136,3 +139,36 @@ def test_florence_griswold_parser_excludes_film_travel_camp_and_garden_events() 
     }
 
     assert parse_florence_griswold_events_payload(payload) == []
+
+
+def test_florence_griswold_marks_discovery_sundays_all_ages_and_not_free() -> None:
+    payload = {
+        "pages": [
+            {
+                "events": [
+                    {
+                        "title": "Discovery Sundays",
+                        "url": "https://flogris.org/calendar/discovery-sundays/2026-07-05/",
+                        "description": (
+                            "<p>Included with Museum admission, no advance reservations required.</p>"
+                            "<p>Family friendly, and visitors of all ages are encouraged to participate!</p>"
+                            "<p>Drop in for painting and other hands-on art activities.</p>"
+                        ),
+                        "excerpt": "<p>Hands-on art activities.</p>",
+                        "start_date": "2026-07-05 11:00:00",
+                        "end_date": "2026-07-05 16:00:00",
+                        "venue": [],
+                        "categories": [{"name": "Adult Programs"}, {"name": "Childrens Programs"}],
+                    },
+                ]
+            }
+        ]
+    }
+
+    rows = parse_florence_griswold_events_payload(payload)
+
+    assert len(rows) == 1
+    assert rows[0].audience_segment == "all_ages"
+    assert rows[0].is_free is False
+    assert rows[0].free_verification_status == "confirmed"
+    assert rows[0].drop_in is True

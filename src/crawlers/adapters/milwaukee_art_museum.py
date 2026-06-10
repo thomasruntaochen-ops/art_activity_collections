@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import html
 import json
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -13,6 +14,7 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import infer_activity_type
 from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -41,6 +43,7 @@ STRONG_INCLUDE_PATTERNS = (
     " class ",
     " classes ",
     " draw ",
+    " drop in art making ",
     " drop-in art making ",
     " family ",
     " families ",
@@ -59,6 +62,43 @@ STRONG_INCLUDE_PATTERNS = (
     " workshops ",
     " youth ",
     " zine ",
+)
+TITLE_REJECT_PATTERNS = (
+    " art in bloom ",
+    " book sale ",
+    " member mingle ",
+    " member swap ",
+    " museum closed ",
+)
+CATEGORY_REJECT_NAMES = {
+    "announcements",
+    "for members",
+}
+KIDS_AUDIENCE_PATTERNS = (
+    " drop in art making ",
+    " family ",
+    " families ",
+    " first stage ",
+    " kohl s art studio ",
+    " play date ",
+    " playdate ",
+    " story time ",
+    " storytime ",
+    " youth ",
+    " youth + family ",
+)
+ADULT_AUDIENCE_PATTERNS = (
+    " artist talk ",
+    " expert series ",
+    " gallery talk ",
+    " haberman local luminaries ",
+    " lecture ",
+    " lectures ",
+    " lectures + talks ",
+    " local luminaries ",
+    " slow art saturday ",
+    " talk ",
+    " talks ",
 )
 WEAK_INCLUDE_PATTERNS = (
     " art ",
@@ -86,6 +126,9 @@ REJECT_PATTERNS = (
     " tours ",
     " yoga ",
 )
+AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
+AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE)
+AGE_AND_UNDER_RE = re.compile(r"\bages?\s*(\d{1,2})\s*and under\b", re.IGNORECASE)
 
 
 async def fetch_mam_events_page(
@@ -203,6 +246,8 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         return None
 
     blob = _searchable_blob(" ".join(part for part in [title, description or "", categories] if part))
+    age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
+    drop_in = " drop in " in blob
     venue = event_obj.get("venue_details") or {}
     location_text = (
         join_non_empty(
@@ -232,32 +277,97 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         city=MAM_CITY,
         state=MAM_STATE,
         activity_type=infer_activity_type(title, description, categories),
-        age_min=None,
-        age_max=None,
-        drop_in=(" drop-in " in blob or " drop in " in blob),
+        age_min=age_min,
+        age_max=age_max,
+        drop_in=drop_in,
         registration_required=(
             (" registration " in blob)
             or (" register " in blob)
             or (" reserve " in blob)
             or (" ticket " in blob)
             or (" tickets " in blob)
-        ) and " drop-in " not in blob,
+        ) and not drop_in,
         start_at=start_at,
         end_at=end_at,
         timezone=MAM_TIMEZONE,
+        audience_segment=_infer_mam_audience(
+            title=title,
+            description=description,
+            category=categories,
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         **price_classification_kwargs(pricing_text),
     )
 
 
+def _infer_mam_audience(
+    *,
+    title: str,
+    description: str | None,
+    category: str | None,
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    age_segment = infer_audience_segment(age_min=age_min, age_max=age_max)
+    if age_segment != "unknown":
+        return age_segment
+
+    title_blob = _searchable_blob(title)
+    category_blob = _searchable_blob(category or "")
+    title_category_blob = _searchable_blob(" ".join(part for part in [title, category or ""] if part))
+
+    if any(pattern in title_category_blob for pattern in KIDS_AUDIENCE_PATTERNS):
+        return "kids"
+    if any(pattern in title_blob for pattern in ADULT_AUDIENCE_PATTERNS) or any(
+        pattern in category_blob for pattern in ADULT_AUDIENCE_PATTERNS
+    ):
+        return "adults"
+
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        source_url=source_url,
+    )
+
+
 def _should_include_event(*, title: str, description: str | None, categories: str | None) -> bool:
+    title_blob = _searchable_blob(title)
     blob = _searchable_blob(" ".join(part for part in [title, description or "", categories or ""] if part))
+    if any(pattern in title_blob for pattern in TITLE_REJECT_PATTERNS):
+        return False
+    if _has_reject_category(categories):
+        return False
     if any(pattern in blob for pattern in REJECT_PATTERNS):
         return False
     if any(pattern in blob for pattern in STRONG_INCLUDE_PATTERNS):
         return True
-    if " youth + family " in blob:
+    if " youth + family " in blob or " youth family " in blob:
         return True
     return any(pattern in blob for pattern in WEAK_INCLUDE_PATTERNS) and " art " in blob
+
+
+def _has_reject_category(categories: str | None) -> bool:
+    if not categories:
+        return False
+    names = {normalize_space(part).lower() for part in categories.split(",")}
+    return bool(names.intersection(CATEGORY_REJECT_NAMES))
+
+
+def _parse_age_range(text: str) -> tuple[int | None, int | None]:
+    match = AGE_RANGE_RE.search(text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    under_match = AGE_AND_UNDER_RE.search(text)
+    if under_match:
+        return None, int(under_match.group(1))
+    plus_match = AGE_PLUS_RE.search(text)
+    if plus_match:
+        return int(plus_match.group(1)), None
+    return None, None
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -304,4 +414,5 @@ def _structured_text(value: object) -> str | None:
 
 
 def _searchable_blob(value: str) -> str:
-    return f" {normalize_space(value).lower()} "
+    normalized = re.sub(r"[^a-z0-9+]+", " ", value.lower())
+    return f" {normalize_space(normalized)} "

@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -84,9 +85,11 @@ STRONG_EXCLUDED_TITLE_PATTERNS = (
     "free thursday night",
     "gala",
     "luncheon",
+    "member tour",
     "opening reception",
     "showcase",
     "teen night",
+    "we create the world",
 )
 INCLUDE_KEYWORDS = (
     "art-making",
@@ -210,6 +213,13 @@ def parse_ica_boston_calendar_payload(payload: dict) -> list[ExtractedActivity]:
             )
         ).lower()
         age_min, age_max = _parse_age_range(description)
+        audience_segment = _infer_ica_audience(
+            title=detail["title"],
+            categories=listing["categories"],
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        )
         location_text = detail.get("location_text") or ICA_BOSTON_DEFAULT_LOCATION
         is_free, free_status = _classify_price(
             detail=detail,
@@ -258,6 +268,7 @@ def parse_ica_boston_calendar_payload(payload: dict) -> list[ExtractedActivity]:
                     timezone=NY_TIMEZONE,
                     is_free=is_free,
                     free_verification_status=free_status,
+                    audience_segment=audience_segment,
                 )
             )
 
@@ -569,9 +580,50 @@ def _classify_price(*, detail: dict, categories: list[str], description: str | N
         if part
     )
     normalized = f" {' '.join(price_blob.lower().split())} " if price_blob else ""
-    if " with museum admission " in normalized:
-        return None, "uncertain"
+    if any(
+        marker in normalized
+        for marker in (
+            "with museum admission",
+            "included with admission",
+            "included with museum admission",
+            "free with admission",
+        )
+    ):
+        return False, "confirmed"
     return infer_price_classification(price_blob)
+
+
+def _infer_ica_audience(
+    *,
+    title: str,
+    categories: list[str],
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    title_blob = f" {_normalize_space(title).lower()} "
+    category_blob = f" {' '.join(' '.join(categories).lower().split())} "
+    text_blob = f" {' '.join(' '.join(filter(None, [title, description or '', ' '.join(categories)])).lower().split())} "
+
+    if " ica teens " in category_blob or " teen " in text_blob or " teens " in text_blob:
+        return "teens"
+    if " talks " in category_blob or " gallery talk " in text_blob or " artist's voice " in text_blob or " artist’s voice " in text_blob:
+        return "adults"
+    if " play date " in title_blob or " family art " in text_blob or " family art-trek " in text_blob:
+        return "kids"
+    if " perpetual gratitude " in title_blob or " art lab " in text_blob:
+        return "all_ages"
+    if " art making " in category_blob or " art-making after dark " in text_blob:
+        return "adults"
+
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=", ".join(categories),
+        tags=categories,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
 
 def _is_registration_required(*, detail: dict, text_blob: str) -> bool | None:

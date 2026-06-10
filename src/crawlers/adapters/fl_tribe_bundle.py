@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from html import unescape
 from urllib.parse import urlparse
 
 import httpx
@@ -11,6 +12,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -74,6 +76,9 @@ ALWAYS_REJECT_PATTERNS = (
     " book club ",
     " camp ",
     " camps ",
+    " closed ",
+    " closes at ",
+    " closure ",
     " concert ",
     " dinner ",
     " film ",
@@ -89,7 +94,10 @@ ALWAYS_REJECT_PATTERNS = (
     " orchestra ",
     " performance ",
     " performances ",
+    " philanthropy ",
+    " philanthropic ",
     " poetry ",
+    " raise funds ",
     " reception ",
     " story time ",
     " storytime ",
@@ -103,6 +111,7 @@ CONTEXTUAL_REJECT_PATTERNS = (
     " member event ",
     " member events ",
     " picnic ",
+    " signature ",
 )
 DROP_IN_PATTERNS = (
     " drop in ",
@@ -284,7 +293,7 @@ def parse_fl_tribe_events(
 ) -> list[ExtractedActivity]:
     current_date = datetime.now(ZoneInfo(NY_TIMEZONE)).date()
     rows: list[ExtractedActivity] = []
-    seen: set[tuple[str, str, datetime]] = set()
+    seen: set[tuple[str, datetime, datetime | None]] = set()
 
     for event_obj in events:
         row = _build_row(event_obj, venue=venue)
@@ -293,7 +302,7 @@ def parse_fl_tribe_events(
         if row.start_at.date() < current_date:
             continue
 
-        key = (row.source_url, row.title, row.start_at)
+        key = (row.title, row.start_at, row.end_at)
         if key in seen:
             continue
         seen.add(key)
@@ -315,14 +324,14 @@ class FlTribeBundleAdapter(BaseSourceAdapter):
 
 
 def _build_row(event_obj: dict, *, venue: FlTribeVenueConfig) -> ExtractedActivity | None:
-    title = _normalize_space(event_obj.get("title"))
+    title = unescape(_normalize_space(event_obj.get("title")))
     source_url = _normalize_space(event_obj.get("url"))
     start_at = _parse_datetime(event_obj.get("start_date"))
     if not title or not source_url or start_at is None:
         return None
     end_at = _parse_datetime(event_obj.get("end_date"))
 
-    category_names = [_normalize_space(item.get("name")) for item in (event_obj.get("categories") or [])]
+    category_names = [unescape(_normalize_space(item.get("name"))) for item in (event_obj.get("categories") or [])]
     category_names = [value for value in category_names if value]
     list_description = _html_to_text(event_obj.get("description"))
     excerpt = _html_to_text(event_obj.get("excerpt"))
@@ -342,11 +351,22 @@ def _build_row(event_obj: dict, *, venue: FlTribeVenueConfig) -> ExtractedActivi
         return None
 
     amount = _extract_amount(event_obj.get("cost_details"))
-    is_free, free_status = infer_price_classification_from_amount(
+    is_free, free_status = _classify_price(
         amount,
+        venue=venue,
+        title_blob=title_blob,
+        token_blob=token_blob,
         text=price_text or description,
     )
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
+    audience_segment = _infer_fl_tribe_audience(
+        venue=venue,
+        title=title,
+        description=description,
+        category_names=category_names,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
     return ExtractedActivity(
         source_url=source_url,
@@ -360,17 +380,20 @@ def _build_row(event_obj: dict, *, venue: FlTribeVenueConfig) -> ExtractedActivi
         age_min=age_min,
         age_max=age_max,
         drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
-        registration_required=any(pattern in token_blob for pattern in REGISTRATION_PATTERNS),
+        registration_required=_is_registration_required(venue=venue, token_blob=token_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=audience_segment,
     )
 
 
 def _should_keep_event(*, title_blob: str, token_blob: str) -> bool:
     if " cancelled " in token_blob or " canceled " in token_blob or " sold out " in token_blob:
+        return False
+    if " museum closure " in token_blob or " early closure " in token_blob or " museum closed " in token_blob:
         return False
 
     strong_include = any(pattern in token_blob for pattern in STRONG_INCLUDE_PATTERNS)
@@ -386,6 +409,93 @@ def _should_keep_event(*, title_blob: str, token_blob: str) -> bool:
         return False
 
     return True
+
+
+def _classify_price(
+    amount: Decimal | None,
+    *,
+    venue: FlTribeVenueConfig,
+    title_blob: str,
+    token_blob: str,
+    text: str | None,
+) -> tuple[bool | None, str]:
+    if any(
+        marker in token_blob
+        for marker in (
+            " free with admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " included in your museum ticket ",
+            " with paid admission ",
+            " with the cost of daily admission ",
+        )
+    ):
+        return False, "confirmed"
+
+    if venue.slug == "bass":
+        if (
+            " open studio " in title_blob
+            or " teen studio art intensive " in token_blob
+            or " workshops at the bass " in token_blob
+        ):
+            return False, "confirmed"
+
+    return infer_price_classification_from_amount(amount, text=text)
+
+
+def _infer_fl_tribe_audience(
+    *,
+    venue: FlTribeVenueConfig,
+    title: str,
+    description: str | None,
+    category_names: list[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    category_blob = _searchable_blob(" ".join(category_names))
+    token_blob = _searchable_blob(" ".join([title, description or "", " ".join(category_names)]))
+
+    if " teen " in token_blob or " teens " in token_blob:
+        return "teens"
+
+    if venue.slug == "bass":
+        if " family day " in category_blob:
+            return "kids"
+        if " open studio " in token_blob:
+            return "all_ages"
+        if " workshops at the bass " in category_blob:
+            return "adults"
+
+    if " all ages " in token_blob or " visitors of all ages " in token_blob:
+        return "all_ages"
+    if " adults " in category_blob and " family " in category_blob:
+        return "all_ages"
+    if " youth families " in token_blob or " youth and families " in token_blob:
+        return "all_ages"
+    if " family " in category_blob:
+        return "kids"
+    if " adults " in category_blob or " adult " in category_blob or " studio 55 " in category_blob:
+        return "adults"
+
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=", ".join(category_names),
+        source_url=None,
+        tags=category_names,
+        age_min=age_min,
+        age_max=age_max,
+    )
+
+
+def _is_registration_required(*, venue: FlTribeVenueConfig, token_blob: str) -> bool:
+    if any(pattern in token_blob for pattern in REGISTRATION_PATTERNS):
+        return True
+    if venue.slug == "bass" and (
+        " teen studio art intensive " in token_blob or " workshops at the bass " in token_blob
+    ):
+        return True
+    return False
 
 
 def _searchable_blob(value: str) -> str:
@@ -468,9 +578,11 @@ def _normalize_space(value: object) -> str:
     return " ".join(value.split())
 
 
-def get_fl_tribe_source_prefixes() -> tuple[str, ...]:
+def get_fl_tribe_source_prefixes(
+    venues: tuple[FlTribeVenueConfig, ...] | list[FlTribeVenueConfig] | None = None,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in FL_TRIBE_VENUES:
+    for venue in venues or FL_TRIBE_VENUES:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
     return tuple(prefixes)

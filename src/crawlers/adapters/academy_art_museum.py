@@ -7,10 +7,11 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
-ACADEMY_ART_MUSEUM_EVENTS_URL = "https://academyartmuseum.org/education/adult/events/"
+ACADEMY_ART_MUSEUM_EVENTS_URL = "https://academyartmuseum.org/events/"
 ACADEMY_ART_MUSEUM_TIMEZONE = "America/New_York"
 ACADEMY_ART_MUSEUM_VENUE_NAME = "Academy Art Museum"
 ACADEMY_ART_MUSEUM_CITY = "Easton"
@@ -25,7 +26,7 @@ DEFAULT_HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://academyartmuseum.org/education/adult/",
+    "Referer": ACADEMY_ART_MUSEUM_EVENTS_URL,
 }
 
 TIME_RANGE_RE = re.compile(
@@ -202,6 +203,17 @@ def parse_academy_art_museum_events_html(
 
         text_blob = " ".join([title, appears_text, description or ""]).lower()
         age_min, age_max = _parse_age_range(text_blob)
+        pricing_text = " ".join(categories)
+        if title.lower().startswith("free "):
+            pricing_text = f"{title} {pricing_text}"
+        audience_segment = _infer_academy_audience(
+            title=title,
+            description=description,
+            categories=categories,
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+        )
 
         key = (source_url, title, start_at)
         if key in seen:
@@ -225,13 +237,10 @@ def parse_academy_art_museum_events_html(
                 start_at=start_at,
                 end_at=end_at,
                 timezone=ACADEMY_ART_MUSEUM_TIMEZONE,
+                audience_segment=audience_segment,
                 **price_classification_kwargs(
-                    " ".join([title, " ".join(categories)]),
-                    default_is_free=(
-                        True
-                        if ("free events" in text_blob or title.lower().startswith("free "))
-                        else None
-                    ),
+                    pricing_text,
+                    default_is_free=_default_is_free(title=title, categories=categories, text_blob=text_blob),
                 ),
             )
         )
@@ -247,6 +256,45 @@ def _should_include_event(*, title: str, categories: list[str], appears_text: st
     if any(pattern in blob for pattern in INCLUDED_PATTERNS):
         return True
     return any(pattern in blob for pattern in ART_ACTIVITY_PATTERNS)
+
+
+def _default_is_free(*, title: str, categories: list[str], text_blob: str) -> bool | None:
+    category_blob = _searchable_blob(" ".join(categories))
+    title_blob = _searchable_blob(title)
+    title_lower = title.lower()
+    if " free events " in category_blob or title.lower().startswith("free "):
+        return True
+    if " classes and workshops " in category_blob or " youth classes " in category_blob:
+        return False
+    if any(pattern in title_blob for pattern in (" class ", " workshop ", " studio ")):
+        return False
+    if any(keyword in title_lower for keyword in ("class", "workshop", "studio")):
+        return False
+    if " cost: " in text_blob or " tuition " in text_blob:
+        return False
+    return None
+
+
+def _infer_academy_audience(
+    *,
+    title: str,
+    description: str | None,
+    categories: list[str],
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob_text = " ".join([title, description or "", " ".join(categories)]).lower()
+    if "free family art day" in blob_text:
+        return "all_ages"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=" ".join(categories),
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
 
 def _parse_hidden_date(value: str | None) -> datetime | None:

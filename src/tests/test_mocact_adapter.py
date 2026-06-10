@@ -43,6 +43,19 @@ def test_mocact_parser_keeps_paid_class_and_conversation() -> None:
                             "stateprovince": "CT",
                         },
                     },
+                    {
+                        "title": "Adult Workshop: Encaustic Collage",
+                        "url": "https://mocact.org/events-calendar/encaustic-collage/",
+                        "description": "<p>A hands-on workshop for adults. $125</p>",
+                        "excerpt": "",
+                        "start_date": "2026-04-10 18:00:00",
+                        "end_date": "2026-04-10 20:00:00",
+                        "venue": {
+                            "address": "19 Newtown Turnpike",
+                            "city": "Westport",
+                            "stateprovince": "CT",
+                        },
+                    },
                 ]
             }
         ]
@@ -50,8 +63,9 @@ def test_mocact_parser_keeps_paid_class_and_conversation() -> None:
 
     rows = parse_mocact_events_payload(payload)
 
-    assert len(rows) == 2
+    assert len(rows) == 3
     assert rows[0].title == "Art Adventures"
+    assert rows[0].audience_segment == "kids"
     assert rows[0].is_free is False
     assert rows[0].free_verification_status == "confirmed"
     assert rows[0].registration_required is True
@@ -62,8 +76,13 @@ def test_mocact_parser_keeps_paid_class_and_conversation() -> None:
 
     assert rows[1].title == "Community Conversation: Jazz Inspirations"
     assert rows[1].activity_type == "talk"
+    assert rows[1].audience_segment == "adults"
     assert rows[1].is_free is False
     assert rows[1].free_verification_status == "confirmed"
+
+    assert rows[2].title == "Adult Workshop: Encaustic Collage"
+    assert rows[2].audience_segment == "adults"
+    assert rows[2].is_free is False
 
 
 def test_mocact_parser_excludes_tours_camps_and_writing() -> None:

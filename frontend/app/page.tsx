@@ -8,7 +8,6 @@ import { fetchActivities, fetchFilterOptions, fetchVenueSummaries } from "../lib
 import { getVenueMedia } from "../lib/venue-media";
 import type { Activity, AudienceSegment, VenueSummary } from "../lib/types";
 
-const NAV_ITEMS = ["Exhibitions", "Map Explorer", "Activities", "Member Portal"];
 type MapViewportMode = "fit" | "focus";
 type ViewMode = "map" | "table";
 
@@ -163,6 +162,7 @@ export default function HomePage() {
   const [tableError, setTableError] = useState("");
   const [tableLoading, setTableLoading] = useState(false);
   const [mapViewportMode, setMapViewportMode] = useState<MapViewportMode>("fit");
+  const [mobilePane, setMobilePane] = useState<"map" | "activities">("map");
   const dateFromIso = useMemo(() => toStartOfDayIso(dateFrom), [dateFrom]);
   const dateToIso = useMemo(() => toEndOfDayIso(dateTo), [dateTo]);
 
@@ -410,23 +410,8 @@ export default function HomePage() {
   return (
     <main className="explorer-shell">
       <header className="explorer-topbar">
-        <div className="explorer-brand">The Digital Curator</div>
-        <nav className="explorer-topnav" aria-label="Primary">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={`explorer-topnav__item${
-                (viewMode === "map" && item === "Map Explorer") || (viewMode === "table" && item === "Activities")
-                  ? " is-active"
-                  : ""
-              }`}
-            >
-              {item}
-            </button>
-          ))}
-        </nav>
-        <div className="explorer-toolbar">
+        <div className="explorer-brand">Art Museum Activities Explorer</div>
+        <div className="explorer-headersearch">
           {viewMode === "map" ? (
             <label className="explorer-search">
               <span className="sr-only">Search venues</span>
@@ -442,23 +427,23 @@ export default function HomePage() {
               Switch between the live venue map and a detailed activity table without leaving the page.
             </div>
           )}
+        </div>
 
-          <div className="view-switch" role="tablist" aria-label="Explorer view">
-            <button
-              type="button"
-              className={`view-switch__button${viewMode === "map" ? " is-active" : ""}`}
-              onClick={() => handleViewChange("map")}
-            >
-              Map
-            </button>
-            <button
-              type="button"
-              className={`view-switch__button${viewMode === "table" ? " is-active" : ""}`}
-              onClick={() => handleViewChange("table")}
-            >
-              Table
-            </button>
-          </div>
+        <div className="view-switch" role="tablist" aria-label="Explorer view">
+          <button
+            type="button"
+            className={`view-switch__button${viewMode === "map" ? " is-active" : ""}`}
+            onClick={() => handleViewChange("map")}
+          >
+            Map
+          </button>
+          <button
+            type="button"
+            className={`view-switch__button${viewMode === "table" ? " is-active" : ""}`}
+            onClick={() => handleViewChange("table")}
+          >
+            Table
+          </button>
         </div>
       </header>
 
@@ -522,7 +507,7 @@ export default function HomePage() {
       </section>
 
       {viewMode === "map" ? (
-      <section className="explorer-content">
+      <section className={`explorer-content is-pane-${mobilePane}`}>
         <aside className="explorer-sidebar">
           <div className="explorer-sidebar__heading">
             <h1>Venue Explorer</h1>
@@ -541,6 +526,7 @@ export default function HomePage() {
               <p className="status-note">No venues match this filter.</p>
             ) : null}
 
+            <div className="explorer-sidebar__track">
             {filteredVenues.map((venue) => {
               const isActive = venue.venue_name === selectedVenueName;
               const venueMedia = getVenueMedia(venue.venue_name);
@@ -562,8 +548,26 @@ export default function HomePage() {
                 </button>
               );
             })}
+            </div>
           </div>
         </aside>
+
+        <div className="explorer-paneswitch view-switch" role="tablist" aria-label="Map or activities view">
+          <button
+            type="button"
+            className={`view-switch__button${mobilePane === "map" ? " is-active" : ""}`}
+            onClick={() => setMobilePane("map")}
+          >
+            Map
+          </button>
+          <button
+            type="button"
+            className={`view-switch__button${mobilePane === "activities" ? " is-active" : ""}`}
+            onClick={() => setMobilePane("activities")}
+          >
+            Activities
+          </button>
+        </div>
 
         <aside className="explorer-detail">
           <p className="eyebrow">Venue Activities</p>

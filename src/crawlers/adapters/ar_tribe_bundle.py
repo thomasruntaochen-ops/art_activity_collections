@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
-from src.crawlers.pipeline.pricing import infer_price_classification
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -83,6 +83,7 @@ ALWAYS_REJECT_PATTERNS = (
     " performances ",
     " poem ",
     " poetry ",
+    " sensory friendly hours ",
     " meditation ",
     " mindfulness ",
     " reception ",
@@ -285,7 +286,7 @@ class ArTribeBundleAdapter(BaseSourceAdapter):
 
 
 def _build_row(event_obj: dict, *, venue: ArTribeVenueConfig) -> ExtractedActivity | None:
-    title = _normalize_space(event_obj.get("title"))
+    title = _html_to_text(event_obj.get("title"))
     source_url = _normalize_space(event_obj.get("url"))
     start_at = _parse_datetime(event_obj.get("start_date"))
     if not title or not source_url or start_at is None:
@@ -312,13 +313,13 @@ def _build_row(event_obj: dict, *, venue: ArTribeVenueConfig) -> ExtractedActivi
         return None
 
     amount = _extract_amount(event_obj.get("cost_details"))
-    price_hint_text = price_text or _description_price_hint(description)
+    price_hint_text = _pricing_text(" ".join(part for part in [price_text, description or ""] if part))
     if _has_explicit_free_signal(price_hint_text):
         is_free, free_status = True, "confirmed"
     elif price_text:
         is_free, free_status = infer_price_classification_from_amount(
             amount,
-            text=price_text,
+            text=_pricing_text(price_text),
             default_is_free=None,
         )
     else:
@@ -350,6 +351,14 @@ def _build_row(event_obj: dict, *, venue: ArTribeVenueConfig) -> ExtractedActivi
         timezone=AR_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=description,
+            category=" ".join(category_names),
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+        ),
     )
 
 
@@ -399,17 +408,11 @@ def _extract_location_name(venue_obj: object) -> str | None:
     return ", ".join(parts) if parts else None
 
 
-def _description_price_hint(description: str | None) -> str:
-    if not description:
-        return ""
-    return description[:480]
-
-
 def _has_explicit_free_signal(text: str | None) -> bool:
     if not text:
         return False
     lowered = _searchable_blob(text)
-    return any(marker in lowered for marker in (" free ", " no cost ", " complimentary "))
+    return any(marker in lowered for marker in (" free ", " no cost "))
 
 
 def _infer_activity_type(token_blob: str) -> str:
@@ -466,9 +469,16 @@ def _normalize_space(value: object) -> str:
     return " ".join(value.split())
 
 
-def get_ar_tribe_source_prefixes() -> tuple[str, ...]:
+def _pricing_text(value: str) -> str:
+    return re.sub(r"[,.;:]", " ", value)
+
+
+def get_ar_tribe_source_prefixes(
+    venues: tuple[ArTribeVenueConfig, ...] | list[ArTribeVenueConfig] | None = None,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in AR_TRIBE_VENUES:
+    venues_to_use = list(venues) if venues is not None else list(AR_TRIBE_VENUES)
+    for venue in venues_to_use:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
     return tuple(prefixes)

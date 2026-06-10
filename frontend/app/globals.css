@@ -66,10 +66,19 @@ a {
 
 .explorer-topbar {
   display: grid;
-  grid-template-columns: 260px 1fr minmax(280px, 420px);
+  grid-template-columns: auto minmax(280px, 1fr) auto;
   align-items: center;
   gap: 28px;
   margin-bottom: 28px;
+}
+
+.explorer-headersearch {
+  display: flex;
+  align-items: center;
+}
+
+.explorer-headersearch .explorer-search {
+  width: 100%;
 }
 
 .explorer-brand,
@@ -84,25 +93,6 @@ a {
 .explorer-brand {
   font-size: 2rem;
   letter-spacing: -0.03em;
-}
-
-.explorer-topnav {
-  display: flex;
-  gap: 18px;
-  align-items: center;
-}
-
-.explorer-topnav__item {
-  padding: 10px 0;
-  background: transparent;
-  color: rgba(31, 27, 24, 0.58);
-  border-bottom: 1px solid transparent;
-  cursor: pointer;
-}
-
-.explorer-topnav__item.is-active {
-  color: var(--ink);
-  border-color: var(--gold);
 }
 
 .explorer-toolbar {
@@ -176,7 +166,7 @@ a {
 
 .explorer-filterbar {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
   gap: 14px;
   margin-bottom: 20px;
   padding: 16px;
@@ -225,7 +215,11 @@ a {
 
 .explorer-content {
   display: grid;
-  grid-template-columns: 300px minmax(320px, 400px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "explorer detail"
+    "map      detail";
   height: clamp(780px, calc(100vh - 120px), 884px);
   min-height: 780px;
   border: 1px solid rgba(123, 99, 65, 0.12);
@@ -234,6 +228,10 @@ a {
   background: rgba(255, 251, 245, 0.74);
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
+}
+
+.explorer-paneswitch {
+  display: none;
 }
 
 .explorer-sidebar,
@@ -245,14 +243,22 @@ a {
 }
 
 .explorer-sidebar {
-  border-right: 1px solid var(--line);
+  grid-area: explorer;
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
+  padding: 20px 24px;
   overflow: hidden;
 }
 
+.explorer-detail {
+  grid-area: detail;
+  border-left: 1px solid var(--line);
+}
+
 .explorer-map {
+  grid-area: map;
   padding: 14px;
   min-height: 0;
   background:
@@ -348,10 +354,8 @@ a {
 .explorer-sidebar__list {
   display: flex;
   min-height: 0;
-  flex: 1;
   flex-direction: column;
   gap: 12px;
-  overflow: hidden;
 }
 
 .explorer-sidebar__list-head {
@@ -362,14 +366,19 @@ a {
   flex: 0 0 auto;
 }
 
-.explorer-sidebar__list > .venue-card {
-  flex: 0 0 auto;
+.explorer-sidebar__track {
+  display: flex;
+  flex-direction: row;
+  gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+  scrollbar-gutter: stable;
 }
 
-.explorer-sidebar__list {
-  overflow-y: auto;
-  padding-right: 6px;
-  scrollbar-gutter: stable;
+.explorer-sidebar__track > .venue-card {
+  flex: 0 0 210px;
+  width: 210px;
 }
 
 .explorer-sidebar__list-head,
@@ -402,7 +411,7 @@ a {
 
 .venue-card:hover,
 .venue-card.is-active {
-  transform: translateX(4px);
+  transform: translateY(-4px);
   border-color: rgba(200, 144, 49, 0.28);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
@@ -848,28 +857,12 @@ a {
 }
 
 @media (max-width: 1320px) {
-  .explorer-topbar {
-    grid-template-columns: 1fr;
-  }
-
   .explorer-filterbar {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .explorer-content {
-    grid-template-columns: 280px minmax(320px, 1fr);
-    height: auto;
-    min-height: 1100px;
-  }
-
-  .explorer-detail {
-    border-right: 0;
-  }
-
-  .explorer-map {
-    grid-column: 1 / -1;
-    min-height: 620px;
-    border-top: 1px solid var(--line);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   }
 }
 
@@ -878,8 +871,14 @@ a {
     padding: 18px;
   }
 
+  .explorer-topbar {
+    grid-template-columns: 1fr;
+  }
+
   .explorer-content {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas: none;
     height: auto;
     min-height: auto;
     overflow: visible;
@@ -891,12 +890,30 @@ a {
     overflow: visible;
   }
 
-  .explorer-map {
-    min-height: 620px;
+  .explorer-detail {
+    border-top: 1px solid var(--line);
   }
 
-  .explorer-topnav {
-    flex-wrap: wrap;
+  .explorer-map {
+    min-height: 70vh;
+  }
+
+  .explorer-paneswitch {
+    display: inline-flex;
+    width: 100%;
+    margin: 4px 0 0;
+  }
+
+  .explorer-paneswitch .view-switch__button {
+    flex: 1 1 0;
+  }
+
+  .explorer-content.is-pane-map .explorer-detail {
+    display: none;
+  }
+
+  .explorer-content.is-pane-activities .explorer-map {
+    display: none;
   }
 
   .explorer-filterbar,
@@ -916,6 +933,11 @@ a {
 
   .view-switch__button {
     flex: 1 1 0;
+  }
+
+  .explorer-sidebar__track > .venue-card {
+    flex-basis: 180px;
+    width: 180px;
   }
 
   .table-shell {

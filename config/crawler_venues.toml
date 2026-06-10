@@ -12,7 +12,7 @@ enabled = true
 parser_script_name = "scripts/run_met_parser.py"
 batch_id = "batch_a"
 use_base_url = false
-args = ["--fetch", "--commit"]
+args = ["--fetch", "--commit", "--clear"]
 
 [[venues]]
 venue = "moma"
@@ -102,7 +102,7 @@ enabled = true
 parser_script_name = "scripts/run_mfa_parser.py"
 batch_id = "batch_a"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "danforth"
@@ -165,7 +165,7 @@ enabled = true
 parser_script_name = "scripts/run_ica_boston_parser.py"
 batch_id = "batch_c"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "harvard"
@@ -480,7 +480,7 @@ enabled = true
 parser_script_name = "scripts/run_dixon_parser.py"
 batch_id = "batch_d"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "yuag"
@@ -507,7 +507,7 @@ enabled = true
 parser_script_name = "scripts/run_florence_griswold_parser.py"
 batch_id = "batch_b"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "mocact"
@@ -516,7 +516,7 @@ enabled = true
 parser_script_name = "scripts/run_mocact_parser.py"
 batch_id = "batch_c"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "aldrich"
@@ -615,7 +615,7 @@ enabled = false
 parser_script_name = "scripts/run_va_tribe_bundle_parser.py"
 batch_id = "batch_a"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "va_html_bundle"
@@ -633,7 +633,7 @@ enabled = true
 parser_script_name = "scripts/run_wa_tribe_bundle_parser.py"
 batch_id = "batch_d"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "wa_html_bundle"
@@ -678,7 +678,7 @@ enabled = true
 parser_script_name = "scripts/run_academy_art_museum_parser.py"
 batch_id = "batch_d"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "bma"
@@ -750,7 +750,7 @@ enabled = true
 parser_script_name = "scripts/run_fl_tribe_bundle_parser.py"
 batch_id = "batch_b"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "fl_html_bundle"
@@ -786,7 +786,7 @@ enabled = true
 parser_script_name = "scripts/run_ga_tribe_bundle_parser.py"
 batch_id = "batch_a"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "ga_mec_bundle"
@@ -894,7 +894,7 @@ enabled = true
 parser_script_name = "scripts/run_columbus_museum_of_art_parser.py"
 batch_id = "batch_c"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "dayton_art_institute"
@@ -984,7 +984,7 @@ enabled = true
 parser_script_name = "scripts/run_al_bundle_parser.py"
 batch_id = "batch_c"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "ar_tribe_bundle"
@@ -993,7 +993,7 @@ enabled = true
 parser_script_name = "scripts/run_ar_tribe_bundle_parser.py"
 batch_id = "batch_d"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "ar_custom_calendar_bundle"
@@ -1290,7 +1290,7 @@ enabled = true
 parser_script_name = "scripts/run_milwaukee_art_museum_parser.py"
 batch_id = "batch_b"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "museum_of_wisconsin_art"
@@ -1326,7 +1326,7 @@ enabled = true
 parser_script_name = "scripts/run_nelson_atkins_parser.py"
 batch_id = "batch_a"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "crma"

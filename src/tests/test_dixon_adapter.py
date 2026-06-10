@@ -85,14 +85,17 @@ def test_dixon_parser_keeps_paid_and_recurring_art_programs() -> None:
     assert rows[0].is_free is False
     assert rows[0].age_min == 2
     assert rows[0].age_max == 4
+    assert rows[0].audience_segment == "kids"
 
     assert rows[1].activity_type == "workshop"
     assert rows[1].is_free is False
     assert rows[1].age_min == 10
     assert rows[1].age_max == 13
+    assert rows[1].audience_segment == "kids"
 
     assert rows[2].activity_type == "lecture"
     assert rows[2].is_free is True
+    assert rows[2].audience_segment == "adults"
 
 
 def test_dixon_parser_excludes_non_art_and_social_rows() -> None:
@@ -243,6 +246,45 @@ def test_dixon_parser_marks_plus_ages_and_excludes_garden_lectures() -> None:
                     </body></html>
                 """,
             },
+            {
+                "title": "Munch and Learn: Listening to Music in the Parisian Café",
+                "source_url": "https://www.dixon.org/events/event/102103/",
+                "listing_time_text": "12:00pm -1:00pm",
+                "instance_date": None,
+                "detail_html": """
+                    <html><body>
+                    <article class="relative">
+                      <h1>Munch and Learn: Listening to Music in the Parisian Café</h1>
+                      <div class="pt-4 border-t border-black/10">
+                        <p>A lecture about music in historic cafés.</p>
+                        <p>FREE</p>
+                      </div>
+                      <div class="space-y-p5"><a>Lectures</a></div>
+                      <time>April 22, 2026</time>
+                      <time>12:00pm -1:00pm</time>
+                    </article>
+                    </body></html>
+                """,
+            },
+            {
+                "title": "Munch and Learn | From the Forest to Your Floor",
+                "source_url": "https://www.dixon.org/events/event/102147/",
+                "listing_time_text": "12:00pm -1:00pm",
+                "instance_date": None,
+                "detail_html": """
+                    <html><body>
+                    <article class="relative">
+                      <h1>Munch and Learn | From the Forest to Your Floor</h1>
+                      <div class="pt-4 border-t border-black/10">
+                        <p>A lecture about timber and forestry.</p>
+                      </div>
+                      <div class="space-y-p5"><a>Lectures</a></div>
+                      <time>April 29, 2026</time>
+                      <time>12:00pm -1:00pm</time>
+                    </article>
+                    </body></html>
+                """,
+            },
         ]
     }
 
@@ -253,5 +295,7 @@ def test_dixon_parser_marks_plus_ages_and_excludes_garden_lectures() -> None:
         "Studio Courses with Creative Aging: Narrative Painting with Carol Buchman (ages 65+)",
     ]
     assert rows[0].age_min == 18
+    assert rows[0].audience_segment == "adults"
     assert rows[1].age_min == 65
     assert rows[1].registration_required is True
+    assert rows[1].audience_segment == "adults"

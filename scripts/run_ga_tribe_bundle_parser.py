@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from sqlalchemy import bindparam, delete, or_, select, text
 
@@ -23,32 +24,51 @@ from src.db.session import SessionLocal  # noqa: E402
 from src.models.activity import Activity, Source  # noqa: E402
 
 
-GA_TRIBE_SOURCE_URL_PREFIXES = get_ga_tribe_source_prefixes()
+def _source_match_values(venues: list) -> tuple[list[str], list[str], list[str]]:
+    source_names = [venue.source_name for venue in venues]
+    base_urls = [venue.list_url for venue in venues]
+    host_prefixes: list[str] = []
+
+    for venue in venues:
+        parsed = urlparse(venue.list_url)
+        if not parsed.scheme or not parsed.netloc:
+            continue
+        host_base_url = f"{parsed.scheme}://{parsed.netloc}"
+        base_urls.append(host_base_url)
+        source_names.append(parsed.netloc)
+        host_prefixes.append(f"{host_base_url}/")
+
+    return source_names, base_urls, host_prefixes
 
 
-def clear_ga_tribe_entries() -> dict[str, int]:
+def clear_ga_tribe_entries(*, venues: list | None = None) -> dict[str, int]:
+    venues_to_clear = list(venues) if venues is not None else list(GA_TRIBE_VENUES)
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
 
+    source_names, base_urls, host_prefixes = _source_match_values(venues_to_clear)
+
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in GA_TRIBE_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in venues_to_clear],
         )
 
-        source_ids = db.scalars(
-            select(Source.id).where(
-                or_(
-                    Source.base_url.in_([venue.list_url for venue in GA_TRIBE_VENUES]),
-                    Source.name.like("ga_tribe_%"),
-                    Source.name.in_([venue.source_name for venue in GA_TRIBE_VENUES]),
-                )
-            )
-        ).all()
+        source_filters = [
+            Source.adapter_type.in_(source_names),
+            Source.base_url.in_(base_urls),
+            Source.name.in_(source_names),
+        ]
+        source_filters.extend(Source.base_url.like(f"{prefix}%") for prefix in host_prefixes)
+        if len(venues_to_clear) == len(GA_TRIBE_VENUES):
+            source_filters.append(Source.name.like("ga_tribe_%"))
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in GA_TRIBE_SOURCE_URL_PREFIXES]
+        source_ids = db.scalars(select(Source.id).where(or_(*source_filters))).all()
+
+        url_prefixes = get_ga_tribe_source_prefixes(tuple(venues_to_clear))
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in url_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -113,7 +133,7 @@ async def main() -> None:
     selected_venues = list(GA_TRIBE_VENUES) if args.venue == "all" else [GA_TRIBE_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_ga_tribe_entries()
+        deleted = clear_ga_tribe_entries(venues=selected_venues)
         print(
             "Deleted GA Tribe rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -127,13 +147,20 @@ async def main() -> None:
     if args.clear and args.commit:
         print("Clear requested with --commit; deletion is deferred until non-empty parse is validated.")
 
+    payload = await load_ga_tribe_bundle_payload(
+        venues=selected_venues,
+        page_limit=args.page_limit,
+    )
+    events_by_slug = payload.get("events_by_slug") or {}
+    errors_by_slug = payload.get("errors_by_slug") or {}
+    venues_to_clear = [venue for venue in selected_venues if venue.slug not in errors_by_slug]
     clear_completed = False
 
     def _clear_before_commit() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_ga_tribe_entries()
+        deleted = clear_ga_tribe_entries(venues=venues_to_clear)
         print(
             "Deleted GA Tribe rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -142,13 +169,6 @@ async def main() -> None:
             f"sources={deleted['sources']}"
         )
         clear_completed = True
-
-    payload = await load_ga_tribe_bundle_payload(
-        venues=selected_venues,
-        page_limit=args.page_limit,
-    )
-    events_by_slug = payload.get("events_by_slug") or {}
-    errors_by_slug = payload.get("errors_by_slug") or {}
 
     targets: list[TargetRunSpec] = []
     for venue in selected_venues:

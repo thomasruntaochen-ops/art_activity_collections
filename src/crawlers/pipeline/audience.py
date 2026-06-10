@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import re
 
 AudienceSegment = str
 
@@ -66,6 +67,9 @@ _KIDS_MARKERS = (
     " families ",
     " youth ",
     " homeschool ",
+    " storytime ",
+    " story time ",
+    " picture book ",
 )
 _GENERAL_PUBLIC_ACTIVITY_MARKERS = (
     " art class ",
@@ -136,6 +140,8 @@ def infer_audience_segment_from_age(*, age_min: int | None, age_max: int | None)
         return AUDIENCE_ADULTS
     if age_min is not None and age_min >= 13 and (age_max is None or age_max <= 18):
         return AUDIENCE_TEENS
+    if age_min is not None and age_min <= 12 and age_max is not None and age_max <= 13:
+        return AUDIENCE_KIDS
     if age_max is not None and age_max <= 12:
         return AUDIENCE_KIDS
     return AUDIENCE_UNKNOWN
@@ -143,4 +149,5 @@ def infer_audience_segment_from_age(*, age_min: int | None, age_max: int | None)
 
 def _searchable_blob(*parts: object) -> str:
     text = " ".join(str(part) for part in parts if part)
-    return f" {' '.join(text.lower().split())} "
+    normalized = re.sub(r"[^a-z0-9+]+", " ", text.lower())
+    return f" {' '.join(normalized.split())} "

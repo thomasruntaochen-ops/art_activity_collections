@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from sqlalchemy import bindparam, delete, or_, select, text
 
@@ -23,32 +24,50 @@ from src.db.session import SessionLocal  # noqa: E402
 from src.models.activity import Activity, Source  # noqa: E402
 
 
-FL_TRIBE_SOURCE_URL_PREFIXES = get_fl_tribe_source_prefixes()
+def _source_match_values(venues: list) -> tuple[list[str], list[str], list[str]]:
+    source_names = [venue.source_name for venue in venues]
+    base_urls = [venue.list_url for venue in venues]
+    host_prefixes: list[str] = []
+
+    for venue in venues:
+        parsed = urlparse(venue.list_url)
+        if not parsed.scheme or not parsed.netloc:
+            continue
+        host_base_url = f"{parsed.scheme}://{parsed.netloc}"
+        base_urls.append(host_base_url)
+        source_names.append(parsed.netloc)
+        host_prefixes.append(f"{host_base_url}/")
+
+    return source_names, base_urls, host_prefixes
 
 
-def clear_fl_tribe_entries() -> dict[str, int]:
+def clear_fl_tribe_entries(*, venues: list | None = None) -> dict[str, int]:
+    venues_to_clear = list(venues) if venues is not None else list(FL_TRIBE_VENUES)
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
+    source_names, base_urls, host_prefixes = _source_match_values(venues_to_clear)
 
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in FL_TRIBE_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in venues_to_clear],
         )
 
-        source_ids = db.scalars(
-            select(Source.id).where(
-                or_(
-                    Source.base_url.in_([venue.list_url for venue in FL_TRIBE_VENUES]),
-                    Source.name.like("fl_tribe_%"),
-                    Source.name.in_([venue.source_name for venue in FL_TRIBE_VENUES]),
-                )
-            )
-        ).all()
+        source_filters = [
+            Source.adapter_type.in_(source_names),
+            Source.base_url.in_(base_urls),
+            Source.name.in_(source_names),
+        ]
+        source_filters.extend(Source.base_url.like(f"{prefix}%") for prefix in host_prefixes)
+        if len(venues_to_clear) == len(FL_TRIBE_VENUES):
+            source_filters.append(Source.name.like("fl_tribe_%"))
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in FL_TRIBE_SOURCE_URL_PREFIXES]
+        source_ids = db.scalars(select(Source.id).where(or_(*source_filters))).all()
+
+        url_prefixes = get_fl_tribe_source_prefixes(venues_to_clear)
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in url_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -123,7 +142,7 @@ async def main() -> None:
     )
 
     if args.clear and not args.commit:
-        deleted = clear_fl_tribe_entries()
+        deleted = clear_fl_tribe_entries(venues=selected_venues)
         print(
             "Deleted FL Tribe rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -138,12 +157,13 @@ async def main() -> None:
         print("Clear requested with --commit; deletion is deferred until non-empty parse is validated.")
 
     clear_completed = False
+    venues_to_clear = list(selected_venues)
 
     def _clear_before_commit() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_fl_tribe_entries()
+        deleted = clear_fl_tribe_entries(venues=venues_to_clear)
         print(
             "Deleted FL Tribe rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

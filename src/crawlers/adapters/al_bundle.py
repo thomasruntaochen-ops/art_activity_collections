@@ -20,6 +20,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -139,7 +140,12 @@ ALWAYS_REJECT_PATTERNS = (
     " fundraiser ",
     " fundraising ",
     " gala ",
+    " holiday market ",
+    " market ",
+    " member guest ",
+    " member-guest ",
     " members only opening reception ",
+    " open house ",
     " meditation ",
     " mindfulness ",
     " music ",
@@ -152,6 +158,7 @@ ALWAYS_REJECT_PATTERNS = (
     " reading ",
     " reception ",
     " sold out ",
+    " social ",
     " storytime ",
     " study day ",
     " support group events ",
@@ -530,14 +537,26 @@ def parse_al_events(payload: dict, *, venue: AlVenueConfig) -> list[ExtractedAct
 
 
 def get_al_source_prefixes() -> tuple[str, ...]:
+    return tuple(_iter_al_source_prefixes(AL_VENUES))
+
+
+def _iter_al_source_prefixes(
+    venues: tuple[AlVenueConfig, ...] | list[AlVenueConfig],
+) -> list[str]:
     prefixes: list[str] = []
-    for venue in AL_VENUES:
+    for venue in venues:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
         if venue.calendar_url:
             calendar_parsed = urlparse(venue.calendar_url)
             prefixes.append(f"{calendar_parsed.scheme}://{calendar_parsed.netloc}/")
-    return tuple(prefixes)
+    return prefixes
+
+
+def get_al_source_prefixes_for_venues(
+    venues: tuple[AlVenueConfig, ...] | list[AlVenueConfig],
+) -> tuple[str, ...]:
+    return tuple(_iter_al_source_prefixes(venues))
 
 
 def _parse_tribe_events(events: list[dict], *, venue: AlVenueConfig) -> list[ExtractedActivity]:
@@ -562,7 +581,7 @@ def _parse_tribe_events(events: list[dict], *, venue: AlVenueConfig) -> list[Ext
 
 
 def _build_tribe_row(event_obj: dict, *, venue: AlVenueConfig) -> ExtractedActivity | None:
-    title = _normalize_space(event_obj.get("title"))
+    title = _html_to_text(event_obj.get("title"))
     source_url = _normalize_space(event_obj.get("url"))
     start_at = _parse_datetime(event_obj.get("start_date"))
     if not title or not source_url or start_at is None:
@@ -590,6 +609,7 @@ def _build_tribe_row(event_obj: dict, *, venue: AlVenueConfig) -> ExtractedActiv
 
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
     amount = _extract_amount(event_obj.get("cost_details"))
+    activity_type = _infer_activity_type(token_blob)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -599,7 +619,7 @@ def _build_tribe_row(event_obj: dict, *, venue: AlVenueConfig) -> ExtractedActiv
         location_text=location_text,
         city=venue.city,
         state=venue.state,
-        activity_type=_infer_activity_type(token_blob),
+        activity_type=activity_type,
         age_min=age_min,
         age_max=age_max,
         drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
@@ -607,6 +627,15 @@ def _build_tribe_row(event_obj: dict, *, venue: AlVenueConfig) -> ExtractedActiv
         start_at=start_at,
         end_at=end_at,
         timezone=AL_TIMEZONE,
+        audience_segment=_infer_al_audience(
+            title=title,
+            description=description,
+            category=" ".join(category_names),
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+        ),
         **price_classification_kwargs_from_amount(amount, text=price_text or description),
     )
 
@@ -651,6 +680,7 @@ def _parse_birmingham_events(pages: list[str], *, venue: AlVenueConfig) -> list[
                 continue
             seen.add(key)
             age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
+            activity_type = _infer_activity_type(token_blob)
 
             rows.append(
                 ExtractedActivity(
@@ -661,7 +691,7 @@ def _parse_birmingham_events(pages: list[str], *, venue: AlVenueConfig) -> list[
                     location_text=venue.default_location,
                     city=venue.city,
                     state=venue.state,
-                    activity_type=_infer_activity_type(token_blob),
+                    activity_type=activity_type,
                     age_min=age_min,
                     age_max=age_max,
                     drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
@@ -669,6 +699,14 @@ def _parse_birmingham_events(pages: list[str], *, venue: AlVenueConfig) -> list[
                     start_at=start_at,
                     end_at=end_at,
                     timezone=AL_TIMEZONE,
+                    audience_segment=_infer_al_audience(
+                        title=title,
+                        description=description,
+                        source_url=source_url,
+                        age_min=age_min,
+                        age_max=age_max,
+                        activity_type=activity_type,
+                    ),
                     **price_classification_kwargs(description),
                 )
             )
@@ -719,6 +757,7 @@ def _parse_aeiva_events(html: str, *, venue: AlVenueConfig) -> list[ExtractedAct
             continue
         seen.add(key)
         age_min, age_max = _parse_age_range(" ".join([title, block_text]))
+        activity_type = _infer_activity_type(token_blob)
 
         rows.append(
             ExtractedActivity(
@@ -729,7 +768,7 @@ def _parse_aeiva_events(html: str, *, venue: AlVenueConfig) -> list[ExtractedAct
                 location_text=venue.default_location,
                 city=venue.city,
                 state=venue.state,
-                activity_type=_infer_activity_type(token_blob),
+                activity_type=activity_type,
                 age_min=age_min,
                 age_max=age_max,
                 drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
@@ -737,6 +776,14 @@ def _parse_aeiva_events(html: str, *, venue: AlVenueConfig) -> list[ExtractedAct
                 start_at=start_at,
                 end_at=end_at,
                 timezone=AL_TIMEZONE,
+                audience_segment=_infer_al_audience(
+                    title=title,
+                    description=block_text,
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                    activity_type=activity_type,
+                ),
                 **price_classification_kwargs(block_text),
             )
         )
@@ -904,6 +951,36 @@ def _infer_activity_type(token_blob: str) -> str:
     ):
         return "lecture"
     return "workshop"
+
+
+def _infer_al_audience(
+    *,
+    title: str,
+    description: str | None,
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str,
+    category: str | None = None,
+) -> str:
+    title_category_blob = _searchable_blob(" ".join([title, category or ""]))
+    full_blob = _searchable_blob(" ".join([title, description or "", category or ""]))
+    if " all ages " in full_blob:
+        return "all_ages"
+    if any(pattern in title_category_blob for pattern in (" teen ", " teens ")):
+        return "teens"
+    if any(pattern in title_category_blob for pattern in (" family ", " families ", " kids ", " youth ")):
+        return "kids"
+    if activity_type == "lecture":
+        return "adults"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category or activity_type,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
 
 def _parse_age_range(text: str) -> tuple[int | None, int | None]:

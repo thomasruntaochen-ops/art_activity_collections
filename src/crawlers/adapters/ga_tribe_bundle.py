@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -120,6 +121,28 @@ REGISTRATION_PATTERNS = (
 )
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE)
+TELFAIR_CLASS_CATEGORY_NAMES = {
+    "adult classes",
+    "youth classes",
+}
+TELFAIR_SEASONAL_CLASS_MARKERS = (
+    " spring ",
+    " summer ",
+    " fall ",
+    " winter ",
+    " session ",
+)
+TELFAIR_ADULT_MARKERS = (
+    " artist talk ",
+    " gallery talk ",
+    " lunch learn ",
+    " lecture ",
+    " lectures ",
+    " talk ",
+    " talks ",
+    " telfair contemporaries ",
+    " veterans ",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -295,7 +318,7 @@ class GaTribeBundleAdapter(BaseSourceAdapter):
 
 
 def _build_row(event_obj: dict, *, venue: GaTribeVenueConfig) -> ExtractedActivity | None:
-    title = _normalize_space(event_obj.get("title"))
+    title = _html_to_text(event_obj.get("title"))
     source_url = _normalize_space(event_obj.get("url"))
     start_at = _parse_datetime(event_obj.get("start_date"))
     if not title or not source_url or start_at is None:
@@ -318,6 +341,13 @@ def _build_row(event_obj: dict, *, venue: GaTribeVenueConfig) -> ExtractedActivi
 
     title_blob = _searchable_blob(" ".join([title, " ".join(category_names)]))
     token_blob = _searchable_blob(" ".join([title, description or "", " ".join(category_names)]))
+    if venue.slug == "telfair" and _should_reject_telfair_event(
+        title_blob=title_blob,
+        category_names=category_names,
+    ):
+        return None
+    if venue.slug == "booth" and _should_reject_booth_event(title_blob=title_blob):
+        return None
     if not _should_keep_event(title_blob=title_blob, token_blob=token_blob):
         return None
 
@@ -327,6 +357,16 @@ def _build_row(event_obj: dict, *, venue: GaTribeVenueConfig) -> ExtractedActivi
         text=price_text or description,
     )
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
+    audience_segment = _infer_ga_tribe_audience(
+        venue=venue,
+        title=title,
+        description=description,
+        category_names=category_names,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+        token_blob=token_blob,
+    )
 
     return ExtractedActivity(
         source_url=source_url,
@@ -346,6 +386,7 @@ def _build_row(event_obj: dict, *, venue: GaTribeVenueConfig) -> ExtractedActivi
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=audience_segment,
     )
 
 
@@ -366,6 +407,71 @@ def _should_keep_event(*, title_blob: str, token_blob: str) -> bool:
         return False
 
     return True
+
+
+def _should_reject_telfair_event(*, title_blob: str, category_names: list[str]) -> bool:
+    categories = {_normalize_space(name).lower() for name in category_names}
+    if categories.intersection(TELFAIR_CLASS_CATEGORY_NAMES):
+        return True
+    if " class " in title_blob and any(marker in title_blob for marker in TELFAIR_SEASONAL_CLASS_MARKERS):
+        return True
+    return False
+
+
+def _should_reject_booth_event(*, title_blob: str) -> bool:
+    if " summer class " in title_blob:
+        return True
+    if " cowgirl collective " in title_blob:
+        return True
+    return False
+
+
+def _infer_ga_tribe_audience(
+    *,
+    venue: GaTribeVenueConfig,
+    title: str,
+    description: str | None,
+    category_names: list[str],
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+    token_blob: str,
+) -> str:
+    category = " ".join(category_names)
+
+    if venue.slug == "booth":
+        if any(
+            marker in token_blob
+            for marker in (
+                " baa ",
+                " booth art academy ",
+                " workshop with artist ",
+                " with artist ",
+                " art for lunch ",
+                " visiting artist ",
+            )
+        ):
+            return "adults"
+
+    if venue.slug == "telfair":
+        category_blob = _searchable_blob(category)
+        if " all ages " in token_blob or " for all ages " in token_blob:
+            return "all_ages"
+        if " family program " in category_blob or " family " in token_blob or " families " in token_blob:
+            return "kids"
+        if " youth classes " in category_blob or " youth " in token_blob:
+            return "teens" if age_min is not None and age_min >= 13 else "kids"
+        if " adult classes " in category_blob or any(marker in token_blob for marker in TELFAIR_ADULT_MARKERS):
+            return "adults"
+
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
 
 def _searchable_blob(value: str) -> str:
@@ -397,6 +503,13 @@ def _extract_location_name(venue_obj: object) -> str | None:
 
 
 def _infer_activity_type(token_blob: str) -> str:
+    if " art for lunch " in token_blob:
+        return "lecture"
+    if any(
+        pattern in token_blob
+        for pattern in (" workshop ", " workshops ", " class ", " classes ", " studio ", " drawing ", " painting ")
+    ):
+        return "workshop"
     if any(
         pattern in token_blob
         for pattern in (" lecture ", " lectures ", " talk ", " talks ", " presentation ", " discussion ", " conversation ")
@@ -450,9 +563,12 @@ def _normalize_space(value: object) -> str:
     return " ".join(value.split())
 
 
-def get_ga_tribe_source_prefixes() -> tuple[str, ...]:
+def get_ga_tribe_source_prefixes(
+    venues: tuple[GaTribeVenueConfig, ...] | list[GaTribeVenueConfig] | None = None,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in GA_TRIBE_VENUES:
+    venues_to_use = list(venues) if venues is not None else list(GA_TRIBE_VENUES)
+    for venue in venues_to_use:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
     return tuple(prefixes)

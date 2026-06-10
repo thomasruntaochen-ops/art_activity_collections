@@ -273,6 +273,7 @@ def parse_met_events_html(
                 audience_segment=infer_audience_segment(
                     title=title,
                     description=normalized_description,
+                    source_url=source_url,
                     age_min=age_min,
                     age_max=age_max,
                     default=_default_audience_from_url(list_url),
@@ -371,6 +372,7 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
                     title=title,
                     description=description,
                     category=category_blob,
+                    source_url=url,
                     tags=audiences,
                     age_min=age_min,
                     age_max=age_max,

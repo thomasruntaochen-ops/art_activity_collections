@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from sqlalchemy import bindparam
 from sqlalchemy import delete
@@ -17,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.crawlers.adapters.al_bundle import AL_VENUES  # noqa: E402
 from src.crawlers.adapters.al_bundle import AL_VENUES_BY_SLUG  # noqa: E402
 from src.crawlers.adapters.al_bundle import get_al_source_prefixes  # noqa: E402
+from src.crawlers.adapters.al_bundle import get_al_source_prefixes_for_venues  # noqa: E402
 from src.crawlers.adapters.al_bundle import load_al_bundle_payload  # noqa: E402
 from src.crawlers.adapters.al_bundle import parse_al_events  # noqa: E402
 from src.crawlers.pipeline.clear_utils import lookup_venue_ids  # noqa: E402
@@ -31,35 +33,55 @@ from src.models.activity import Source  # noqa: E402
 AL_SOURCE_URL_PREFIXES = get_al_source_prefixes()
 
 
-def clear_al_bundle_entries() -> dict[str, int]:
+def _source_match_values(venues: list) -> tuple[list[str], list[str], list[str]]:
+    source_names = [venue.source_name for venue in venues]
+    base_urls = [venue.list_url for venue in venues]
+    host_prefixes: list[str] = []
+
+    for venue in venues:
+        for url in (venue.list_url, venue.calendar_url):
+            if not url:
+                continue
+            parsed = urlparse(url)
+            if not parsed.scheme or not parsed.netloc:
+                continue
+            host_base_url = f"{parsed.scheme}://{parsed.netloc}"
+            base_urls.append(host_base_url)
+            source_names.append(parsed.netloc)
+            host_prefixes.append(f"{host_base_url}/")
+
+    return source_names, base_urls, host_prefixes
+
+
+def clear_al_bundle_entries(*, venues: list | None = None) -> dict[str, int]:
+    venues_to_clear = list(venues) if venues is not None else list(AL_VENUES)
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
+    source_names, base_urls, host_prefixes = _source_match_values(venues_to_clear)
 
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in AL_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in venues_to_clear],
         )
 
-        source_ids = db.scalars(
-            select(Source.id).where(
-                or_(
-                    Source.adapter_type.in_([venue.source_name for venue in AL_VENUES]),
-                    Source.base_url.in_(
-                        sorted(
-                            {
-                                prefix.rstrip("/")
-                                for prefix in AL_SOURCE_URL_PREFIXES
-                            }
-                        )
-                    ),
-                )
+        source_filters = [
+            Source.adapter_type.in_(source_names),
+            Source.base_url.in_(base_urls),
+            Source.name.in_(source_names),
+        ]
+        source_filters.extend(Source.base_url.like(f"{prefix}%") for prefix in host_prefixes)
+        if len(venues_to_clear) == len(AL_VENUES):
+            source_filters.append(
+                Source.base_url.in_(sorted({prefix.rstrip("/") for prefix in AL_SOURCE_URL_PREFIXES}))
             )
-        ).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in AL_SOURCE_URL_PREFIXES]
+        source_ids = db.scalars(select(Source.id).where(or_(*source_filters))).all()
+
+        url_prefixes = get_al_source_prefixes_for_venues(tuple(venues_to_clear))
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in url_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -130,7 +152,7 @@ async def main() -> None:
     selected_venues = list(AL_VENUES) if args.venue == "all" else [AL_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_al_bundle_entries()
+        deleted = clear_al_bundle_entries(venues=selected_venues)
         print(
             "Deleted AL bundle rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -144,13 +166,20 @@ async def main() -> None:
     if args.clear and args.commit:
         print("Clear requested with --commit; deletion is deferred until non-empty parse is validated.")
 
+    bundle_payload = await load_al_bundle_payload(
+        venues=selected_venues,
+        page_limit=args.page_limit,
+    )
+    payload_by_slug = bundle_payload.get("payload_by_slug") or {}
+    errors_by_slug = bundle_payload.get("errors_by_slug") or {}
+    venues_to_clear = [venue for venue in selected_venues if venue.slug not in errors_by_slug]
     clear_completed = False
 
     def _clear_before_commit() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_al_bundle_entries()
+        deleted = clear_al_bundle_entries(venues=venues_to_clear)
         print(
             "Deleted AL bundle rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -159,13 +188,6 @@ async def main() -> None:
             f"sources={deleted['sources']}"
         )
         clear_completed = True
-
-    bundle_payload = await load_al_bundle_payload(
-        venues=selected_venues,
-        page_limit=args.page_limit,
-    )
-    payload_by_slug = bundle_payload.get("payload_by_slug") or {}
-    errors_by_slug = bundle_payload.get("errors_by_slug") or {}
 
     targets: list[TargetRunSpec] = []
     for venue in selected_venues:

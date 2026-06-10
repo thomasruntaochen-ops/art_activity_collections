@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
@@ -43,6 +44,7 @@ ALWAYS_EXCLUDE_PATTERNS = (
     " fundraiser ",
     " fundraising ",
     " gala ",
+    " gallery closed ",
     " market ",
     " meditation ",
     " mindfulness ",
@@ -54,11 +56,19 @@ ALWAYS_EXCLUDE_PATTERNS = (
     " poetry ",
     " reading ",
     " reception ",
+    " sensory friendly ",
+    " sensory-friendly ",
+    " soccer ",
     " storytime ",
     " story time ",
     " tour ",
     " tours ",
     " yoga ",
+    " closed ",
+    " closure ",
+    " closures ",
+    " fan zone ",
+    " low sensory ",
 )
 INCLUDE_PATTERNS = (
     " activity ",
@@ -70,6 +80,7 @@ INCLUDE_PATTERNS = (
     " conversations ",
     " creative aging ",
     " design yourself ",
+    " in the studio: ",
     " discussion ",
     " discussions ",
     " family ",
@@ -274,7 +285,7 @@ class WaTribeBundleAdapter(BaseSourceAdapter):
 
 
 def _build_row(event_obj: dict, *, venue: WaTribeVenueConfig) -> ExtractedActivity | None:
-    title = _normalize_space(event_obj.get("title"))
+    title = _html_to_text(event_obj.get("title"))
     source_url = _normalize_space(event_obj.get("url"))
     start_at = _parse_datetime(event_obj.get("start_date"))
     if not title or not source_url or start_at is None:
@@ -314,6 +325,13 @@ def _build_row(event_obj: dict, *, venue: WaTribeVenueConfig) -> ExtractedActivi
     amount = _extract_amount(event_obj.get("cost_details"))
     is_free, free_status = _price_classification(price_text=price_text, amount=amount, description=description)
     location_text = _extract_location_name(event_obj.get("venue")) or f"{venue.city}, {venue.state}"
+    audience_segment = _infer_wa_audience(
+        venue=venue,
+        title=title,
+        description=description,
+        category_names=category_names,
+        tag_names=tag_names,
+    )
 
     return ExtractedActivity(
         source_url=source_url,
@@ -333,6 +351,7 @@ def _build_row(event_obj: dict, *, venue: WaTribeVenueConfig) -> ExtractedActivi
         timezone=WA_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=audience_segment,
     )
 
 
@@ -348,9 +367,37 @@ def _price_classification(
     amount: Decimal | None,
     description: str | None,
 ) -> tuple[bool | None, str]:
-    if price_text and "included with admission" in price_text.lower():
-        return None, "uncertain"
-    return infer_price_classification_from_amount(amount, text=" | ".join(part for part in [price_text, description] if part))
+    text = " | ".join(part for part in [price_text, description] if part)
+    if "included with admission" in text.lower():
+        return False, "confirmed"
+    return infer_price_classification_from_amount(amount, text=text)
+
+
+def _infer_wa_audience(
+    *,
+    venue: WaTribeVenueConfig,
+    title: str,
+    description: str | None,
+    category_names: list[str],
+    tag_names: list[str],
+) -> str:
+    token_blob = _searchable_blob(" ".join([title, description or "", " ".join(category_names), " ".join(tag_names)]))
+    if venue.slug == "whatcom":
+        if " think & tinker " in token_blob or " think and tinker " in token_blob:
+            return "all_ages"
+        if (
+            " artist's corner " in token_blob
+            or " artist s corner " in token_blob
+            or " in the studio " in token_blob
+            or " in the studio: " in token_blob
+        ):
+            return "kids"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=" ".join(category_names),
+        tags=tag_names,
+    )
 
 
 def _extract_amount(cost_details: object) -> Decimal | None:
@@ -436,9 +483,12 @@ def _searchable_blob(value: str) -> str:
     return f" {' '.join(value.lower().split())} "
 
 
-def get_wa_tribe_source_prefixes() -> list[str]:
+def get_wa_tribe_source_prefixes(
+    venues: tuple[WaTribeVenueConfig, ...] | list[WaTribeVenueConfig] | None = None,
+) -> list[str]:
     prefixes: list[str] = []
-    for venue in WA_TRIBE_VENUES:
+    venues_to_use = list(venues) if venues is not None else list(WA_TRIBE_VENUES)
+    for venue in venues_to_use:
         parsed = urlparse(venue.list_url)
         if parsed.scheme and parsed.netloc:
             prefixes.append(f"{parsed.scheme}://{parsed.netloc}")

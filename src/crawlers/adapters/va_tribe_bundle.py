@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -29,6 +30,7 @@ DEFAULT_HEADERS = {
 INCLUDE_PATTERNS = (
     " activity ",
     " art ",
+    " artmaking ",
     " class ",
     " classes ",
     " conversation ",
@@ -38,11 +40,49 @@ INCLUDE_PATTERNS = (
     " kids ",
     " lab ",
     " lecture ",
+    " open studio ",
+    " painting ",
+    " presentation ",
     " student ",
     " students ",
     " talk ",
     " workshop ",
     " workshops ",
+)
+CHRYSLER_TITLE_EXCLUDE_PATTERNS = (
+    " mixtape first thursday ",
+    " summer intern ",
+    " teacher institute ",
+    " teacher two day workshop ",
+)
+CHRYSLER_CATEGORY_EXCLUDE_NAMES = {
+    "teacher professional development",
+    "zinnia",
+}
+KIDS_AUDIENCE_PATTERNS = (
+    " art babies ",
+    " camp art stars ",
+    " kids families ",
+    " kids family ",
+    " pre k ",
+    " pre k art play ",
+    " wonder wednesday ",
+)
+ALL_AGES_AUDIENCE_PATTERNS = (
+    " all ages ",
+    " for all ages ",
+    " second saturday open studio ",
+)
+ADULT_AUDIENCE_PATTERNS = (
+    " class ",
+    " classes ",
+    " glass studio ",
+    " glassblowing ",
+    " lecture ",
+    " masterclass ",
+    " open studio ",
+    " teacher ",
+    " workshop ",
 )
 HARD_EXCLUDE_PATTERNS = (
     " admission ",
@@ -90,6 +130,9 @@ STRICT_EXCLUDE_PATTERNS = (
     " tours ",
     " yoga ",
 )
+AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to|&#8211;)\s*(\d{1,2})\b", re.IGNORECASE)
+AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|\band up\b)", re.IGNORECASE)
+AGE_AND_UNDER_RE = re.compile(r"\bages?\s*(\d{1,2})\s*and under\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,7 +339,7 @@ class VaTribeBundleAdapter(BaseSourceAdapter):
 
 
 def _build_row(event_obj: dict, *, venue: VaTribeVenueConfig) -> ExtractedActivity | None:
-    title = _normalize_space(event_obj.get("title"))
+    title = _html_to_text(event_obj.get("title"))
     source_url = _normalize_space(event_obj.get("url"))
     start_at = _parse_datetime(event_obj.get("start_date"))
     if not title or not source_url or start_at is None:
@@ -318,6 +361,11 @@ def _build_row(event_obj: dict, *, venue: VaTribeVenueConfig) -> ExtractedActivi
 
     include_blob = " ".join([title, description or "", " ".join(category_names)]).lower()
     token_blob = _searchable_blob(include_blob)
+    if venue.slug == "chrysler" and _should_reject_chrysler_event(
+        title=title,
+        category_names=category_names,
+    ):
+        return None
     if any(pattern in token_blob for pattern in STRICT_EXCLUDE_PATTERNS):
         return None
     if any(pattern in token_blob for pattern in HARD_EXCLUDE_PATTERNS):
@@ -339,10 +387,22 @@ def _build_row(event_obj: dict, *, venue: VaTribeVenueConfig) -> ExtractedActivi
     if not any(pattern in token_blob for pattern in INCLUDE_PATTERNS):
         return None
 
+    age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
     amount = _extract_amount(event_obj.get("cost_details"))
-    is_free, free_status = infer_price_classification_from_amount(amount, text=price_text)
+    price_context = _pricing_text(" ".join(part for part in [price_text, description or ""] if part))
+    is_free, free_status = infer_price_classification_from_amount(amount, text=price_context)
     location_text = _extract_location_name(event_obj.get("venue")) or f"{venue.city}, {venue.state}"
     activity_type = _infer_activity_type(token_blob)
+    audience_segment = _infer_va_tribe_audience(
+        venue=venue,
+        title=title,
+        description=description,
+        category_names=category_names,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+        token_blob=token_blob,
+    )
 
     return ExtractedActivity(
         source_url=source_url,
@@ -353,15 +413,56 @@ def _build_row(event_obj: dict, *, venue: VaTribeVenueConfig) -> ExtractedActivi
         city=venue.city,
         state=venue.state,
         activity_type=activity_type,
-        age_min=None,
-        age_max=None,
+        age_min=age_min,
+        age_max=age_max,
         drop_in=(" drop-in " in token_blob or " drop in " in token_blob),
-        registration_required=(" register " in token_blob or " ticket " in token_blob),
+        registration_required=_infer_registration_required(token_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=audience_segment,
+    )
+
+
+def _should_reject_chrysler_event(*, title: str, category_names: list[str]) -> bool:
+    title_blob = _searchable_blob(title)
+    if any(pattern in title_blob for pattern in CHRYSLER_TITLE_EXCLUDE_PATTERNS):
+        return True
+    categories = {_normalize_space(name).lower() for name in category_names}
+    return bool(categories.intersection(CHRYSLER_CATEGORY_EXCLUDE_NAMES))
+
+
+def _infer_va_tribe_audience(
+    *,
+    venue: VaTribeVenueConfig,
+    title: str,
+    description: str | None,
+    category_names: list[str],
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+    token_blob: str,
+) -> str:
+    category = " ".join(category_names)
+
+    if venue.slug == "chrysler":
+        title_category_blob = _searchable_blob(" ".join(part for part in [title, category] if part))
+        if any(pattern in title_category_blob or pattern in token_blob for pattern in ALL_AGES_AUDIENCE_PATTERNS):
+            return "all_ages"
+        if any(pattern in title_category_blob or pattern in token_blob for pattern in KIDS_AUDIENCE_PATTERNS):
+            return "kids"
+        if any(pattern in title_category_blob for pattern in ADULT_AUDIENCE_PATTERNS):
+            return "adults"
+
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
     )
 
 
@@ -408,6 +509,38 @@ def _infer_activity_type(token_blob: str) -> str:
     return "workshop"
 
 
+def _infer_registration_required(token_blob: str) -> bool:
+    if (
+        " registration not required " in token_blob
+        or " no registration required " in token_blob
+        or " registration recommended " in token_blob
+    ):
+        return False
+    return (
+        " register " in token_blob
+        or " registration " in token_blob
+        or " ticket " in token_blob
+        or " tickets " in token_blob
+    )
+
+
+def _parse_age_range(text: str) -> tuple[int | None, int | None]:
+    match = AGE_RANGE_RE.search(text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    under_match = AGE_AND_UNDER_RE.search(text)
+    if under_match:
+        return None, int(under_match.group(1))
+    plus_match = AGE_PLUS_RE.search(text)
+    if plus_match:
+        return int(plus_match.group(1)), None
+    return None, None
+
+
+def _pricing_text(value: str) -> str:
+    return re.sub(r"[,.;:]", " ", value)
+
+
 def _parse_datetime(value: object) -> datetime | None:
     if not isinstance(value, str):
         return None
@@ -444,9 +577,12 @@ def _normalize_space(value: object) -> str:
     return " ".join(value.split())
 
 
-def get_va_tribe_source_prefixes() -> tuple[str, ...]:
+def get_va_tribe_source_prefixes(
+    venues: tuple[VaTribeVenueConfig, ...] | list[VaTribeVenueConfig] | None = None,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in VA_TRIBE_VENUES:
+    venues_to_use = list(venues) if venues is not None else list(VA_TRIBE_VENUES)
+    for venue in venues_to_use:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
     return tuple(prefixes)

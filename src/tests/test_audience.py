@@ -24,6 +24,15 @@ def test_infer_audience_segment_treats_general_classes_as_adult() -> None:
     assert infer_audience_segment(title="Drawing Workshop", description="A paid studio class.") == "adults"
 
 
+def test_infer_audience_segment_uses_url_path_tokens() -> None:
+    assert infer_audience_segment(source_url="https://example.org/events/family-programs/storytime") == "kids"
+    assert infer_audience_segment(source_url="https://example.org/events/teen-studio/drawing") == "teens"
+
+
+def test_infer_audience_segment_classifies_storytime_as_kids() -> None:
+    assert infer_audience_segment(title="Storytime at The Met Cloisters") == "kids"
+
+
 def test_infer_audience_segment_kids_default_can_be_overridden_by_teen_age_range() -> None:
     assert infer_audience_segment(title="Teen Studio", age_min=14, age_max=18, default="kids") == "teens"
 

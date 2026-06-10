@@ -15,6 +15,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -107,6 +108,7 @@ STRONG_EXCLUSION_MARKERS = (
     " storytime ",
     " tour ",
     " tours ",
+    " sold out ",
 )
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
 PAREN_AGE_RANGE_RE = re.compile(r"\((\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\)")
@@ -203,6 +205,13 @@ def parse_nelson_atkins_payload(payload: dict) -> list[ExtractedActivity]:
                 performance_status=performance_status,
             )
             age_min, age_max = _parse_age_range(" ".join(filter(None, [title, production_description])))
+            audience_segment = _infer_nelson_audience(
+                normalized_production_title=normalized_production_title,
+                title=title,
+                description=description,
+                age_min=age_min,
+                age_max=age_max,
+            )
 
             rows.append(
                 ExtractedActivity(
@@ -225,6 +234,7 @@ def parse_nelson_atkins_payload(payload: dict) -> list[ExtractedActivity]:
                     start_at=start_at,
                     end_at=None,
                     timezone=NELSON_ATKINS_TIMEZONE,
+                    audience_segment=audience_segment,
                     **price_classification_kwargs(
                         " ".join(filter(None, [title, production_title, production_description, performance_status])),
                         default_is_free=None,
@@ -421,6 +431,40 @@ def _infer_registration_required(text_blob: str) -> bool | None:
     ):
         return True
     return None
+
+
+def _infer_nelson_audience(
+    *,
+    normalized_production_title: str,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    production_blob = _searchable_blob(normalized_production_title)
+    if " free weekend fun " in production_blob or " youth and family events " in production_blob:
+        return "all_ages"
+    if " teen programs " in production_blob:
+        return "teens"
+    if " youth " in production_blob:
+        return "kids"
+    if any(
+        marker in production_blob
+        for marker in (
+            " adult programs ",
+            " adult studio classes ",
+            " library programs ",
+            " professional development ",
+        )
+    ):
+        return "adults"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=normalized_production_title,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
 
 def _parse_age_range(text: str) -> tuple[int | None, int | None]:
