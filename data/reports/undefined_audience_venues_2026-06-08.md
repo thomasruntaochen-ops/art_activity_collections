@@ -35,11 +35,11 @@ Undefined means `audience_segment = unknown` or `audience_segment IS NULL`.
 | ~~The Bass~~ fixed 2026-06-10: now 43 active rows, 0 undefined audience | Miami Beach | FL | 68 | 2026-04-04 | 2026-10-25 | 2026-06-03 |
 | ~~Tampa Museum of Art~~ fixed 2026-06-10: now 30 active rows, 0 undefined audience | Tampa | FL | 67 | 2026-04-08 | 2028-01-29 | 2026-06-03 |
 | ~~Institute of Contemporary Art / Boston~~ fixed 2026-06-10: now 26 active rows, 0 undefined audience | Boston | MA | 66 | 2026-04-04 | 2027-05-02 | 2026-06-03 |
-| Buffalo AKG Art Museum | Buffalo | NY | 65 | 2026-04-03 | 2026-09-12 | 2026-06-04 |
-| Peabody Essex Museum | Salem | MA | 52 | 2026-04-04 | 2026-08-11 | 2026-06-03 |
-| Memorial Art Gallery | Rochester | NY | 44 | 2026-06-02 | 2027-02-27 | 2026-06-03 |
-| The Newark Museum of Art | Newark | NJ | 39 | 2026-04-04 | 2026-06-28 | 2026-04-08 |
-| New Bedford Art Museum | New Bedford | MA | 38 | 2026-04-03 | 2026-08-26 | 2026-06-02 |
+| ~~Buffalo AKG Art Museum~~ fixed 2026-06-10: now 41 active rows, 0 undefined audience | Buffalo | NY | 65 | 2026-04-03 | 2026-09-12 | 2026-06-04 |
+| ~~Peabody Essex Museum~~ fixed 2026-06-10: now 27 active rows, 0 undefined audience | Salem | MA | 52 | 2026-04-04 | 2026-08-11 | 2026-06-03 |
+| ~~Memorial Art Gallery~~ fixed 2026-06-10: now 41 active rows, 0 undefined audience | Rochester | NY | 44 | 2026-06-02 | 2027-02-27 | 2026-06-03 |
+| ~~The Newark Museum of Art~~ fixed 2026-06-10: now 6 active rows, 0 undefined audience | Newark | NJ | 39 | 2026-04-04 | 2026-06-28 | 2026-04-08 |
+| ~~New Bedford Art Museum~~ fixed 2026-06-10: now 10 active rows, 0 undefined audience | New Bedford | MA | 38 | 2026-04-03 | 2026-08-26 | 2026-06-02 |
 | Portland Art Museum | Portland | OR | 37 | 2026-04-12 | 2026-09-17 | 2026-06-03 |
 | Dallas Museum of Art | Dallas | TX | 37 | 2026-06-05 | 2026-09-14 | 2026-06-04 |
 | Walters Art Museum | Baltimore | MD | 36 | 2026-04-03 | 2026-08-20 | 2026-06-02 |

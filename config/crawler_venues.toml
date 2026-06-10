@@ -39,7 +39,7 @@ enabled = true
 parser_script_name = "scripts/run_buffalo_akg_parser.py"
 batch_id = "batch_d"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "elmuseo"
@@ -75,7 +75,7 @@ enabled = true
 parser_script_name = "scripts/run_mag_parser.py"
 batch_id = "batch_c"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "parrish"
@@ -120,7 +120,7 @@ enabled = true
 parser_script_name = "scripts/run_pem_parser.py"
 batch_id = "batch_c"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "worcester"
@@ -192,7 +192,7 @@ enabled = true
 parser_script_name = "scripts/run_new_bedford_parser.py"
 batch_id = "batch_a"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "byu_moa"
@@ -597,7 +597,7 @@ enabled = true
 parser_script_name = "scripts/run_newark_parser.py"
 batch_id = "batch_a"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "zimmerli"

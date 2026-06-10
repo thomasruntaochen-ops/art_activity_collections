@@ -2,7 +2,7 @@
 
 import L, { type LayerGroup, type Map as LeafletMap, type TileLayer } from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { resolveVenueCoordinates } from "../lib/venue-map-data";
+import { resolveVenueCoordinates, type ResolvedVenueCoordinates } from "../lib/venue-map-data";
 import { VenueSummary } from "../lib/types";
 
 type Props = {
@@ -12,6 +12,15 @@ type Props = {
   onSelectVenue: (venueName: string) => void;
 };
 
+// When a venue is selected we nudge in to this zoom instead of diving all the way
+// to street level, so neighbouring venues stay on screen for context.
+const FOCUS_MIN_ZOOM = 8;
+const SELECTED_ACCENT = "#1a73e8";
+
+// The default, fully zoomed-out view of the continental US.
+const USA_CENTER: [number, number] = [39.8283, -98.5795];
+const USA_ZOOM = 4;
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -19,6 +28,27 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function formatNextActivity(iso: string | null): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function buildVenueSummaryHtml(venue: ResolvedVenueCoordinates): string {
+  const location = [venue.venue_city, venue.venue_state].filter(Boolean).join(", ") || "Location pending";
+  const programs = `${venue.activity_count} live ${venue.activity_count === 1 ? "program" : "programs"}`;
+  const next = formatNextActivity(venue.next_activity_at);
+  return [
+    `<strong class="venue-map__summary-name">${escapeHtml(venue.venue_name)}</strong>`,
+    `<span class="venue-map__summary-location">${escapeHtml(location)}</span>`,
+    `<span class="venue-map__summary-count">${escapeHtml(programs)}</span>`,
+    next ? `<span class="venue-map__summary-next">Next: ${escapeHtml(next)}</span>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
 }
 
 export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenue }: Props) {
@@ -101,7 +131,7 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
 
       primaryTiles.addTo(map);
 
-      map.setView([39.8283, -98.5795], 4);
+      map.setView(USA_CENTER, USA_ZOOM);
       mapRef.current = map;
       markersRef.current = L.layerGroup().addTo(map);
       primaryTilesRef.current = primaryTiles;
@@ -147,35 +177,36 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
     resolvedVenues.forEach((venue) => {
       const isSelected = venue.venue_name === selectedVenueName;
       const halo = L.circleMarker([venue.resolvedLat, venue.resolvedLng], {
-        radius: isSelected ? 16 : 9,
-        color: isSelected ? "rgba(26, 115, 232, 0.20)" : "rgba(26, 115, 232, 0.08)",
-        fillColor: isSelected ? "rgba(26, 115, 232, 0.20)" : "rgba(26, 115, 232, 0.08)",
-        fillOpacity: isSelected ? 0.24 : 0.08,
+        radius: isSelected ? 18 : 9,
+        color: isSelected ? "rgba(26, 115, 232, 0.22)" : "rgba(26, 115, 232, 0.08)",
+        fillColor: isSelected ? "rgba(26, 115, 232, 0.22)" : "rgba(26, 115, 232, 0.08)",
+        fillOpacity: isSelected ? 0.28 : 0.08,
         weight: 0,
         interactive: false,
       });
       const marker = L.circleMarker([venue.resolvedLat, venue.resolvedLng], {
-        radius: isSelected ? 7.5 : 5,
+        radius: isSelected ? 9.5 : 5,
         color: "#ffffff",
-        fillColor: isSelected ? "#1a73e8" : "#5f87c7",
+        fillColor: isSelected ? SELECTED_ACCENT : "#5f87c7",
         fillOpacity: 1,
-        weight: isSelected ? 2 : 1.25,
+        weight: isSelected ? 2.5 : 1.25,
       });
 
-      marker.bindTooltip(escapeHtml(venue.venue_name), {
-        direction: "top",
-        offset: [0, -10],
-        opacity: 0.98,
-        className: isSelected ? "venue-map__tooltip is-selected" : "venue-map__tooltip",
-      });
-      marker.bindPopup(
-        [
-          `<strong>${escapeHtml(venue.venue_name)}</strong>`,
-          escapeHtml([venue.venue_city, venue.venue_state].filter(Boolean).join(", ") || "Location pending"),
-          escapeHtml(`${venue.activity_count} live programs`),
-          escapeHtml(venue.usesStoredCoordinates ? "Using stored coordinates" : "Using fallback coordinates"),
-        ].join("<br />"),
-      );
+      if (isSelected) {
+        marker.bindPopup(buildVenueSummaryHtml(venue), {
+          className: "venue-map__summary",
+          offset: [0, -8],
+          autoPan: false,
+          closeButton: true,
+        });
+      } else {
+        marker.bindTooltip(escapeHtml(venue.venue_name), {
+          direction: "top",
+          offset: [0, -10],
+          opacity: 0.98,
+          className: "venue-map__tooltip",
+        });
+      }
 
       marker.on("click", () => {
         onSelectVenue(venue.venue_name);
@@ -186,13 +217,17 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
       bounds.extend([venue.resolvedLat, venue.resolvedLng]);
 
       if (isSelected) {
-        marker.openTooltip();
         marker.bringToFront();
+        // Surface the venue summary in the highlighted dot once the user has
+        // actively picked it; on the initial "fit" view we just keep it red.
+        if (viewportMode === "focus") {
+          marker.openPopup();
+        }
       }
     });
 
     if (resolvedVenues.length === 0) {
-      map.setView([39.8283, -98.5795], 4);
+      map.setView(USA_CENTER, USA_ZOOM);
       return;
     }
 
@@ -208,11 +243,20 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
     }
 
     if (selectedVenue) {
-      map.flyTo([selectedVenue.resolvedLat, selectedVenue.resolvedLng], Math.max(map.getZoom(), 15), {
+      // Nudge in just enough to centre the pick without dropping its neighbours.
+      const nextZoom = Math.max(map.getZoom(), FOCUS_MIN_ZOOM);
+      map.flyTo([selectedVenue.resolvedLat, selectedVenue.resolvedLng], nextZoom, {
         duration: 0.45,
       });
     }
   }, [onSelectVenue, resolvedVenues, selectedVenueName, viewportMode]);
+
+  function handleResetView() {
+    const map = mapRef.current;
+    if (!map) return;
+    map.closePopup();
+    map.flyTo(USA_CENTER, USA_ZOOM, { duration: 0.6 });
+  }
 
   if (resolvedVenues.length === 0) {
     return <div className="venue-map__loading">No venues available for the current filter.</div>;
@@ -221,6 +265,16 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
   return (
     <div className="venue-map">
       <div ref={setContainerNode} className="venue-map__canvas" />
+      <button
+        type="button"
+        className="venue-map__reset"
+        onClick={handleResetView}
+        title="Zoom out to the entire US"
+        aria-label="Zoom out to the entire US"
+      >
+        <span aria-hidden="true">⤢</span>
+        View entire US
+      </button>
       {mapInitError ? <div className="venue-map__notice">Map failed to initialize: {mapInitError}</div> : null}
       {mapNotice ? <div className="venue-map__notice">{mapNotice}</div> : null}
     </div>

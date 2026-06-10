@@ -7,6 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -199,7 +200,14 @@ def parse_newark_events_html(html: str, *, list_url: str) -> list[ExtractedActiv
 
         description = " | ".join(part for part in [f"Tags: {terms}" if terms else None, date_text] if part)
         age_min, age_max = _parse_age_range(" ".join(part for part in [title, description] if part))
-        is_free, free_status = infer_price_classification(description)
+        is_free, free_status = infer_price_classification(description, default_is_free=False)
+        audience_segment = _infer_audience_segment(
+            title=title,
+            description=description,
+            terms=terms,
+            age_min=age_min,
+            age_max=age_max,
+        )
 
         key = (source_url, title, start_at)
         if key in seen:
@@ -227,6 +235,7 @@ def parse_newark_events_html(html: str, *, list_url: str) -> list[ExtractedActiv
                 timezone=NY_TIMEZONE,
                 is_free=is_free,
                 free_verification_status=free_status,
+                audience_segment=audience_segment,
             )
         )
 
@@ -334,6 +343,28 @@ def _infer_activity_type(text: str) -> str:
     if _has_any_keywords(text, ("workshop", "class", "lab", "artmaking")):
         return "workshop"
     return "activity"
+
+
+def _infer_audience_segment(
+    *,
+    title: str,
+    description: str | None,
+    terms: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = " ".join(part for part in [title, description or "", terms or ""] if part).lower()
+    if "educator" in blob:
+        return "adults"
+
+    segment = infer_audience_segment(
+        title=title,
+        description=description,
+        tags=(terms or "").split(),
+        age_min=age_min,
+        age_max=age_max,
+    )
+    return segment if segment != "unknown" else "adults"
 
 
 def _has_any_keywords(text: str, keywords: tuple[str, ...]) -> bool:

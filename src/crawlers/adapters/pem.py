@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -58,6 +59,8 @@ INCLUDE_PATTERNS = (
     " workshops ",
 )
 STRICT_EXCLUDE_PATTERNS = (
+    " brunch ",
+    " business owners ",
     " camp ",
     " camps ",
     " concert ",
@@ -72,8 +75,10 @@ STRICT_EXCLUDE_PATTERNS = (
     " reception ",
     " sound bath ",
     " storytime ",
+    " town hall ",
     " tour ",
     " tours ",
+    " networking ",
 )
 
 
@@ -236,6 +241,12 @@ def _build_row_from_event_obj(*, event_obj: dict, detail_html: str | None) -> Ex
     location_text = _build_location_text(event_obj.get("location")) or PEM_DEFAULT_LOCATION
     if " virtual " in token_blob or " online " in token_blob:
         location_text = "Online"
+    audience_segment = _infer_audience_segment(
+        title=title,
+        description=description,
+        source_url=source_url,
+        token_blob=token_blob,
+    )
 
     return ExtractedActivity(
         source_url=source_url,
@@ -253,6 +264,7 @@ def _build_row_from_event_obj(*, event_obj: dict, detail_html: str | None) -> Ex
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
+        audience_segment=audience_segment,
         **price_classification_kwargs_from_amount(offer_amount, text=description),
     )
 
@@ -317,6 +329,31 @@ def _infer_activity_type(token_blob: str) -> str:
     if any(keyword in token_blob for keyword in (" lecture ", " talk ", " conversation ", " discussion ", " panel ")):
         return "lecture"
     return "workshop"
+
+
+def _infer_audience_segment(
+    *,
+    title: str,
+    description: str | None,
+    source_url: str,
+    token_blob: str,
+) -> str:
+    normalized_title = title.lower().replace(":", " ")
+    normalized_blob = token_blob.replace("!", " ").replace(".", " ")
+    if (
+        "drop-in art" in normalized_title
+        or "drop in art" in normalized_title
+        or " free art making " in normalized_blob
+        or normalized_title in {"juneteenth", "north shore pride"}
+    ):
+        return "all_ages"
+
+    segment = infer_audience_segment(
+        title=title,
+        description=description,
+        source_url=source_url,
+    )
+    return segment if segment != "unknown" else "adults"
 
 
 def _parse_datetime(value: object) -> datetime | None:

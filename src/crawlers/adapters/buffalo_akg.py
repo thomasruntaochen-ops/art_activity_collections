@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -81,7 +82,10 @@ EXCLUDE_KEYWORDS = (
     "film",
     "fundraiser",
     "fundraising",
+    "jazz",
     "meet and greet",
+    "meditation",
+    "mindfulness",
     "music",
     "orchestra",
     "performance",
@@ -90,6 +94,7 @@ EXCLUDE_KEYWORDS = (
     "public tour",
     "public tours",
     "recipe card",
+    "reading",
     "reception",
     "requiem",
     "rockin",
@@ -244,6 +249,7 @@ def parse_buffalo_akg_payload(payload: dict) -> list[ExtractedActivity]:
         ).lower()
         age_min, age_max = _parse_age_range(" ".join(filter(None, [detail["title"], detail.get("description")])))
         is_free, free_status = infer_price_classification(detail.get("price_text"))
+        audience_segment = _infer_audience_segment(detail=detail, age_min=age_min, age_max=age_max)
 
         rows.append(
             ExtractedActivity(
@@ -264,6 +270,7 @@ def parse_buffalo_akg_payload(payload: dict) -> list[ExtractedActivity]:
                 timezone=NY_TIMEZONE,
                 is_free=is_free,
                 free_verification_status=free_status,
+                audience_segment=audience_segment,
             )
         )
 
@@ -413,10 +420,31 @@ def _should_include_event(*, listing: dict | None, detail: dict) -> bool:
         return False
     if any(keyword in title_blob for keyword in EXCLUDE_KEYWORDS):
         return False
-    if any(keyword in blob for keyword in ("musical performance", "poetry workshop", "poet laureate", "yoga")):
+    if any(
+        keyword in blob
+        for keyword in (
+            "musical performance",
+            "poetry workshop",
+            "poet laureate",
+            "reading invasion",
+            "yoga",
+        )
+    ):
         return False
 
     return any(keyword in blob for keyword in INCLUDE_KEYWORDS)
+
+
+def _infer_audience_segment(*, detail: dict, age_min: int | None, age_max: int | None) -> str:
+    segment = infer_audience_segment(
+        title=detail["title"],
+        description=detail.get("description"),
+        source_url=detail.get("source_url"),
+        tags=detail.get("category_tags") or (),
+        age_min=age_min,
+        age_max=age_max,
+    )
+    return segment if segment != "unknown" else "adults"
 
 
 def _infer_activity_type(text_blob: str) -> str:

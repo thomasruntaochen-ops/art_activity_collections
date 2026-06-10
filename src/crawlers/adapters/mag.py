@@ -1,12 +1,14 @@
 import asyncio
 from datetime import datetime
 from decimal import Decimal
+from html import unescape
 
 import httpx
 from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -201,6 +203,13 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
     is_free, free_status = infer_price_classification_from_amount(amount, text=price_text)
     location_name = _extract_location_name(event_obj.get("venue"))
     activity_type = _infer_activity_type(include_blob)
+    audience_segment = _infer_audience_segment(
+        title=title,
+        description=description,
+        category_names=category_names,
+        age_min=None,
+        age_max=None,
+    )
 
     return ExtractedActivity(
         source_url=source_url,
@@ -220,6 +229,7 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=audience_segment,
     )
 
 
@@ -254,6 +264,24 @@ def _infer_activity_type(text_blob: str) -> str:
     return "workshop"
 
 
+def _infer_audience_segment(
+    *,
+    title: str,
+    description: str | None,
+    category_names: list[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    segment = infer_audience_segment(
+        title=title,
+        description=description,
+        tags=category_names,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    return segment if segment != "unknown" else "adults"
+
+
 def _parse_datetime(value: object) -> datetime | None:
     if not isinstance(value, str):
         return None
@@ -280,4 +308,4 @@ def _html_to_text(value: object) -> str:
 def _normalize_space(value: object) -> str:
     if not isinstance(value, str):
         return ""
-    return " ".join(value.split())
+    return " ".join(unescape(value).split())

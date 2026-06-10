@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 from bs4 import NavigableString
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -52,6 +53,7 @@ MONTH_NAMES = (
 MONTH_PATTERN = "|".join(MONTH_NAMES)
 TITLE_EXCLUDE_PATTERNS = (
     "artreads",
+    "movement at the museum",
     "poetry",
     "yoga",
     "vacation art program",
@@ -63,6 +65,8 @@ TEXT_EXCLUDE_PATTERNS = (
     " yoga ",
     " meditation ",
     " mindfulness ",
+    " music ",
+    " performance ",
     " camp ",
 )
 INCLUDE_PATTERNS = (
@@ -292,6 +296,13 @@ def _build_rows(entry: dict[str, str], detail_page: dict) -> list[ExtractedActiv
     description = _build_description(lines)
     if entry.get("section"):
         description = _join_non_empty([description, f"Section: {entry['section']}"])
+    audience_segment = _infer_audience_segment(
+        title=title,
+        description=description,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
     rows: list[ExtractedActivity] = []
     for occurrence_date in occurrence_starts:
@@ -318,6 +329,7 @@ def _build_rows(entry: dict[str, str], detail_page: dict) -> list[ExtractedActiv
                 timezone=NEW_BEDFORD_TIMEZONE,
                 is_free=is_free,
                 free_verification_status=free_status,
+                audience_segment=audience_segment,
             )
         )
 
@@ -534,6 +546,24 @@ def _infer_activity_type(keyword_blob: str) -> str:
     if " workshop " in keyword_blob or " printmaking " in keyword_blob:
         return "workshop"
     return "class"
+
+
+def _infer_audience_segment(
+    *,
+    title: str,
+    description: str | None,
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    segment = infer_audience_segment(
+        title=title,
+        description=description,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    return segment if segment != "unknown" else "adults"
 
 
 def _extract_lines(html: str) -> list[str]:
