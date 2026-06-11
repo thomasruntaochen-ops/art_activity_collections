@@ -30,6 +30,19 @@ source ~/.zshrc
 
 cd "$PROJECT_DIR"
 
+# ── Single-run lock ──────────────────────────────────────────────────────────
+# Two crawler runs hitting the same DB concurrently race on an unguarded insert
+# and create duplicate sources/venues/activities (see scripts/dedupe_venues.py).
+# `mkdir` is atomic and portable (macOS has no `flock`); the lock is keyed by the
+# target DB so unrelated databases don't block each other.
+LOCK_DIR="$LOG_DIR/.crawler-${MYSQL_HOST:-local}-${MYSQL_PORT:-3306}.lock"
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "ERROR: another crawler run is active for ${MYSQL_HOST:-local}:${MYSQL_PORT:-3306} ($LOCK_DIR)." >&2
+  echo "       Exiting to avoid duplicate ingestion. Remove the lock dir if it is stale." >&2
+  exit 1
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+
 TIMESTAMP="$(date '+%Y-%m-%dT%H:%M:%S')"
 if [[ -n "$BATCH_ID" ]]; then
   LOG_FILE="$LOG_DIR/crawler_local_${BATCH_ID}_${TIMESTAMP}.log"

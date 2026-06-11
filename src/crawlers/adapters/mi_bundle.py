@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -555,6 +556,7 @@ def _parse_grand_rapids_events(payload: dict, *, venue: MiVenueConfig) -> list[E
 
             price_text = " | ".join(part for part in (category_text, cost_text, combined_description or "") if part)
             is_free, free_status = infer_price_classification(price_text, default_is_free=None)
+            age_min, age_max = _parse_age_range(combined_description)
 
             rows.append(
                 ExtractedActivity(
@@ -566,8 +568,15 @@ def _parse_grand_rapids_events(payload: dict, *, venue: MiVenueConfig) -> list[E
                     city=venue.city,
                     state=venue.state,
                     activity_type=_activity_type_for_text(title=title, description=combined_description),
-                    age_min=None,
-                    age_max=None,
+                    age_min=age_min,
+                    age_max=age_max,
+                    audience_segment=_infer_grand_rapids_audience(
+                        title=title,
+                        description=combined_description,
+                        category_text=category_text,
+                        age_min=age_min,
+                        age_max=age_max,
+                    ),
                     drop_in=_contains_any(_normalize_for_match(f"{title} {combined_description or ''}"), (" drop in ", " drop-in ")),
                     registration_required=_registration_required_for_text(title=title, description=combined_description),
                     start_at=card_info["start_at"],
@@ -1079,6 +1088,30 @@ def _should_keep_grand_rapids_event(*, title: str, description: str | None, cate
     if _contains_any(blob, (" adult workshop ", " artist talk ", " gallery chat ", " drop-in studio ", " creativity lab ", " art journaling ")):
         return True
     return _contains_any(blob, (" workshop ", " talk ", " lecture ", " class ", " chat ", " activity "))
+
+
+def _infer_grand_rapids_audience(
+    *,
+    title: str,
+    description: str | None,
+    category_text: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _normalize_for_match(" ".join(part for part in (title, description or "", category_text or "") if part))
+    if _contains_any(blob, (" artist talk ", " speaker series ", " in conversation ", " audience q a ", " audience q&a ")):
+        return "adults"
+    if _contains_any(blob, (" drop-in studio ", " drop in studio ", " creativity lab ", " open to individuals of all ages ", " all ages ")):
+        return "all_ages"
+    if _contains_any(blob, (" adult workshop ", " young professionals ", " craft night ", " cash bar ")):
+        return "adults"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category_text,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
 
 def _should_keep_msu_broad_event(*, title: str, description: str | None, category_text: str | None) -> bool:

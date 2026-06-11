@@ -45,11 +45,11 @@ Undefined means `audience_segment = unknown` or `audience_segment IS NULL`.
 | ~~Walters Art Museum~~ fixed 2026-06-10: now 11 active rows, 0 undefined audience | Baltimore | MD | 36 | 2026-04-03 | 2026-08-20 | 2026-06-02 |
 | ~~Knoxville Museum of Art~~ fixed 2026-06-10: now 19 active rows, 0 undefined audience | Knoxville | TN | 36 | 2026-04-12 | 2027-05-09 | 2026-06-02 |
 | ~~Montgomery Museum of Fine Arts~~ fixed 2026-06-10: now 10 active rows, 0 undefined audience | Montgomery | AL | 35 | 2026-04-11 | 2026-09-18 | 2026-06-03 |
-| Grand Rapids Art Museum | Grand Rapids | MI | 33 | 2026-04-04 | 2026-09-12 | 2026-06-04 |
-| Albrecht-Kemper Museum of Art | St. Joseph | MO | 33 | 2026-04-07 | 2026-12-05 | 2026-06-04 |
-| Yellowstone Art Museum | Billings | MT | 32 | 2026-06-03 | 2026-08-06 | 2026-06-03 |
-| Oklahoma City Museum of Art | Oklahoma City | OK | 30 | 2026-04-10 | 2026-12-12 | 2026-06-03 |
-| Cedar Rapids Museum of Art | Cedar Rapids | IA | 28 | 2026-04-16 | 2026-11-22 | 2026-06-03 |
+| ~~Grand Rapids Art Museum~~ fixed 2026-06-11: now 26 active rows, 0 undefined audience | Grand Rapids | MI | 33 | 2026-04-04 | 2026-09-12 | 2026-06-04 |
+| ~~Albrecht-Kemper Museum of Art~~ fixed 2026-06-11: now 14 active rows, 0 undefined audience | St. Joseph | MO | 33 | 2026-04-07 | 2026-12-05 | 2026-06-04 |
+| ~~Yellowstone Art Museum~~ fixed 2026-06-11: now 14 active rows, 0 undefined audience | Billings | MT | 32 | 2026-06-03 | 2026-08-06 | 2026-06-03 |
+| ~~Oklahoma City Museum of Art~~ fixed 2026-06-11: now 13 active rows, 0 undefined audience | Oklahoma City | OK | 30 | 2026-04-10 | 2026-12-12 | 2026-06-03 |
+| ~~Cedar Rapids Museum of Art~~ fixed 2026-06-11: now 15 active rows, 0 undefined audience | Cedar Rapids | IA | 28 | 2026-04-16 | 2026-11-22 | 2026-06-03 |
 | Harvard Art Museums | Cambridge | MA | 28 | 2026-04-03 | 2026-08-18 | 2026-06-04 |
 | Louisiana Art & Science Museum | Baton Rouge | LA | 27 | 2026-04-11 | 2026-06-28 | 2026-06-03 |
 | Virginia Museum of Contemporary Art | Virginia Beach | VA | 27 | 2026-04-18 | 2026-08-06 | 2026-03-18 |

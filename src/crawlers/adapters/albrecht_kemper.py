@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -65,8 +66,8 @@ HARD_EXCLUDE_PATTERNS = (
     " tea ",
     " vendor ",
 )
-AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|to|\u2013)\s*(\d{1,2})\b", re.IGNORECASE)
-AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\+\b", re.IGNORECASE)
+AGE_RANGE_RE = re.compile(r"\bages?\s*:?\s*(\d{1,2})\s*(?:-|to|\u2013)\s*(\d{1,2})\b", re.IGNORECASE)
+AGE_PLUS_RE = re.compile(r"\bages?\s*:?\s*(\d{1,2})\+\b", re.IGNORECASE)
 
 
 async def fetch_albrecht_kemper_events_page(
@@ -148,6 +149,7 @@ def _build_row(article, *, list_url: str) -> ExtractedActivity | None:
     categories = [_normalize_space(node.get_text(" ", strip=True)) for node in article.select(".eventlist-cats a")]
     categories = [value for value in categories if value]
     description = _normalize_space(_html_to_text(article.select_one(".eventlist-excerpt")))
+    article_text = _normalize_space(article.get_text(" ", strip=True))
     location_text = _extract_location_text(article)
 
     start_at: datetime | None = None
@@ -165,7 +167,7 @@ def _build_row(article, *, list_url: str) -> ExtractedActivity | None:
     if not _should_include_event(token_blob=token_blob, title=title):
         return None
 
-    age_min, age_max = _parse_age_range(title=title, description=description)
+    age_min, age_max = _parse_age_range(title=title, description=f"{description} {article_text}")
     registration_required = any(
         marker in token_blob for marker in (" register ", " registration ", " reserve ", " signup ", " sign up ")
     )
@@ -186,12 +188,19 @@ def _build_row(article, *, list_url: str) -> ExtractedActivity | None:
         activity_type=_infer_activity_type(token_blob),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=" | ".join(part for part in (description_text, article_text) if part),
+            category=", ".join(categories),
+            age_min=age_min,
+            age_max=age_max,
+        ),
         drop_in=(" drop in " in token_blob or " drop-in " in token_blob),
         registration_required=registration_required,
         start_at=start_at,
         end_at=end_at,
         timezone=MO_TIMEZONE,
-        **price_classification_kwargs(description_text),
+        **price_classification_kwargs(" | ".join(part for part in (description_text, article_text) if part)),
     )
 
 

@@ -24,30 +24,45 @@ from src.models.activity import Activity, Source  # noqa: E402
 
 
 MI_SOURCE_URL_PREFIXES = get_mi_source_prefixes()
+MI_SOURCE_URL_PREFIXES_BY_SLUG = {
+    "dia": ("https://dia.org/events/",),
+    "grand_rapids": ("https://www.artmuseumgr.org/events/",),
+    "kalamazoo": ("https://www.kiarts.org/event/",),
+    "msu_broad": ("https://broadmuseum.msu.edu/events/",),
+    "muskegon": ("https://muskegonartmuseum.org/event/",),
+    "umma": ("https://umma.umich.edu/events/",),
+}
 
 
-def clear_mi_entries() -> dict[str, int]:
+def clear_mi_entries(venues=None) -> dict[str, int]:
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
+    selected_venues = list(venues) if venues is not None else list(MI_VENUES)
+    source_url_prefixes = tuple(
+        prefix
+        for venue in selected_venues
+        for prefix in MI_SOURCE_URL_PREFIXES_BY_SLUG.get(venue.slug, ())
+    ) or MI_SOURCE_URL_PREFIXES
 
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in MI_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in selected_venues],
         )
 
         source_ids = db.scalars(
             select(Source.id).where(
                 or_(
-                    Source.name.like("mi_%_events"),
-                    Source.name.in_([venue.source_name for venue in MI_VENUES]),
+                    Source.base_url.in_([venue.list_url for venue in selected_venues]),
+                    Source.name.in_([venue.source_name for venue in selected_venues]),
+                    Source.adapter_type.in_([venue.source_name for venue in selected_venues]),
                 )
             )
         ).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in MI_SOURCE_URL_PREFIXES]
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in source_url_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -114,7 +129,7 @@ async def main() -> None:
     selected_venues = list(MI_VENUES) if args.venue == "all" else [MI_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_mi_entries()
+        deleted = clear_mi_entries(selected_venues)
         print(
             "Deleted MI bundle rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -134,7 +149,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_mi_entries()
+        deleted = clear_mi_entries(selected_venues)
         print(
             "Deleted MI bundle rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

@@ -38,8 +38,8 @@ DATE_AT_TIME_RE = re.compile(
     re.IGNORECASE,
 )
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
-AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\+\b", re.IGNORECASE)
+AGE_RANGE_RE = re.compile(r"\bages?\s*:?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
+AGE_PLUS_RE = re.compile(r"\bages?\s*:?\s*(\d{1,2})\+\b", re.IGNORECASE)
 
 INCLUDE_MARKERS = (
     "activity",

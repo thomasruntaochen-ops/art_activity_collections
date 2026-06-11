@@ -24,6 +24,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -194,6 +195,14 @@ OKCONTEMP_AGE_RE = re.compile(r"Age Requirements\s+(?P<age>[^$]+?)\s+Cost", re.I
 OKCONTEMP_TIME_RANGE_RE = re.compile(
     r"(?P<time>\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?|am|pm)?\s*-\s*"
     r"\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?|am|pm))",
+    re.IGNORECASE,
+)
+OK_AGE_MONTHS_RE = re.compile(
+    r"\bages?\s*:?\s*(?P<min>\d{1,2})\s*(?:-|–|to|through)\s*(?P<max>\d{1,2})\s*months?\b",
+    re.IGNORECASE,
+)
+OK_AGE_THROUGH_RE = re.compile(
+    r"\bages?\s*:?\s*(?P<min>\d{1,2})\s*(?:-|–|to|through)\s*(?P<max>\d{1,2})\b",
     re.IGNORECASE,
 )
 PHILBROOK_LINK_DATE_RE = re.compile(r"-(?P<date>\d{4}-\d{2}-\d{2})/?$")
@@ -490,6 +499,7 @@ def _parse_gilcrease(
                 activity_type="talk",
                 age_min=None,
                 age_max=None,
+                audience_segment="adults",
                 drop_in=False,
                 registration_required=True,
                 start_at=start_at,
@@ -529,6 +539,7 @@ def _parse_gilcrease(
                 activity_type="activity",
                 age_min=None,
                 age_max=None,
+                audience_segment="adults",
                 drop_in=False,
                 registration_required=True,
                 start_at=start_at,
@@ -578,6 +589,12 @@ def _parse_mgmoa(
             activity_type="class",
             age_min=age_min,
             age_max=age_max,
+            audience_segment=infer_audience_segment(
+                title=title,
+                description=description,
+                age_min=age_min,
+                age_max=age_max,
+            ),
             drop_in=False,
             registration_required=True,
             start_at=start_at,
@@ -623,7 +640,7 @@ def _parse_okcmoa(
             continue
 
         description = _extract_okcmoa_description(soup)
-        age_min, age_max = parse_age_range(text)
+        age_min, age_max = _parse_ok_age_range(text)
         key = (source_url, title, start_at)
         if key in seen:
             continue
@@ -641,6 +658,12 @@ def _parse_okcmoa(
                 activity_type=infer_activity_type(title, description),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_ok_audience(
+                    title=title,
+                    description=description,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=("drop-in" in title.lower() or "drop in" in title.lower()),
                 registration_required=("register now" in text.lower() or "buy tickets" in text.lower()),
                 start_at=start_at,
@@ -689,7 +712,7 @@ def _parse_okcontemporary(
         if start_at is None:
             continue
         description = _extract_okcontemporary_description(detail_soup)
-        age_min, age_max = parse_age_range(_extract_okcontemporary_age_text(detail_soup))
+        age_min, age_max = _parse_ok_age_range(_extract_okcontemporary_age_text(detail_soup))
         key = (source_url, title, start_at)
         if key in seen:
             continue
@@ -707,6 +730,12 @@ def _parse_okcontemporary(
                 activity_type="class",
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_ok_audience(
+                    title=title,
+                    description=description,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=False,
                 registration_required=True,
                 start_at=start_at,
@@ -773,6 +802,11 @@ def _extract_okcontemporary_occurrences(list_html: str, list_url: str) -> list[d
 
 def _ok_should_include(*, title: str, description: str | None = None) -> bool:
     combined = f" {normalize_space(title).lower()} {normalize_space(description).lower() if description else ''} "
+    title_blob = f" {normalize_space(title).lower()} "
+    if " sold out " in combined or " waitlist " in combined:
+        return False
+    if " tour " in title_blob or " tours " in title_blob:
+        return False
     hard_reject_hit = any(marker in combined for marker in OK_HARD_REJECT_PATTERNS)
     include_hit = any(marker in combined for marker in OK_INCLUDE_PATTERNS)
     override_hit = any(marker in combined for marker in OK_OVERRIDE_PATTERNS)
@@ -782,6 +816,44 @@ def _ok_should_include(*, title: str, description: str | None = None) -> bool:
     if reject_hit and not override_hit:
         return False
     return include_hit or override_hit
+
+
+def _parse_ok_age_range(text: str | None) -> tuple[int | None, int | None]:
+    normalized = normalize_space(text)
+    months_match = OK_AGE_MONTHS_RE.search(normalized)
+    if months_match:
+        min_months = int(months_match.group("min"))
+        max_months = int(months_match.group("max"))
+        return min_months // 12, max(1, (max_months + 11) // 12)
+
+    through_match = OK_AGE_THROUGH_RE.search(normalized)
+    if through_match:
+        return int(through_match.group("min")), int(through_match.group("max"))
+
+    return parse_age_range(normalized)
+
+
+def _infer_ok_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {normalize_space(title).lower()} {normalize_space(description).lower() if description else ''} "
+    if any(marker in blob for marker in (" babies at the museum ", " playdate ", " family workshop ", " drop-in art ", " drop in art ")):
+        return "kids"
+
+    segment = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if segment != "unknown":
+        return segment
+
+    return "adults"
 
 
 def _slice_text(text: str, start_marker: str, end_marker: str) -> str:
@@ -892,6 +964,12 @@ def parse_philbrook_feed(
                 activity_type=infer_activity_type(title, description, categories),
                 age_min=None,
                 age_max=None,
+                audience_segment=_infer_ok_audience(
+                    title=title,
+                    description=description,
+                    age_min=None,
+                    age_max=None,
+                ),
                 drop_in=False,
                 registration_required=("register" in description.lower() or "ticket" in description.lower()),
                 start_at=start_at,

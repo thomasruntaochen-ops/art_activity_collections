@@ -8,6 +8,8 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
 CRMA_CALENDAR_URL = "https://www.crma.org/full-events-calendar"
@@ -33,9 +35,9 @@ DEFAULT_HEADERS = {
 }
 
 AGE_RANGE_RE = re.compile(
-    r"\bages?\s*(\d{1,2})\s*(?:-|\u2013|to)\s*(\d{1,2})\b", re.IGNORECASE
+    r"\bages?\s*:?\s*(\d{1,2})\s*(?:-|\u2013|to)\s*(\d{1,2})\b", re.IGNORECASE
 )
-AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\+\b", re.IGNORECASE)
+AGE_PLUS_RE = re.compile(r"\bages?\s*:?\s*(\d{1,2})\+\b", re.IGNORECASE)
 
 # Phrases whose presence as a primary topic disqualifies the event.
 # Each entry is matched as a substring against lowercased combined text.
@@ -74,7 +76,7 @@ _EXCLUDE_KEYWORDS = (
 # (e.g. "class" ⊂ "classic", "lab" ⊂ "elaborate", "demo" ⊂ "democracy").
 _INCLUDE_RE = re.compile(
     r"\b(?:class(?:es)?|workshop|lecture|lab\b|conversation|activity|activities|"
-    r"doodlebug|art\s+bites|art\s+journal|salon|demonstration|demo\b|family\s+fun|"
+    r"doodlebugs?|art\s+bites|art\s+journal|salon|demonstration|demo\b|family\s+fun|"
     r"jam\s+session|art\s+jam)\b",
     re.IGNORECASE,
 )
@@ -92,13 +94,16 @@ def _has_exclude(text: str) -> bool:
 def _should_keep(title: str, description: str | None) -> bool:
     if is_irrelevant_item_text(title):
         return False
+    title_lower = title.lower()
+    if "free admission" in title_lower or title_lower.strip() == "admission":
+        return False
     combined = f"{title} {description or ''}".lower()
     has_include = _has_include(combined)
     has_exclude = _has_exclude(combined)
     # Exclusion wins when present and no inclusion signal rescues the event.
     if has_exclude and not has_include:
         return False
-    return True
+    return has_include
 
 
 def _infer_activity_type(title: str) -> str:
@@ -110,17 +115,6 @@ def _infer_activity_type(title: str) -> str:
     return "workshop"
 
 
-def _infer_is_free(title: str, description: str | None) -> bool | None:
-    title_norm = title.rstrip("\u00a0").strip().lower()
-    # Title explicitly marks the event as free.
-    if title_norm.endswith(", free") or ", free " in title_norm or title_norm.endswith(" free"):
-        return True
-    # Description mentions a price.
-    if "$" in (description or ""):
-        return False
-    return None
-
-
 def _parse_age_range(title: str, description: str | None) -> tuple[int | None, int | None]:
     blob = f"{title} {description or ''}"
     match = AGE_RANGE_RE.search(blob)
@@ -130,6 +124,30 @@ def _parse_age_range(title: str, description: str | None) -> tuple[int | None, i
     if match:
         return int(match.group(1)), None
     return None, None
+
+
+def _infer_crma_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    segment = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if segment != "unknown":
+        return segment
+
+    blob = f" {title.lower()} {(description or '').lower()} "
+    if " doodlebugs " in blob or " family fun " in blob:
+        return "kids"
+    if any(marker in blob for marker in (" art bites ", " art journal jam ", " salon ", " lecture ")):
+        return "adults"
+    return "adults"
 
 
 def _parse_fc_datetime(dt_str: str | None) -> datetime | None:
@@ -249,7 +267,10 @@ def parse_crma_events(events: list[dict]) -> list[ExtractedActivity]:
         seen.add(key)
 
         age_min, age_max = _parse_age_range(title, description)
-        is_free = _infer_is_free(title, description)
+        is_free, free_verification_status = infer_price_classification(
+            f"{title} {description or ''}",
+            default_is_free=None,
+        )
         activity_type = _infer_activity_type(title)
         text_blob = f"{title} {description or ''}".lower()
 
@@ -265,6 +286,12 @@ def parse_crma_events(events: list[dict]) -> list[ExtractedActivity]:
                 activity_type=activity_type,
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_crma_audience(
+                    title=title,
+                    description=description,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=("drop-in" in text_blob or "drop in" in text_blob),
                 registration_required=(
                     "registration" in text_blob and "not required" not in text_blob
@@ -273,7 +300,7 @@ def parse_crma_events(events: list[dict]) -> list[ExtractedActivity]:
                 end_at=end_at,
                 timezone=CRMA_TIMEZONE,
                 is_free=is_free,
-                free_verification_status="inferred",
+                free_verification_status=free_verification_status,
             )
         )
 

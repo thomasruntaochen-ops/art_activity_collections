@@ -28,6 +28,7 @@ from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -506,6 +507,13 @@ def _parse_squarespace_events(payload: dict, *, venue: MtVenueConfig) -> list[Ex
                 activity_type=_infer_activity_type(title=title, description=description),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_mt_audience(
+                    title=title,
+                    description=description,
+                    categories=categories,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=_blob_contains(text_blob, "drop-in", "drop in"),
                 registration_required=_blob_contains(text_blob, "register", "registration"),
                 start_at=start_at,
@@ -560,6 +568,13 @@ def _parse_yellowstone_events(payload: dict, *, venue: MtVenueConfig) -> list[Ex
                 activity_type=_infer_activity_type(title=title, description=description),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_mt_audience(
+                    title=title,
+                    description=description,
+                    categories=(),
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=_blob_contains(text_blob, "drop-in", "drop in"),
                 registration_required=_blob_contains(text_blob, "register", "registration", "apply"),
                 start_at=start_at,
@@ -614,6 +629,13 @@ def _parse_bozeman_events(payload: dict, *, venue: MtVenueConfig) -> list[Extrac
                 activity_type=_infer_activity_type(title=title, description=description),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_mt_audience(
+                    title=title,
+                    description=description,
+                    categories=(),
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=_blob_contains(text_blob, "drop-in", "drop in"),
                 registration_required=_blob_contains(text_blob, "register", "registration"),
                 start_at=start_at,
@@ -664,6 +686,13 @@ def _parse_holter_events(payload: dict, *, venue: MtVenueConfig) -> list[Extract
                     activity_type=_infer_activity_type(title=title, description=description),
                     age_min=age_min,
                     age_max=age_max,
+                    audience_segment=_infer_mt_audience(
+                        title=title,
+                        description=description,
+                        categories=(),
+                        age_min=age_min,
+                        age_max=age_max,
+                    ),
                     drop_in=_blob_contains(text_blob, "drop-in", "drop in"),
                     registration_required=_blob_contains(
                         text_blob,
@@ -885,9 +914,11 @@ def _should_include_event(*, title: str, description: str | None, categories: li
 
     if "(copy)" in title_blob:
         return False
-    if " camp " in title_blob or " camps " in title_blob:
+    if re.search(r"\bcamps?\b", blob):
         return False
-    if " camp " in categories_blob or " camps " in categories_blob:
+    if " summer art academy " in title_blob:
+        return False
+    if " registration opens " in title_blob or " artist registration " in title_blob:
         return False
     if title_blob.startswith(" last day ") or " museum closed " in title_blob:
         return False
@@ -908,6 +939,35 @@ def _should_include_event(*, title: str, description: str | None, categories: li
         return False
 
     return has_include
+
+
+def _infer_mt_audience(
+    *,
+    title: str,
+    description: str | None,
+    categories: list[str] | tuple[str, ...],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    if age_min is not None and age_max is not None and age_max < 18:
+        if age_min >= 13:
+            return "teens"
+        return "kids"
+
+    segment = infer_audience_segment(
+        title=title,
+        description=description,
+        category=", ".join(categories),
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if segment != "unknown":
+        return segment
+
+    blob = f" {normalize_space(title).lower()} {normalize_space(description).lower()} "
+    if " teen council " in blob:
+        return "teens"
+    return "adults"
 
 
 def _infer_activity_type(*, title: str, description: str | None) -> str | None:
