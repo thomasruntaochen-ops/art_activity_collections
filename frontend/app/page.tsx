@@ -2,13 +2,13 @@
 
 import type { CSSProperties } from "react";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityTable } from "../components/activity-table";
 import { fetchActivities, fetchFilterOptions, fetchVenueSummaries } from "../lib/api";
 import { getVenueMedia } from "../lib/venue-media";
 import type { Activity, AudienceSegment, VenueSummary } from "../lib/types";
 
-type MapViewportMode = "fit" | "focus";
+type MapViewportMode = "fit" | "focus" | "usa";
 type ViewMode = "map" | "table";
 
 const AUDIENCE_OPTIONS: { value: "" | AudienceSegment; label: string }[] = [
@@ -290,10 +290,14 @@ export default function HomePage() {
     }
   }, [filteredVenues, selectedVenueName]);
 
-  function handleSelectVenue(venueName: string) {
+  const handleSelectVenue = useCallback((venueName: string) => {
     setSelectedVenueName(venueName);
     setMapViewportMode("focus");
-  }
+  }, []);
+
+  const handleResetMapView = useCallback(() => {
+    setMapViewportMode("usa");
+  }, []);
 
   const selectedVenue = useMemo(
     () => filteredVenues.find((venue) => venue.venue_name === selectedVenueName) ?? null,
@@ -624,6 +628,7 @@ export default function HomePage() {
                 selectedVenueName={selectedVenueName}
                 viewportMode={mapViewportMode}
                 onSelectVenue={handleSelectVenue}
+                onResetView={handleResetMapView}
               />
             </div>
           </div>

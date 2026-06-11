@@ -8,8 +8,9 @@ import { VenueSummary } from "../lib/types";
 type Props = {
   venues: VenueSummary[];
   selectedVenueName: string;
-  viewportMode: "fit" | "focus";
+  viewportMode: "fit" | "focus" | "usa";
   onSelectVenue: (venueName: string) => void;
+  onResetView: () => void;
 };
 
 // When a venue is selected we nudge in to this zoom instead of diving all the way
@@ -51,7 +52,7 @@ function buildVenueSummaryHtml(venue: ResolvedVenueCoordinates): string {
     .join("");
 }
 
-export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenue }: Props) {
+export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenue, onResetView }: Props) {
   const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<LayerGroup | null>(null);
@@ -231,6 +232,11 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
       return;
     }
 
+    if (viewportMode === "usa") {
+      map.flyTo(USA_CENTER, USA_ZOOM, { duration: 0.6 });
+      return;
+    }
+
     const selectedVenue = resolvedVenues.find((venue) => venue.venue_name === selectedVenueName) ?? null;
     if (viewportMode === "fit" && bounds.isValid()) {
       map.fitBounds(bounds, {
@@ -251,13 +257,6 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
     }
   }, [onSelectVenue, resolvedVenues, selectedVenueName, viewportMode]);
 
-  function handleResetView() {
-    const map = mapRef.current;
-    if (!map) return;
-    map.closePopup();
-    map.flyTo(USA_CENTER, USA_ZOOM, { duration: 0.6 });
-  }
-
   if (resolvedVenues.length === 0) {
     return <div className="venue-map__loading">No venues available for the current filter.</div>;
   }
@@ -268,7 +267,7 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
       <button
         type="button"
         className="venue-map__reset"
-        onClick={handleResetView}
+        onClick={onResetView}
         title="Zoom out to the entire US"
         aria-label="Zoom out to the entire US"
       >
