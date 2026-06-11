@@ -29,7 +29,7 @@ def _event(
     }
 
 
-def test_chrysler_sets_paid_adult_glass_class_audience_and_price() -> None:
+def test_chrysler_sets_paid_teen_adult_glass_class_audience_and_price() -> None:
     rows = parse_va_tribe_events(
         [
             _event(
@@ -42,7 +42,7 @@ def test_chrysler_sets_paid_adult_glass_class_audience_and_price() -> None:
     )
 
     assert len(rows) == 1
-    assert rows[0].audience_segment == "adults"
+    assert rows[0].audience_segment == "teens_adults"
     assert rows[0].age_min == 12
     assert rows[0].age_max is None
     assert rows[0].is_free is False

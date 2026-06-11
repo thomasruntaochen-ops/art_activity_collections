@@ -7,6 +7,7 @@
 --   - db/migrations/004_add_activity_query_indexes.sql
 --   - db/migrations/005_allow_paid_and_unknown_activity_price.sql
 --   - db/migrations/006_add_activity_audience_segment.sql
+--   - db/migrations/007_add_teens_adults_audience_segment.sql
 
 CREATE TABLE IF NOT EXISTS sources (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -47,7 +48,7 @@ CREATE TABLE IF NOT EXISTS activities (
   activity_type VARCHAR(100) NULL,
   age_min INT NULL,
   age_max INT NULL,
-  audience_segment ENUM('kids','teens','adults','all_ages','unknown') NOT NULL DEFAULT 'unknown',
+  audience_segment ENUM('kids','teens','teens_adults','adults','all_ages','unknown') NOT NULL DEFAULT 'unknown',
 
   is_free BOOLEAN NULL DEFAULT NULL,
   free_verification_status ENUM('confirmed','inferred','uncertain') NOT NULL DEFAULT 'inferred',

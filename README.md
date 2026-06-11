@@ -42,9 +42,8 @@ Ensure DB exists and schema is loaded (run in project root):
    - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/003_add_venue_indexes.sql`
    - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/004_add_activity_query_indexes.sql`
    - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/005_allow_paid_and_unknown_activity_price.sql`
-   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/002_add_activity_location_text.sql`
-   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/003_add_venue_indexes.sql`
-   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/004_add_activity_query_indexes.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/006_add_activity_audience_segment.sql`
+   - `mysql -h 127.0.0.1 -P 3306 -u root -p art_activity_collection < db/migrations/007_add_teens_adults_audience_segment.sql`
 5. Run API:
    - `uvicorn src.main:app --reload`
 6. Run frontend:

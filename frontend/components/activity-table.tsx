@@ -31,6 +31,8 @@ function formatAudienceSegment(value: AudienceSegment): string {
       return "Kids";
     case "teens":
       return "Teens";
+    case "teens_adults":
+      return "Teens & adults";
     case "adults":
       return "Adults";
     case "all_ages":

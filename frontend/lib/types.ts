@@ -1,4 +1,4 @@
-export type AudienceSegment = "kids" | "teens" | "adults" | "all_ages" | "unknown";
+export type AudienceSegment = "kids" | "teens" | "teens_adults" | "adults" | "all_ages" | "unknown";
 
 export type Activity = {
   id: number;
@@ -33,6 +33,7 @@ export type VenueSummary = {
   venue_lat: number | null;
   venue_lng: number | null;
   activity_count: number;
+  free_activity_count?: number;
   next_activity_at: string | null;
 };
 

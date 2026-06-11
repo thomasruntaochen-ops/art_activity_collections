@@ -15,9 +15,9 @@ const AUDIENCE_OPTIONS: { value: "" | AudienceSegment; label: string }[] = [
   { value: "", label: "All audiences" },
   { value: "kids", label: "Kids" },
   { value: "teens", label: "Teens" },
+  { value: "teens_adults", label: "Teens & adults" },
   { value: "adults", label: "Adults" },
   { value: "all_ages", label: "All ages" },
-  { value: "unknown", label: "Unknown" },
 ];
 
 function hashString(value: string): number {
@@ -46,6 +46,12 @@ function formatDateInput(value: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+function addMonths(value: Date, months: number): Date {
+  const next = new Date(value);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
 function toStartOfDayIso(value: string): string | undefined {
   return value ? new Date(`${value}T00:00:00`).toISOString() : undefined;
 }
@@ -54,19 +60,14 @@ function toEndOfDayIso(value: string): string | undefined {
   return value ? new Date(`${value}T23:59:59`).toISOString() : undefined;
 }
 
-function formatAgeRange(min: number | null, max: number | null): string {
-  if (min === null && max === null) return "Age TBD";
-  if (min !== null && max !== null) return `Ages ${min}-${max}`;
-  if (min !== null) return `Ages ${min}+`;
-  return `Up to ${max}`;
-}
-
 function formatAudienceSegment(value: AudienceSegment): string {
   switch (value) {
     case "kids":
       return "Kids";
     case "teens":
       return "Teens";
+    case "teens_adults":
+      return "Teens & adults";
     case "adults":
       return "Adults";
     case "all_ages":
@@ -74,29 +75,6 @@ function formatAudienceSegment(value: AudienceSegment): string {
     default:
       return "Audience TBD";
   }
-}
-
-function getFreeLabel(activity: Activity): string {
-  if (activity.is_free === true) {
-    return activity.free_verification_status === "confirmed" ? "Free" : "Likely free";
-  }
-  if (activity.free_verification_status === "uncertain") {
-    return "Price unclear";
-  }
-  return "Check price";
-}
-
-function getFreeTone(activity: Activity): string {
-  if (activity.is_free === true && activity.free_verification_status === "confirmed") {
-    return "confirmed";
-  }
-  if (activity.is_free === true) {
-    return "inferred";
-  }
-  if (activity.free_verification_status === "uncertain") {
-    return "warning";
-  }
-  return "neutral";
 }
 
 function formatVenueLine(venue: VenueSummary | null): string {
@@ -153,7 +131,7 @@ export default function HomePage() {
   const [audienceFilter, setAudienceFilter] = useState<"" | AudienceSegment>("");
   const [dropInFilter, setDropInFilter] = useState("");
   const [dateFrom, setDateFrom] = useState(() => formatDateInput(new Date()));
-  const [dateTo, setDateTo] = useState("");
+  const [dateTo, setDateTo] = useState(() => formatDateInput(addMonths(new Date(), 1)));
   const [freeOnly, setFreeOnly] = useState(false);
   const [selectedActivities, setSelectedActivities] = useState<Activity[]>([]);
   const [activityError, setActivityError] = useState("");
@@ -262,9 +240,43 @@ export default function HomePage() {
     };
   }, [selectedState, selectedCity, dateFromIso, dateToIso, freeOnly, audienceFilter]);
 
+  // The DB can hold several venue rows for the same museum (e.g. duplicate
+  // "Blanden Memorial Art Museum" records). Their summaries arrive as separate
+  // rows with split counts; merge them by name so each museum shows once with a
+  // unique identity. Duplicate names would otherwise collide as React keys and
+  // break list reconciliation (stale cards surviving a search filter).
+  const dedupedVenues = useMemo(() => {
+    const merged = new Map<string, VenueSummary>();
+    for (const venue of venues) {
+      const key = venue.venue_name.trim().toLowerCase();
+      const existing = merged.get(key);
+      if (!existing) {
+        merged.set(key, { ...venue });
+        continue;
+      }
+      existing.activity_count += venue.activity_count;
+      existing.free_activity_count = (existing.free_activity_count ?? 0) + (venue.free_activity_count ?? 0);
+      if (!existing.venue_address && venue.venue_address) existing.venue_address = venue.venue_address;
+      if (!existing.venue_city && venue.venue_city) existing.venue_city = venue.venue_city;
+      if (!existing.venue_state && venue.venue_state) existing.venue_state = venue.venue_state;
+      if (!existing.venue_zip && venue.venue_zip) existing.venue_zip = venue.venue_zip;
+      if (existing.venue_lat == null && venue.venue_lat != null) {
+        existing.venue_lat = venue.venue_lat;
+        existing.venue_lng = venue.venue_lng;
+      }
+      if (
+        venue.next_activity_at &&
+        (!existing.next_activity_at || venue.next_activity_at < existing.next_activity_at)
+      ) {
+        existing.next_activity_at = venue.next_activity_at;
+      }
+    }
+    return Array.from(merged.values()).sort((a, b) => b.activity_count - a.activity_count);
+  }, [venues]);
+
   const filteredVenues = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
-    return venues.filter((venue) => {
+    return dedupedVenues.filter((venue) => {
       const searchText = [venue.venue_name, venue.venue_city, venue.venue_state]
         .filter(Boolean)
         .join(" ")
@@ -272,7 +284,7 @@ export default function HomePage() {
       const matchesSearch = query ? searchText.includes(query) : true;
       return matchesSearch;
     });
-  }, [searchValue, venues]);
+  }, [searchValue, dedupedVenues]);
 
   useEffect(() => {
     setMapViewportMode("fit");
@@ -405,8 +417,38 @@ export default function HomePage() {
   }
 
   const selectedLocation = formatVenueLine(selectedVenue);
-  const visibleVenueCount = filteredVenues.length;
-  const stateLabel = selectedState || "All states";
+  const activitySummary = useMemo(() => {
+    const counts = {
+      total: selectedActivities.length,
+      free: 0,
+      kids: 0,
+      teens: 0,
+      teensAdults: 0,
+      adults: 0,
+      allAges: 0,
+    };
+    for (const activity of selectedActivities) {
+      if (activity.is_free === true) counts.free += 1;
+      switch (activity.audience_segment) {
+        case "kids":
+          counts.kids += 1;
+          break;
+        case "teens":
+          counts.teens += 1;
+          break;
+        case "teens_adults":
+          counts.teensAdults += 1;
+          break;
+        case "adults":
+          counts.adults += 1;
+          break;
+        case "all_ages":
+          counts.allAges += 1;
+          break;
+      }
+    }
+    return counts;
+  }, [selectedActivities]);
   const tableSummary = tableLoading
     ? "Loading matching activities..."
     : `${tableActivities.length} activities matching the current filters`;
@@ -515,15 +557,10 @@ export default function HomePage() {
         <aside className="explorer-sidebar">
           <div className="explorer-sidebar__heading">
             <h1>Venue Explorer</h1>
-            <p>{visibleVenueCount} museums with active art programs</p>
+            <p>Museums with active art programs</p>
           </div>
 
           <div className="explorer-sidebar__list">
-            <div className="explorer-sidebar__list-head">
-              <span>{stateLabel}</span>
-              <span>{visibleVenueCount} visible</span>
-            </div>
-
             {loading ? <p className="status-note">Loading venues...</p> : null}
             {error ? <p className="status-note is-error">{error}</p> : null}
             {!loading && !error && filteredVenues.length === 0 ? (
@@ -577,11 +614,22 @@ export default function HomePage() {
           <p className="eyebrow">Venue Activities</p>
           <h2>{selectedVenue?.venue_name ?? "Select a museum"}</h2>
           <p className="explorer-detail__location">{selectedLocation}</p>
+          {selectedVenue ? (
+            <p className="explorer-detail__summary">
+              <span>{activitySummary.total} total</span>
+              <span>{activitySummary.free} free</span>
+              {activitySummary.kids > 0 ? <span>{activitySummary.kids} kids</span> : null}
+              {activitySummary.teens > 0 ? <span>{activitySummary.teens} teens</span> : null}
+              {activitySummary.teensAdults > 0 ? <span>{activitySummary.teensAdults} teens & adults</span> : null}
+              {activitySummary.adults > 0 ? <span>{activitySummary.adults} adults</span> : null}
+              {activitySummary.allAges > 0 ? <span>{activitySummary.allAges} all ages</span> : null}
+            </p>
+          ) : null}
 
           <div className="explorer-detail__section">
             <div className="explorer-detail__section-head">
               <h3>Activities</h3>
-              <span>{activityLoading ? "Updating..." : `${selectedActivities.length} loaded`}</span>
+              {activityLoading ? <span>Updating...</span> : null}
             </div>
 
             {activityError ? <p className="status-note is-error">{activityError}</p> : null}
@@ -602,15 +650,13 @@ export default function HomePage() {
                     <span className="activity-listing__title">{activity.title}</span>
                     <span className="activity-listing__meta">
                       <span className="activity-listing__time">{formatActivityTime(activity.start_at)}</span>
-                      <span className={`meta-pill meta-pill--${getFreeTone(activity)}`}>{getFreeLabel(activity)}</span>
-                      <span className="meta-pill meta-pill--neutral">
-                        {formatAgeRange(activity.age_min, activity.age_max)}
-                      </span>
-                      <span className="meta-pill meta-pill--neutral">
-                        {formatAudienceSegment(activity.audience_segment)}
-                      </span>
-                      {activity.activity_type ? (
-                        <span className="meta-pill meta-pill--soft">{activity.activity_type}</span>
+                      {activity.is_free === true ? (
+                        <span className="meta-pill meta-pill--confirmed">Free</span>
+                      ) : null}
+                      {activity.audience_segment !== "unknown" ? (
+                        <span className={`meta-pill audience-pill audience-pill--${activity.audience_segment}`}>
+                          {formatAudienceSegment(activity.audience_segment)}
+                        </span>
                       ) : null}
                     </span>
                   </a>

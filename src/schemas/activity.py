@@ -53,4 +53,5 @@ class VenueSummaryRead(BaseModel):
     venue_lat: float | None
     venue_lng: float | None
     activity_count: int
+    free_activity_count: int
     next_activity_at: datetime | None

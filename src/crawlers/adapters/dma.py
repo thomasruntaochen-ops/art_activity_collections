@@ -11,6 +11,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -63,6 +64,7 @@ DMA_EXCLUDE_KEYWORDS = (
 AGE_RANGE_RE = re.compile(r"\b(\d{1,2})\s*(?:to|-|–)\s*(\d{1,2})\s+year\s+old", re.IGNORECASE)
 AGE_AND_RE = re.compile(r"\b(\d{1,2})\s+and\s+(\d{1,2})\s+year\s+olds?\b", re.IGNORECASE)
 AGES_LABEL_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:to|-|–)\s*(\d{1,2})\b", re.IGNORECASE)
+MONTH_RANGE_RE = re.compile(r"\b(\d{1,2})\s*(?:to|-|–)\s*(\d{1,2})\s+months?\s+old\b", re.IGNORECASE)
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -264,15 +266,18 @@ def parse_dma_payload(payload: dict[str, object]) -> list[ExtractedActivity]:
             or "waiting list" in text_blob
         )
 
+        source_url = urljoin(DMA_EVENTS_URL, path)
+        activity_type = _infer_dma_activity_type(title=title, description=description, category=category)
+
         item = ExtractedActivity(
-            source_url=urljoin(DMA_EVENTS_URL, path),
+            source_url=source_url,
             title=title,
             description=_combine_description(description, category, audiences, detail_attributes),
             venue_name=DMA_VENUE_NAME,
             location_text=location_text,
             city=DMA_CITY,
             state=DMA_STATE,
-            activity_type=_infer_dma_activity_type(title=title, description=description, category=category),
+            activity_type=activity_type,
             age_min=age_min,
             age_max=age_max,
             drop_in=("drop-in" in text_blob or "drop in" in text_blob),
@@ -282,6 +287,15 @@ def parse_dma_payload(payload: dict[str, object]) -> list[ExtractedActivity]:
             timezone=DMA_TIMEZONE,
             is_free=is_free,
             free_verification_status=free_status,
+            audience_segment=infer_audience_segment(
+                title=title,
+                description=description,
+                category=category or activity_type,
+                source_url=source_url,
+                tags=audiences,
+                age_min=age_min,
+                age_max=age_max,
+            ),
         )
         key = (item.source_url, item.title, item.start_at)
         if key in seen:
@@ -409,6 +423,12 @@ def _infer_dma_activity_type(*, title: str, description: str | None, category: s
 
 def _extract_age_range(*, title: str, description: str | None) -> tuple[int | None, int | None]:
     text = f"{title} {description or ''}"
+    match = MONTH_RANGE_RE.search(text)
+    if match is not None:
+        low = int(match.group(1))
+        high = int(match.group(2))
+        return min(low, high) // 12, max(1, (max(low, high) + 11) // 12)
+
     match = AGE_RANGE_RE.search(text)
     if match is not None:
         low = int(match.group(1))

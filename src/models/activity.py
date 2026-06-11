@@ -17,6 +17,7 @@ class FreeVerificationStatus(str, Enum):
 class AudienceSegment(str, Enum):
     kids = "kids"
     teens = "teens"
+    teens_adults = "teens_adults"
     adults = "adults"
     all_ages = "all_ages"
     unknown = "unknown"

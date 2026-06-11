@@ -216,6 +216,7 @@ def list_venue_summaries(
             Venue.lat.label("venue_lat"),
             Venue.lng.label("venue_lng"),
             func.count(Activity.id).label("activity_count"),
+            func.sum(case((Activity.is_free.is_(True), 1), else_=0)).label("free_activity_count"),
             func.min(Activity.start_at).label("next_activity_at"),
         )
         .join(Activity, Activity.venue_id == Venue.id)

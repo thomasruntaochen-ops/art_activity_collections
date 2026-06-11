@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -150,7 +151,7 @@ async def load_knoxville_payload(*, page_limit: int | None = None, per_page: int
 def parse_knoxville_payload(payload: dict, *, current_date: date | None = None) -> list[ExtractedActivity]:
     current_date = current_date or datetime.now(ZoneInfo(NY_TIMEZONE)).date()
     rows: list[ExtractedActivity] = []
-    seen: set[tuple[str, str, datetime]] = set()
+    seen: set[tuple[str, datetime]] = set()
 
     for event_obj in payload.get("events") or []:
         row = _build_row(event_obj)
@@ -161,7 +162,7 @@ def parse_knoxville_payload(payload: dict, *, current_date: date | None = None) 
         if (row.start_at.date() - current_date).days > MAX_FUTURE_DAYS:
             continue
 
-        key = (row.source_url, row.title, row.start_at)
+        key = (row.title, row.start_at)
         if key in seen:
             continue
         seen.add(key)
@@ -213,6 +214,9 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
 
     include_blob = " ".join([title, description or "", " ".join(category_names), " ".join(tag_names)]).lower()
     token_blob = f" {' '.join(include_blob.split())} "
+    title_blob = f" {' '.join(title.lower().split())} "
+    if any(pattern in title_blob for pattern in (" book club ", " kevin beasley ", " summer art academy ")):
+        return None
     reject_matches = [pattern for pattern in HARD_EXCLUDE_PATTERNS if pattern in token_blob]
     if _should_reject(token_blob, reject_matches):
         return None
@@ -222,6 +226,9 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
     amount = _extract_amount(event_obj.get("cost") or event_obj.get("cost_details"))
     is_free, free_status = infer_price_classification_from_amount(amount, text=price_text or description)
     location_text = _extract_location_name(event_obj.get("venue")) or KNOXVILLE_DEFAULT_LOCATION
+    age_min = _extract_age_min(description)
+    age_max = _extract_age_max(description)
+    activity_type = _infer_activity_type(token_blob)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -231,9 +238,9 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         location_text=location_text,
         city=KNOXVILLE_CITY,
         state=KNOXVILLE_STATE,
-        activity_type=_infer_activity_type(token_blob),
-        age_min=_extract_age_min(description),
-        age_max=_extract_age_max(description),
+        activity_type=activity_type,
+        age_min=age_min,
+        age_max=age_max,
         drop_in=("drop-in" in token_blob or "drop in" in token_blob),
         registration_required=("register" in token_blob or "ticket" in token_blob or "tuition" in token_blob),
         start_at=start_at,
@@ -241,6 +248,14 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=_infer_knoxville_audience(
+            title=title,
+            description=description,
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+        ),
     )
 
 
@@ -315,6 +330,29 @@ def _infer_activity_type(text_blob: str) -> str:
     if any(keyword in text_blob for keyword in ("lecture", "talk", "discussion", "panel")):
         return "lecture"
     return "workshop"
+
+
+def _infer_knoxville_audience(
+    *,
+    title: str,
+    description: str | None,
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str,
+) -> str:
+    title_blob = f" {' '.join(title.lower().split())} "
+    if any(pattern in title_blob for pattern in (" cattywampus open studio day ", " second sunday art activity ")):
+        return "all_ages"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=activity_type,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+        default="adults",
+    )
 
 
 def _should_reject(token_blob: str, reject_matches: list[str]) -> bool:

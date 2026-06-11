@@ -453,6 +453,9 @@ def _infer_va_tribe_audience(
             return "all_ages"
         if any(pattern in title_category_blob or pattern in token_blob for pattern in KIDS_AUDIENCE_PATTERNS):
             return "kids"
+        age_segment = infer_audience_segment(age_min=age_min, age_max=age_max)
+        if age_segment in {"teens", "teens_adults"}:
+            return age_segment
         if any(pattern in title_category_blob for pattern in ADULT_AUDIENCE_PATTERNS):
             return "adults"
 

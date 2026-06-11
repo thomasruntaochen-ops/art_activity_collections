@@ -27,7 +27,7 @@ def get_activities(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     free_only: bool = False,
-    audience: Literal["kids", "teens", "adults", "all_ages", "unknown"] | None = None,
+    audience: Literal["kids", "teens", "teens_adults", "adults", "all_ages", "unknown"] | None = None,
     db: Session = Depends(get_db),
 ) -> list[ActivityRead]:
     activities = list_activities(
@@ -90,7 +90,7 @@ def get_activity_filter_options(
     state: str | None = Query(default=None, min_length=2, max_length=2),
     city: str | None = None,
     free_only: bool = False,
-    audience: Literal["kids", "teens", "adults", "all_ages", "unknown"] | None = None,
+    audience: Literal["kids", "teens", "teens_adults", "adults", "all_ages", "unknown"] | None = None,
     db: Session = Depends(get_db),
 ) -> ActivityFilterOptions:
     options = get_filter_options(db, state=state, city=city, free_only=free_only, audience=audience)
@@ -108,7 +108,7 @@ def get_activity_venues(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     free_only: bool = False,
-    audience: Literal["kids", "teens", "adults", "all_ages", "unknown"] | None = None,
+    audience: Literal["kids", "teens", "teens_adults", "adults", "all_ages", "unknown"] | None = None,
     limit: int = Query(default=150, ge=1, le=300),
     db: Session = Depends(get_db),
 ) -> list[VenueSummaryRead]:
@@ -132,6 +132,7 @@ def get_activity_venues(
             venue_lat=float(row.venue_lat) if row.venue_lat is not None else None,
             venue_lng=float(row.venue_lng) if row.venue_lng is not None else None,
             activity_count=row.activity_count,
+            free_activity_count=int(row.free_activity_count or 0),
             next_activity_at=row.next_activity_at,
         )
         for row in rows

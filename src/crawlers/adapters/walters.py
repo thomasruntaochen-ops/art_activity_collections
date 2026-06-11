@@ -7,6 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -155,7 +156,7 @@ def parse_walters_events_payload(payload: dict) -> list[ExtractedActivity]:
 
 
 def _build_row(event_obj: dict) -> ExtractedActivity | None:
-    title = _normalize_space(event_obj.get("title"))
+    title = _normalize_space(html.unescape(str(event_obj.get("title") or "")))
     source_url = _normalize_space(event_obj.get("url"))
     start_at = _parse_datetime(event_obj.get("start_date"))
     if not title or not source_url or start_at is None:
@@ -181,6 +182,7 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
     blob = _searchable_blob(" ".join([title, description or "", " ".join(category_names)]))
     venue_name = _extract_venue_name(event_obj.get("venue"))
     location_text = venue_name or WALTERS_DEFAULT_LOCATION
+    activity_type = _infer_activity_type(blob)
 
     return ExtractedActivity(
         source_url=urljoin(WALTERS_EVENTS_URL, source_url),
@@ -190,7 +192,7 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         location_text=location_text,
         city=WALTERS_CITY,
         state=WALTERS_STATE,
-        activity_type=_infer_activity_type(blob),
+        activity_type=activity_type,
         age_min=None,
         age_max=None,
         drop_in=(" drop-in " in blob or " drop in " in blob),
@@ -202,6 +204,13 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=WALTERS_TIMEZONE,
+        audience_segment=_infer_walters_audience(
+            title=title,
+            description=description,
+            category=" ".join(category_names),
+            source_url=source_url,
+            activity_type=activity_type,
+        ),
         **price_classification_kwargs(
             " ".join([price_text, description or ""]),
             default_is_free=True if " free " in blob else None,
@@ -211,8 +220,11 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
 
 def _should_include_event(*, title: str, description: str | None, categories: list[str]) -> bool:
     blob = _searchable_blob(" ".join([title, description or "", " ".join(categories)]))
+    title_blob = _searchable_blob(title)
     has_include = any(pattern in blob for pattern in INCLUDE_PATTERNS)
     if not has_include:
+        return False
+    if any(pattern in title_blob for pattern in (" closing reception ", " velvet rage ")):
         return False
     if " supporters " in blob or " tour " in blob or " tours " in blob:
         return False
@@ -230,6 +242,31 @@ def _infer_activity_type(blob: str) -> str:
     if " family " in blob or " families " in blob:
         return "activity"
     return "workshop"
+
+
+def _infer_walters_audience(
+    *,
+    title: str,
+    description: str | None,
+    category: str | None,
+    source_url: str,
+    activity_type: str,
+) -> str:
+    title_blob = _searchable_blob(title)
+    full_blob = _searchable_blob(" ".join([title, description or "", category or ""]))
+    if " all ages " in full_blob or " drop in art making " in title_blob or " drop in " in title_blob:
+        return "all_ages"
+    if " teen " in title_blob or " teen lab " in title_blob:
+        return "teens"
+    if " style sips " in title_blob:
+        return "adults"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category or activity_type,
+        source_url=source_url,
+        default="adults",
+    )
 
 
 def _extract_venue_name(value: object) -> str | None:

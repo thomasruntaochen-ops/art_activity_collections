@@ -9,6 +9,8 @@ from src.crawlers.pipeline.types import ExtractedActivity
 def test_normalize_audience_segment_accepts_common_aliases() -> None:
     assert normalize_audience_segment("family") == "kids"
     assert normalize_audience_segment("teen") == "teens"
+    assert normalize_audience_segment("teen_adults") == "teens_adults"
+    assert normalize_audience_segment("teens adults") == "teens_adults"
     assert normalize_audience_segment("adult") == "adults"
     assert normalize_audience_segment("all ages") == "all_ages"
     assert normalize_audience_segment("something else") == "unknown"
@@ -16,7 +18,10 @@ def test_normalize_audience_segment_accepts_common_aliases() -> None:
 
 def test_infer_audience_segment_from_age_range() -> None:
     assert infer_audience_segment(age_min=6, age_max=10) == "kids"
+    assert infer_audience_segment(age_min=12, age_max=18) == "teens"
     assert infer_audience_segment(age_min=13, age_max=17) == "teens"
+    assert infer_audience_segment(age_min=12, age_max=None) == "teens_adults"
+    assert infer_audience_segment(age_min=13, age_max=None) == "teens_adults"
     assert infer_audience_segment(age_min=18, age_max=None) == "adults"
 
 

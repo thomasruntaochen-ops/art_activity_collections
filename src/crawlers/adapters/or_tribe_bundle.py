@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import re
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -92,6 +94,9 @@ SOFT_EXCLUDES = (
     " open house ",
     " performance ",
 )
+AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:to|-|\u2013)\s*(\d{1,2})\b", re.IGNORECASE)
+AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\+", re.IGNORECASE)
+AGE_OLDER_RE = re.compile(r"\b(?:ages?\s*)?(\d{1,2})\s+years?\s+(?:or\s+)?older\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,7 +266,7 @@ class OrTribeBundleAdapter(BaseSourceAdapter):
 
 
 def _build_row(event_obj: dict, *, venue: OrTribeVenueConfig) -> ExtractedActivity | None:
-    title = _normalize_space(event_obj.get("title"))
+    title = _normalize_space(html.unescape(str(event_obj.get("title") or "")))
     source_url = _normalize_space(event_obj.get("url"))
     start_at = _parse_datetime(event_obj.get("start_date"))
     if not title or not source_url or start_at is None:
@@ -289,6 +294,8 @@ def _build_row(event_obj: dict, *, venue: OrTribeVenueConfig) -> ExtractedActivi
     amount = _extract_amount(event_obj.get("cost_details"))
     if " virtual " in token_blob:
         location_text = "Online"
+    age_min, age_max = _parse_age_range(" ".join([title, description or ""]))
+    activity_type = _infer_activity_type(token_blob)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -298,9 +305,9 @@ def _build_row(event_obj: dict, *, venue: OrTribeVenueConfig) -> ExtractedActivi
         location_text=location_text,
         city=venue.city,
         state=venue.state,
-        activity_type=_infer_activity_type(token_blob),
-        age_min=None,
-        age_max=None,
+        activity_type=activity_type,
+        age_min=age_min,
+        age_max=age_max,
         drop_in=(" drop in " in token_blob or " drop-in " in token_blob),
         registration_required=(
             " register " in token_blob
@@ -311,7 +318,21 @@ def _build_row(event_obj: dict, *, venue: OrTribeVenueConfig) -> ExtractedActivi
         start_at=start_at,
         end_at=end_at,
         timezone=OR_TIMEZONE,
-        **price_classification_kwargs_from_amount(amount, text=price_text or description),
+        audience_segment=_infer_or_audience(
+            title=title,
+            description=description,
+            source_url=source_url,
+            category=" ".join(category_names),
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+            venue=venue,
+        ),
+        **price_classification_kwargs_from_amount(
+            amount,
+            text=price_text or description,
+            default_is_free=_default_is_free_for_or_event(token_blob=token_blob, venue=venue),
+        ),
     )
 
 
@@ -344,6 +365,24 @@ def _should_include_event(*, token_blob: str, title: str, venue: OrTribeVenueCon
         return False
     if "tour" in normalized_title and "artist talk" not in normalized_title:
         return False
+    if venue.slug == "portland":
+        if " categories exhibitions " in token_blob:
+            return False
+        if any(
+            pattern in token_blob
+            for pattern in (
+                " dinner ",
+                " member only ",
+                " members only ",
+                " tasting ",
+                " tv series ",
+                " wine ",
+                " winemaker ",
+            )
+        ):
+            return False
+        if any(pattern in token_blob for pattern in (" screenplay ", " screenwriting ", " story ideas ")):
+            return False
 
     return True
 
@@ -364,6 +403,66 @@ def _extract_amount(cost_details: object) -> Decimal | None:
             except Exception:
                 continue
     return None
+
+
+def _parse_age_range(text: str) -> tuple[int | None, int | None]:
+    match = AGE_RANGE_RE.search(text)
+    if match:
+        low = int(match.group(1))
+        high = int(match.group(2))
+        return min(low, high), max(low, high)
+    plus_match = AGE_PLUS_RE.search(text)
+    if plus_match:
+        return int(plus_match.group(1)), None
+    older_match = AGE_OLDER_RE.search(text)
+    if older_match:
+        return int(older_match.group(1)), None
+    return None, None
+
+
+def _infer_or_audience(
+    *,
+    title: str,
+    description: str | None,
+    source_url: str,
+    category: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str,
+    venue: OrTribeVenueConfig,
+) -> str:
+    title_blob = _searchable_blob(title)
+    full_blob = _searchable_blob(" ".join([title, description or "", category or ""]))
+    if any(pattern in full_blob for pattern in (" all ages ", " all to enjoy ", " family friendly ")):
+        return "all_ages"
+    if venue.slug == "portland":
+        if " art in asl " in title_blob or " look with me " in title_blob:
+            return "all_ages"
+        if " wonderlab " in title_blob:
+            return "kids"
+    if activity_type == "lecture":
+        default = "adults"
+    elif activity_type == "workshop":
+        default = "adults"
+    else:
+        default = None
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category or activity_type,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+        default=default,
+    )
+
+
+def _default_is_free_for_or_event(*, token_blob: str, venue: OrTribeVenueConfig) -> bool | None:
+    if venue.slug != "portland":
+        return None
+    if " community painting day " in token_blob:
+        return True
+    return False
 
 
 def _extract_location_name(venue_obj: object) -> str | None:
@@ -426,8 +525,14 @@ def _normalize_price_text(value: str) -> str:
 
 
 def get_or_tribe_source_prefixes() -> tuple[str, ...]:
+    return get_or_tribe_source_prefixes_for_venues(OR_TRIBE_VENUES)
+
+
+def get_or_tribe_source_prefixes_for_venues(
+    venues: tuple[OrTribeVenueConfig, ...] | list[OrTribeVenueConfig],
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in OR_TRIBE_VENUES:
+    for venue in venues:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
     return tuple(prefixes)

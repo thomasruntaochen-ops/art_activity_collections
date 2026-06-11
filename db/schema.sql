@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS activities (
   activity_type VARCHAR(100) NULL,
   age_min INT NULL,
   age_max INT NULL,
-  audience_segment ENUM('kids','teens','adults','all_ages','unknown') NOT NULL DEFAULT 'unknown',
+  audience_segment ENUM('kids','teens','teens_adults','adults','all_ages','unknown') NOT NULL DEFAULT 'unknown',
 
   is_free BOOLEAN NULL DEFAULT NULL,
   free_verification_status ENUM('confirmed','inferred','uncertain') NOT NULL DEFAULT 'inferred',

@@ -40,11 +40,11 @@ Undefined means `audience_segment = unknown` or `audience_segment IS NULL`.
 | ~~Memorial Art Gallery~~ fixed 2026-06-10: now 41 active rows, 0 undefined audience | Rochester | NY | 44 | 2026-06-02 | 2027-02-27 | 2026-06-03 |
 | ~~The Newark Museum of Art~~ fixed 2026-06-10: now 6 active rows, 0 undefined audience | Newark | NJ | 39 | 2026-04-04 | 2026-06-28 | 2026-04-08 |
 | ~~New Bedford Art Museum~~ fixed 2026-06-10: now 10 active rows, 0 undefined audience | New Bedford | MA | 38 | 2026-04-03 | 2026-08-26 | 2026-06-02 |
-| Portland Art Museum | Portland | OR | 37 | 2026-04-12 | 2026-09-17 | 2026-06-03 |
-| Dallas Museum of Art | Dallas | TX | 37 | 2026-06-05 | 2026-09-14 | 2026-06-04 |
-| Walters Art Museum | Baltimore | MD | 36 | 2026-04-03 | 2026-08-20 | 2026-06-02 |
-| Knoxville Museum of Art | Knoxville | TN | 36 | 2026-04-12 | 2027-05-09 | 2026-06-02 |
-| Montgomery Museum of Fine Arts | Montgomery | AL | 35 | 2026-04-11 | 2026-09-18 | 2026-06-03 |
+| ~~Portland Art Museum~~ fixed 2026-06-10: now 15 active rows, 0 undefined audience | Portland | OR | 37 | 2026-04-12 | 2026-09-17 | 2026-06-03 |
+| ~~Dallas Museum of Art~~ fixed 2026-06-10: now 31 active rows, 0 undefined audience | Dallas | TX | 37 | 2026-06-05 | 2026-09-14 | 2026-06-04 |
+| ~~Walters Art Museum~~ fixed 2026-06-10: now 11 active rows, 0 undefined audience | Baltimore | MD | 36 | 2026-04-03 | 2026-08-20 | 2026-06-02 |
+| ~~Knoxville Museum of Art~~ fixed 2026-06-10: now 19 active rows, 0 undefined audience | Knoxville | TN | 36 | 2026-04-12 | 2027-05-09 | 2026-06-02 |
+| ~~Montgomery Museum of Fine Arts~~ fixed 2026-06-10: now 10 active rows, 0 undefined audience | Montgomery | AL | 35 | 2026-04-11 | 2026-09-18 | 2026-06-03 |
 | Grand Rapids Art Museum | Grand Rapids | MI | 33 | 2026-04-04 | 2026-09-12 | 2026-06-04 |
 | Albrecht-Kemper Museum of Art | St. Joseph | MO | 33 | 2026-04-07 | 2026-12-05 | 2026-06-04 |
 | Yellowstone Art Museum | Billings | MT | 32 | 2026-06-03 | 2026-08-06 | 2026-06-03 |

@@ -7,6 +7,7 @@ AudienceSegment = str
 
 AUDIENCE_KIDS = "kids"
 AUDIENCE_TEENS = "teens"
+AUDIENCE_TEENS_ADULTS = "teens_adults"
 AUDIENCE_ADULTS = "adults"
 AUDIENCE_ALL_AGES = "all_ages"
 AUDIENCE_UNKNOWN = "unknown"
@@ -14,6 +15,7 @@ AUDIENCE_UNKNOWN = "unknown"
 VALID_AUDIENCE_SEGMENTS = {
     AUDIENCE_KIDS,
     AUDIENCE_TEENS,
+    AUDIENCE_TEENS_ADULTS,
     AUDIENCE_ADULTS,
     AUDIENCE_ALL_AGES,
     AUDIENCE_UNKNOWN,
@@ -29,6 +31,14 @@ _SEGMENT_ALIASES = {
     "youth": AUDIENCE_KIDS,
     "teen": AUDIENCE_TEENS,
     "teens": AUDIENCE_TEENS,
+    "teen adults": AUDIENCE_TEENS_ADULTS,
+    "teen adult": AUDIENCE_TEENS_ADULTS,
+    "teen_adults": AUDIENCE_TEENS_ADULTS,
+    "teen-adults": AUDIENCE_TEENS_ADULTS,
+    "teens adults": AUDIENCE_TEENS_ADULTS,
+    "teens adult": AUDIENCE_TEENS_ADULTS,
+    "teens_adults": AUDIENCE_TEENS_ADULTS,
+    "teens-adults": AUDIENCE_TEENS_ADULTS,
     "adult": AUDIENCE_ADULTS,
     "adults": AUDIENCE_ADULTS,
     "all ages": AUDIENCE_ALL_AGES,
@@ -138,6 +148,10 @@ def infer_audience_segment(
 def infer_audience_segment_from_age(*, age_min: int | None, age_max: int | None) -> AudienceSegment:
     if age_min is not None and age_min >= 18:
         return AUDIENCE_ADULTS
+    if age_min is not None and 12 <= age_min < 18 and (age_max is None or age_max > 18):
+        return AUDIENCE_TEENS_ADULTS
+    if age_min is not None and age_min == 12 and age_max is not None and age_max <= 18:
+        return AUDIENCE_TEENS
     if age_min is not None and age_min >= 13 and (age_max is None or age_max <= 18):
         return AUDIENCE_TEENS
     if age_min is not None and age_min <= 12 and age_max is not None and age_max <= 13:

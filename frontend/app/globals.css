@@ -351,6 +351,34 @@ a {
   line-height: 1.5;
 }
 
+.explorer-detail__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 8px 0 0;
+}
+
+.explorer-detail__summary span {
+  position: relative;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4a3f33;
+}
+
+.explorer-detail__summary span:not(:last-child)::after {
+  content: "·";
+  position: absolute;
+  right: -8px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.explorer-detail__summary span:first-child,
+.explorer-detail__summary span:nth-child(2) {
+  color: var(--gold-deep);
+}
+
 .explorer-sidebar__list {
   display: flex;
   min-height: 0;
@@ -575,7 +603,8 @@ a {
   color: #69768a;
 }
 
-.venue-map__summary-count {
+.venue-map__summary-count,
+.venue-map__summary-free {
   display: inline-flex;
   align-items: center;
   align-self: start;
@@ -583,10 +612,18 @@ a {
   margin-top: 2px;
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(26, 115, 232, 0.12);
-  color: #175ec2;
   font-size: 0.78rem;
   font-weight: 600;
+}
+
+.venue-map__summary-count {
+  background: rgba(26, 115, 232, 0.12);
+  color: #175ec2;
+}
+
+.venue-map__summary-free {
+  background: rgba(120, 168, 99, 0.18);
+  color: #4f6c3d;
 }
 
 .venue-map__summary-next {
@@ -811,6 +848,37 @@ a {
   border-color: rgba(158, 64, 42, 0.18);
   background: rgba(158, 64, 42, 0.12);
   color: #9e402a;
+}
+
+/* One distinct colour per known age category (unknown is never shown). */
+.audience-pill--kids {
+  border-color: rgba(230, 126, 34, 0.3);
+  background: rgba(230, 126, 34, 0.16);
+  color: #b5651d;
+}
+
+.audience-pill--teens {
+  border-color: rgba(142, 68, 173, 0.3);
+  background: rgba(142, 68, 173, 0.15);
+  color: #7d3c98;
+}
+
+.audience-pill--teens_adults {
+  border-color: rgba(126, 84, 176, 0.3);
+  background: rgba(126, 84, 176, 0.14);
+  color: #6f4fa3;
+}
+
+.audience-pill--adults {
+  border-color: rgba(41, 128, 185, 0.3);
+  background: rgba(41, 128, 185, 0.15);
+  color: #1f6391;
+}
+
+.audience-pill--all_ages {
+  border-color: rgba(22, 160, 133, 0.32);
+  background: rgba(22, 160, 133, 0.16);
+  color: #138a72;
 }
 
 .table-shell {

@@ -41,11 +41,14 @@ function formatNextActivity(iso: string | null): string | null {
 function buildVenueSummaryHtml(venue: ResolvedVenueCoordinates): string {
   const location = [venue.venue_city, venue.venue_state].filter(Boolean).join(", ") || "Location pending";
   const programs = `${venue.activity_count} live ${venue.activity_count === 1 ? "program" : "programs"}`;
+  const freeCount = venue.free_activity_count ?? 0;
+  const freePrograms = `${freeCount} free ${freeCount === 1 ? "program" : "programs"}`;
   const next = formatNextActivity(venue.next_activity_at);
   return [
     `<strong class="venue-map__summary-name">${escapeHtml(venue.venue_name)}</strong>`,
     `<span class="venue-map__summary-location">${escapeHtml(location)}</span>`,
     `<span class="venue-map__summary-count">${escapeHtml(programs)}</span>`,
+    `<span class="venue-map__summary-free">${escapeHtml(freePrograms)}</span>`,
     next ? `<span class="venue-map__summary-next">Next: ${escapeHtml(next)}</span>` : "",
   ]
     .filter(Boolean)

@@ -381,7 +381,7 @@ enabled = true
 parser_script_name = "scripts/run_dma_parser.py"
 batch_id = "batch_d"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "kimbell"
@@ -453,7 +453,7 @@ enabled = true
 parser_script_name = "scripts/run_knoxville_museum_of_art_parser.py"
 batch_id = "batch_a"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "frist"
@@ -651,7 +651,7 @@ enabled = true
 parser_script_name = "scripts/run_or_tribe_bundle_parser.py"
 batch_id = "batch_a"
 use_base_url = false
-args = ["--commit"]
+args = ["--venue", "portland", "--commit", "--clear"]
 
 [[venues]]
 venue = "or_html_bundle"
@@ -696,7 +696,7 @@ enabled = true
 parser_script_name = "scripts/run_walters_parser.py"
 batch_id = "batch_a"
 use_base_url = false
-args = ["--commit"]
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "wcmfa"
@@ -984,7 +984,7 @@ enabled = true
 parser_script_name = "scripts/run_al_bundle_parser.py"
 batch_id = "batch_c"
 use_base_url = false
-args = ["--commit", "--clear"]
+args = ["--venue", "mmfa", "--commit", "--clear"]
 
 [[venues]]
 venue = "ar_tribe_bundle"

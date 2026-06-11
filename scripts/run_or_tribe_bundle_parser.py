@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from sqlalchemy import bindparam
 from sqlalchemy import delete
@@ -17,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.crawlers.adapters.or_tribe_bundle import OR_TRIBE_VENUES  # noqa: E402
 from src.crawlers.adapters.or_tribe_bundle import OR_TRIBE_VENUES_BY_SLUG  # noqa: E402
 from src.crawlers.adapters.or_tribe_bundle import get_or_tribe_source_prefixes  # noqa: E402
+from src.crawlers.adapters.or_tribe_bundle import get_or_tribe_source_prefixes_for_venues  # noqa: E402
 from src.crawlers.adapters.or_tribe_bundle import load_or_tribe_bundle_payload  # noqa: E402
 from src.crawlers.adapters.or_tribe_bundle import parse_or_tribe_events  # noqa: E402
 from src.crawlers.pipeline.clear_utils import lookup_venue_ids  # noqa: E402
@@ -31,29 +33,52 @@ from src.models.activity import Source  # noqa: E402
 OR_TRIBE_SOURCE_URL_PREFIXES = get_or_tribe_source_prefixes()
 
 
-def clear_or_tribe_entries() -> dict[str, int]:
+def _source_match_values(venues: list) -> tuple[list[str], list[str], list[str]]:
+    source_names = [venue.source_name for venue in venues]
+    base_urls = [venue.list_url for venue in venues]
+    host_prefixes: list[str] = []
+
+    for venue in venues:
+        parsed = urlparse(venue.list_url)
+        if not parsed.scheme or not parsed.netloc:
+            continue
+        host_base_url = f"{parsed.scheme}://{parsed.netloc}"
+        base_urls.append(host_base_url)
+        source_names.append(parsed.netloc)
+        host_prefixes.append(f"{host_base_url}/")
+
+    return source_names, base_urls, host_prefixes
+
+
+def clear_or_tribe_entries(*, venues: list | None = None) -> dict[str, int]:
+    venues_to_clear = list(venues) if venues is not None else list(OR_TRIBE_VENUES)
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
+    source_names, base_urls, host_prefixes = _source_match_values(venues_to_clear)
 
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in OR_TRIBE_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in venues_to_clear],
         )
 
-        source_ids = db.scalars(
-            select(Source.id).where(
-                or_(
-                    Source.base_url.in_([venue.list_url for venue in OR_TRIBE_VENUES]),
-                    Source.name.like("or_tribe_%"),
-                    Source.name.in_([venue.source_name for venue in OR_TRIBE_VENUES]),
-                )
+        source_filters = [
+            Source.adapter_type.in_(source_names),
+            Source.base_url.in_(base_urls),
+            Source.name.in_(source_names),
+        ]
+        source_filters.extend(Source.base_url.like(f"{prefix}%") for prefix in host_prefixes)
+        if len(venues_to_clear) == len(OR_TRIBE_VENUES):
+            source_filters.append(
+                Source.base_url.in_(sorted({prefix.rstrip("/") for prefix in OR_TRIBE_SOURCE_URL_PREFIXES}))
             )
-        ).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in OR_TRIBE_SOURCE_URL_PREFIXES]
+        source_ids = db.scalars(select(Source.id).where(or_(*source_filters))).all()
+
+        url_prefixes = get_or_tribe_source_prefixes_for_venues(tuple(venues_to_clear))
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in url_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -115,7 +140,7 @@ async def main() -> None:
         "--clear",
         action="store_true",
         help=(
-            "Delete all OR Tribe bundle DB rows (activity_tags, activities, ingestion_runs, sources). "
+            "Delete selected OR Tribe bundle DB rows (activity_tags, activities, ingestion_runs, sources). "
             "If used without --commit, the script exits after deletion."
         ),
     )
@@ -128,7 +153,7 @@ async def main() -> None:
     )
 
     if args.clear and not args.commit:
-        deleted = clear_or_tribe_entries()
+        deleted = clear_or_tribe_entries(venues=selected_venues)
         print(
             "Deleted OR Tribe rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -148,7 +173,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_or_tribe_entries()
+        deleted = clear_or_tribe_entries(venues=selected_venues)
         print(
             "Deleted OR Tribe rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "
