@@ -91,16 +91,16 @@ Undefined means `audience_segment = unknown` or `audience_segment IS NULL`.
 | ~~National Museum of Asian Art~~ fixed 2026-06-13: committed 13 rows, 0 undefined audience in parser output (kids/family Art Break, Art & Me, K-3 webinar plus adult conservation cart talks; film/meditation/tours filtered; listing-card fallback added because detail pages intermittently 403; free-admission default free; DC HTML --clear is venue-scoped) | Washington | DC | 14 | 2026-04-05 | 2027-05-07 | 2026-06-04 |
 | Norton Museum of Art - blocked 2026-06-13: current program/calendar pages fetch as static navigation with no event-card data; dry run parsed 0 rows, so local rows were left unchanged | West Palm Beach | FL | 14 | 2026-04-04 | 2026-05-22 | 2026-04-01 |
 | ~~Blanden Memorial Art Museum~~ fixed 2026-06-13: committed 7 rows, 0 undefined audience in parser output (14+ adult classes teens_adults; Adult Open Studio adults; Create Like a Famous Artist and Free Art Saturday kids; Free Art Saturday confirmed free, other classes default not-free; runner now supports --clear) | Fort Dodge | IA | 14 | 2026-06-20 | 2026-08-01 | 2026-06-03 |
-| Hilliard Art Museum | Lafayette | LA | 14 | 2026-06-25 | 2027-05-08 | 2026-06-04 |
-| Cape Cod Museum of Art | Dennis | MA | 14 | 2026-04-16 | 2026-08-21 | 2026-06-03 |
-| Ackland Art Museum | Chapel Hill | NC | 14 | 2026-04-10 | 2026-07-10 | 2026-06-04 |
-| North Carolina Museum of Art | Raleigh | NC | 14 | 2026-04-04 | 2026-05-02 | 2026-04-15 |
-| Bennington Museum | Bennington | VT | 14 | 2026-06-13 | 2026-11-14 | 2026-06-03 |
-| Anchorage Museum | Anchorage | AK | 13 | 2026-04-03 | 2026-08-11 | 2026-06-03 |
-| Crystal Bridges Museum of American Art | Bentonville | AR | 13 | 2026-04-10 | 2026-11-14 | 2026-04-15 |
-| The Dali Museum | St. Petersburg | FL | 13 | 2026-04-07 | 2026-10-24 | 2026-06-03 |
-| LSU Museum of Art | Baton Rouge | LA | 13 | 2026-04-18 | 2026-12-12 | 2026-06-02 |
-| Fitchburg Art Museum | Fitchburg | MA | 13 | 2026-04-16 | 2026-07-19 | 2026-06-03 |
+| ~~Hilliard Art Museum~~ fixed 2026-06-13: committed 15 rows, 0 undefined audience (Create & Play kids/free; Museum Makers and Pop Life adults; paid-admission/adult rows not-free) | Lafayette | LA | 14 | 2026-06-25 | 2027-05-08 | 2026-06-04 |
+| ~~Cape Cod Museum of Art~~ fixed 2026-06-13: committed 7 rows, 0 undefined audience (paid talks adults, paid Paint Nights teens_adults, Free Family Fun Day kids/free; paid-admission included rows not-free) | Dennis | MA | 14 | 2026-04-16 | 2026-08-21 | 2026-06-03 |
+| ~~Ackland Art Museum~~ fixed 2026-06-13: committed 1 future row, 0 undefined audience (2nd Friday ArtWalk all_ages/free/no registration; June 12 occurrence aged out as of 2026-06-13) | Chapel Hill | NC | 14 | 2026-04-10 | 2026-07-10 | 2026-06-04 |
+| ~~North Carolina Museum of Art~~ fixed 2026-06-13: committed 9 rows, 0 undefined audience (adult educator course/workshops, preschool kids, teen sketching, all_ages art kit; Art on the Dot tour filtered; paid rows not-free) | Raleigh | NC | 14 | 2026-04-04 | 2026-05-02 | 2026-04-15 |
+| ~~Bennington Museum~~ fixed 2026-06-13: committed 6 rows, 0 undefined audience (Museum ABCs kids/free; film screening filtered) | Bennington | VT | 14 | 2026-06-13 | 2026-11-14 | 2026-06-03 |
+| ~~Anchorage Museum~~ fixed 2026-06-13: committed 6 rows, 0 undefined audience (private planetarium all_ages paid; Gyotaku and plein air classes adults paid; sold-out workshop filtered; runner now supports --clear) | Anchorage | AK | 13 | 2026-04-03 | 2026-08-11 | 2026-06-03 |
+| ~~Crystal Bridges Museum of American Art~~ fixed 2026-06-13: committed 39 rows, 0 undefined audience (paid adult classes/workshops, free all_ages Second Saturday/Pop-In Artmaking, one 14+ teens_adults class; Tai Chi/Hairpins/Art Fair filtered; free-admission default free; AR clear scoped) | Bentonville | AR | 13 | 2026-04-10 | 2026-11-14 | 2026-04-15 |
+| ~~The Dali Museum~~ fixed 2026-06-13: committed 4 rows, 0 undefined audience (sensory/neurographic all_ages, curator lecture and photography adults; member reciprocity/fundraiser filtered; paid admission/workshops not-free) | St. Petersburg | FL | 13 | 2026-04-07 | 2026-10-24 | 2026-06-03 |
+| ~~LSU Museum of Art~~ fixed 2026-06-13: committed 7 rows, 0 undefined audience (Free First Sundays all_ages/free; Art Break teens_adults/free; no-programming admission day filtered) | Baton Rouge | LA | 13 | 2026-04-18 | 2026-12-12 | 2026-06-02 |
+| ~~Fitchburg Art Museum~~ fixed 2026-06-13: committed 5 rows, 0 undefined audience (Make Art all_ages/free, Hidden Treasures adults/free, artist talks adults/not-free inferred by paid-admission default) | Fitchburg | MA | 13 | 2026-04-16 | 2026-07-19 | 2026-06-03 |
 | Cameron Art Museum | Wilmington | NC | 13 | 2026-04-09 | 2026-07-11 | 2026-06-04 |
 | Currier Museum of Art | Manchester | NH | 13 | 2026-04-10 | 2026-08-19 | 2026-06-03 |
 | McNay Art Museum | San Antonio | TX | 13 | 2026-04-03 | 2026-07-10 | 2026-06-03 |
@@ -119,7 +119,7 @@ Undefined means `audience_segment = unknown` or `audience_segment IS NULL`.
 | Stanley Museum of Art | Iowa City | IA | 9 | 2026-06-05 | 2026-08-21 | 2026-06-03 |
 | Rose Art Museum | Waltham | MA | 9 | 2026-04-15 | 2026-08-19 | 2026-06-02 |
 | Missoula Art Museum | Missoula | MT | 9 | 2026-04-11 | 2026-06-20 | 2026-06-02 |
-| The Momentary | Bentonville | AR | 8 | 2026-04-07 | 2026-08-01 | 2026-05-29 |
+| ~~The Momentary~~ fixed 2026-06-13: committed 3 rows, 0 undefined audience after AR clear side-effect restore (Coffee & Chalk kids/free, soft sculpture teens_adults/paid, Crowns & Cocktails adults/paid; AR custom clear now venue-scoped) | Bentonville | AR | 8 | 2026-04-07 | 2026-08-01 | 2026-05-29 |
 | Orange County Museum of Art | Costa Mesa | CA | 8 | 2026-04-03 | 2026-07-15 | 2026-06-03 |
 | Fairfield University Art Museum | Fairfield | CT | 8 | 2026-04-09 | 2026-06-14 | 2026-06-03 |
 | Hirshhorn Museum and Sculpture Garden | Washington | DC | 8 | 2026-04-04 | 2026-04-25 | 2026-03-24 |

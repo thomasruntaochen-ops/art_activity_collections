@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -26,6 +27,10 @@ MCNAY_STRONG_INCLUDE_KEYWORDS = (
     "children’s storybook",
     "children's storybook",
     "school-aged",
+    "artist talk",
+    "lecture",
+    "talk",
+    "conversation",
 )
 MCNAY_INCLUDE_KEYWORDS = (
     "workshop",
@@ -37,6 +42,9 @@ MCNAY_INCLUDE_KEYWORDS = (
     "children",
     "child",
     "teen",
+    "lecture",
+    "talk",
+    "conversation",
 )
 MCNAY_EXCLUDE_KEYWORDS = (
     "members only",
@@ -44,7 +52,6 @@ MCNAY_EXCLUDE_KEYWORDS = (
     "poetry",
     "meditation",
     "mindfulness",
-    "lecture",
     "concert",
     "film",
     "performance",
@@ -60,6 +67,8 @@ TIME_SINGLE_RE = re.compile(
     r"(?P<value>\d{1,2}:\d{2}\s*(?:a\.?m\.?|p\.?m\.?|am|pm))",
     re.IGNORECASE,
 )
+AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
+AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE)
 WHITESPACE_RE = re.compile(r"\s+")
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -175,12 +184,14 @@ def parse_mcnay_payload(payload: dict[str, object]) -> list[ExtractedActivity]:
             card_description=card["description"],
             detail_description=detail["description"],
         )
+        price_text = detail["price_text"] if isinstance(detail["price_text"], str) else None
+        description = _append_price_to_description(description, price_text)
         text_blob = " ".join(
             [
                 title,
                 description or "",
                 card["category_class"],
-                detail["price_text"] or "",
+                price_text or "",
             ]
         )
         if not _should_keep_mcnay_event(title=title, text_blob=text_blob):
@@ -190,9 +201,8 @@ def parse_mcnay_payload(payload: dict[str, object]) -> list[ExtractedActivity]:
         if start_at is None:
             continue
         end_at = detail["end_at"] or _parse_card_end_at(card["date_text"], card["time_text"])
-        is_free, free_status = infer_price_classification(
-            " | ".join(part for part in [detail["price_text"], description] if part)
-        )
+        age_min, age_max = _parse_age_range(text_blob)
+        is_free, free_status = _infer_mcnay_price(" | ".join(part for part in [price_text, description] if part))
 
         item = ExtractedActivity(
             source_url=source_url,
@@ -203,8 +213,14 @@ def parse_mcnay_payload(payload: dict[str, object]) -> list[ExtractedActivity]:
             city=MCNAY_CITY,
             state=MCNAY_STATE,
             activity_type=_infer_mcnay_activity_type(title=title, description=description),
-            age_min=None,
-            age_max=None,
+            age_min=age_min,
+            age_max=age_max,
+            audience_segment=_infer_mcnay_audience(
+                title=title,
+                description=description,
+                age_min=age_min,
+                age_max=age_max,
+            ),
             drop_in=("drop-in" in text_blob.lower() or "drop in" in text_blob.lower()),
             registration_required=(
                 detail["registration_required"]
@@ -382,11 +398,69 @@ def _should_keep_mcnay_event(*, title: str, text_blob: str) -> bool:
 
 def _infer_mcnay_activity_type(*, title: str, description: str | None) -> str:
     text = " ".join([title, description or ""]).lower()
+    if any(marker in text for marker in ("lecture", "talk", "conversation")):
+        return "lecture"
     if "workshop" in text:
         return "workshop"
     if "class" in text:
         return "class"
     return "activity"
+
+
+def _infer_mcnay_price(text: str | None) -> tuple[bool | None, str]:
+    normalized = f" {' '.join((text or '').lower().split())} "
+    if any(
+        marker in normalized
+        for marker in (
+            " included with admission ",
+            " free with admission ",
+            " free with museum admission ",
+            " free for members ",
+            " members free ",
+            " member free ",
+        )
+    ):
+        return False, "confirmed"
+    return infer_price_classification(text)
+
+
+def _infer_mcnay_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {' '.join(' '.join([title, description or '']).lower().split())} "
+    if any(marker in blob for marker in (" educator ", " educators ", " teacher ", " teachers ", " continuing education ")):
+        return "adults"
+    if any(marker in blob for marker in (" children ", " child ", " family ", " families ", " school-aged ", " storytime ")):
+        return "kids"
+    if any(marker in blob for marker in (" teen ", " teens ")):
+        return "teens"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in (" workshop ", " drawing group ", " open studio ", " lecture ", " talk ", " conversation ")):
+        return "adults"
+    return "unknown"
+
+
+def _parse_age_range(text: str | None) -> tuple[int | None, int | None]:
+    if not text:
+        return None, None
+    match = AGE_RANGE_RE.search(text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    plus_match = AGE_PLUS_RE.search(text)
+    if plus_match:
+        return int(plus_match.group(1)), None
+    return None, None
 
 
 def _combine_description(*, card_description: str, detail_description: str | None) -> str | None:
@@ -398,6 +472,16 @@ def _combine_description(*, card_description: str, detail_description: str | Non
             if chunk and chunk not in parts:
                 parts.append(chunk)
     return " | ".join(parts) if parts else None
+
+
+def _append_price_to_description(description: str | None, price_text: str | None) -> str | None:
+    price = _normalize_space(price_text or "")
+    if not price:
+        return description
+    price_note = f"Price: {price}"
+    if description and price_note not in description:
+        return f"{description} | {price_note}"
+    return description or price_note
 
 
 def _normalize_space(value: str) -> str:

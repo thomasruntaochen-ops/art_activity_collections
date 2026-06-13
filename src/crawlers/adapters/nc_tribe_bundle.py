@@ -353,6 +353,8 @@ def _build_row(event_obj: dict, *, venue: NcTribeVenueConfig) -> ExtractedActivi
 
     title_blob = _searchable_blob(" ".join([title, " ".join(category_names)]))
     token_blob = _searchable_blob(" ".join([title, description or "", " ".join(category_names)]))
+    if venue.slug == "cameron" and _should_reject_cameron_event(title_blob=title_blob, token_blob=token_blob):
+        return None
     if venue.slug == "mint" and _should_reject_mint_event(title_blob=title_blob, token_blob=token_blob):
         return None
     if not _should_keep_event(title_blob=title_blob, token_blob=token_blob):
@@ -430,6 +432,24 @@ def _should_reject_mint_event(*, title_blob: str, token_blob: str) -> bool:
         return True
     if " wednesday night live " in title_blob and any(
         marker in token_blob for marker in (" concert ", " performance ", " players ", " play ")
+    ):
+        return True
+    return False
+
+
+def _should_reject_cameron_event(*, title_blob: str, token_blob: str) -> bool:
+    if any(
+        marker in token_blob
+        for marker in (
+            " exhibition opening ",
+            " opening night ",
+            " opening reception ",
+            " reception ",
+        )
+    ):
+        return True
+    if " exhibition " in title_blob and not any(
+        marker in token_blob for marker in (" workshop ", " class ", " talk ", " lecture ", " artmaking ", " art making ")
     ):
         return True
     return False
@@ -524,6 +544,27 @@ def _infer_nc_tribe_audience(
             return "adults"
         if any(marker in blob for marker in (" family ", " children ", " kids ", " youth ")):
             return "kids"
+    if venue.slug == "cameron":
+        if any(
+            marker in blob
+            for marker in (
+                " mary s art explorers ",
+                " infants ",
+                " toddlers ",
+                " preschoolers ",
+                " story time ",
+                " storytime ",
+                " children ",
+                " families ",
+            )
+        ):
+            return "kids"
+        if any(marker in blob for marker in (" educator ", " educators ", " professional development ", " curriculum ")):
+            return "adults"
+        if " community day " in blob or " all ages " in blob:
+            return "all_ages"
+        if any(marker in blob for marker in (" artist talk ", " gallery talk ", " lecture ", " conversation ", " class ", " workshop ")):
+            return "adults"
     return infer_audience_segment(
         title=title,
         description=description,

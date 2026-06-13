@@ -21,6 +21,7 @@ from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.adapters.oh_common import should_include_event
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -203,10 +204,11 @@ def parse_nh_html_events(
     raise RuntimeError(f"Unsupported NH venue mode: {venue.mode}")
 
 
-def get_nh_source_prefixes() -> list[str]:
+def get_nh_source_prefixes(venues: list[NhHtmlVenueConfig] | tuple[NhHtmlVenueConfig, ...] | None = None) -> list[str]:
+    selected = list(venues) if venues is not None else list(NH_HTML_VENUES)
     prefixes = {
         prefix.rstrip("/")
-        for venue in NH_HTML_VENUES
+        for venue in selected
         for prefix in venue.source_prefixes
     }
     return sorted(prefixes)
@@ -378,9 +380,17 @@ def _parse_currier_blackbaud_fallback(
             ]
         )
         text_blob = join_non_empty([row_title, full_description])
+        if _is_currier_summer_art_ventures(text_blob):
+            continue
         if not _should_keep_event(title=row_title, description=text_blob):
             continue
 
+        audience_segment = _infer_currier_audience(
+            title=row_title,
+            description=full_description,
+            age_min=age_min,
+            age_max=age_max,
+        )
         rows.append(
             ExtractedActivity(
                 source_url=_fragment_url(fetch_url, f"{row_title}-{age_min or 'adult'}"),
@@ -398,6 +408,7 @@ def _parse_currier_blackbaud_fallback(
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
+                audience_segment=audience_segment,
                 **price_classification_kwargs(join_non_empty([text_blob, href]), default_is_free=None),
             )
         )
@@ -457,6 +468,8 @@ def _parse_currier_adult_section(
     title = normalize_space(section.find("h4").get_text(" ", strip=True) if section.find("h4") else "")
     if not title or not _should_keep_event(title=title, description=text):
         return None
+    if _is_currier_summer_art_ventures(text):
+        return None
 
     paragraphs = [
         normalize_space(node.get_text(" ", strip=True))
@@ -506,6 +519,12 @@ def _parse_currier_adult_section(
         extra_notes.append(f"Registration: {register_url}")
 
     full_description = join_non_empty([description, *extra_notes])
+    audience_segment = _infer_currier_audience(
+        title=title,
+        description=full_description,
+        age_min=None,
+        age_max=None,
+    )
     return ExtractedActivity(
         source_url=_fragment_url(fetch_url, title),
         title=title,
@@ -522,6 +541,7 @@ def _parse_currier_adult_section(
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
+        audience_segment=audience_segment,
         **price_classification_kwargs(join_non_empty([text, register_url]), default_is_free=None),
     )
 
@@ -594,9 +614,17 @@ def _parse_currier_kids_section(
             ]
         )
         text_blob = join_non_empty([title, full_description])
+        if _is_currier_summer_art_ventures(text_blob):
+            continue
         if not _should_keep_event(title=title, description=text_blob):
             continue
 
+        audience_segment = _infer_currier_audience(
+            title=title,
+            description=full_description,
+            age_min=age_min,
+            age_max=age_max,
+        )
         rows.append(
             ExtractedActivity(
                 source_url=_fragment_url(fetch_url, f"{title}-{age_min or 'all'}"),
@@ -614,6 +642,7 @@ def _parse_currier_kids_section(
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
+                audience_segment=audience_segment,
                 **price_classification_kwargs(join_non_empty([text_blob, href]), default_is_free=None),
             )
         )
@@ -850,6 +879,36 @@ def _should_keep_event(
         return True
 
     return any(marker in combined for marker in EXTRA_INCLUDE_MARKERS)
+
+
+def _is_currier_summer_art_ventures(text: str | None) -> bool:
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalize_space(text).lower())
+    return " summer art ventures " in f" {normalized} "
+
+
+def _infer_currier_audience(
+    *,
+    title: str | None,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {normalize_space(join_non_empty([title, description]) or '').lower()} "
+    if " one day adult workshop " in blob or " adult workshop " in blob:
+        return "adults"
+    if " for teens " in blob or " teens " in blob:
+        return "teens"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if " workshop " in blob or " class " in blob:
+        return "adults"
+    return "unknown"
 
 
 def _parse_month_day_short(value: str | None, *, today: date) -> date | None:

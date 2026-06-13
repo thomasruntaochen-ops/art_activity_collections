@@ -930,13 +930,19 @@ def _infer_ar_custom_audience(
         return "teens"
     if age_max is not None and age_max <= 12:
         return "kids"
+    if any(marker in token_blob for marker in (" teens and adults ", " teens adults ")):
+        return "teens_adults"
     if any(marker in token_blob for marker in (" all ages ", " visitors of all ages ")):
         return "all_ages"
     if any(marker in token_blob for marker in (" teen ", " teens ", " grades 7 12 ")):
         return "teens"
     if any(marker in token_blob for marker in (" second saturday ", " youth families ", " youth and families ")):
         return "all_ages"
-    if " family " in token_blob or " families " in token_blob:
+    if any(marker in token_blob for marker in (" cocktail ", " cocktails ")):
+        return "adults"
+    if any(marker in token_blob for marker in (" little ones ", " children ", " child ", " kids ", " parents and caregivers ")):
+        return "kids"
+    if any(marker in token_blob for marker in (" family friendly ", " families ")):
         return "kids"
     if any(marker in category_blob for marker in (" community ", " the hub ", " art exhibitions ")):
         return "adults"
@@ -1004,9 +1010,11 @@ def _coalesce(*values: str | None) -> str | None:
     return None
 
 
-def get_ar_custom_calendar_source_prefixes() -> tuple[str, ...]:
+def get_ar_custom_calendar_source_prefixes(
+    venues: tuple[ArCustomCalendarVenueConfig, ...] | list[ArCustomCalendarVenueConfig] | None = None,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in AR_CUSTOM_CALENDAR_VENUES:
+    for venue in venues or AR_CUSTOM_CALENDAR_VENUES:
         for list_url in venue.list_urls:
             parsed = urlparse(list_url)
             prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")

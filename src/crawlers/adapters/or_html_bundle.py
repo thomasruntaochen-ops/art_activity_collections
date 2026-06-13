@@ -20,6 +20,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -47,6 +48,8 @@ TIME_RANGE_RE = re.compile(
     re.IGNORECASE,
 )
 TIME_SINGLE_RE = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*([AaPp]\.?[Mm]\.?)\b", re.IGNORECASE)
+AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
+AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE)
 NO_OVERRIDE_EXCLUDES = (
     " camp ",
     " camps ",
@@ -401,6 +404,7 @@ def _build_jsma_row(*, stub: OrHtmlEventStub, html: str, venue: OrHtmlVenueConfi
         return None
 
     location_text = "Online" if " virtual " in token_blob else venue.default_location
+    age_min, age_max = _parse_age_range(token_blob)
 
     return ExtractedActivity(
         source_url=stub.source_url,
@@ -411,8 +415,17 @@ def _build_jsma_row(*, stub: OrHtmlEventStub, html: str, venue: OrHtmlVenueConfi
         city=venue.city,
         state=venue.state,
         activity_type=_infer_activity_type(token_blob),
-        age_min=None,
-        age_max=None,
+        age_min=age_min,
+        age_max=age_max,
+        audience_segment=_infer_or_html_audience(
+            title=title,
+            description=description,
+            category=category,
+            source_url=stub.source_url,
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=_infer_activity_type(token_blob),
+        ),
         drop_in=(" drop in " in token_blob or " drop-in " in token_blob),
         registration_required=(
             " register " in token_blob
@@ -449,6 +462,7 @@ def _build_psu_row(*, stub: OrHtmlEventStub, html: str, venue: OrHtmlVenueConfig
 
     if " virtual " in token_blob:
         location_text = "Online"
+    age_min, age_max = _parse_age_range(token_blob)
 
     return ExtractedActivity(
         source_url=stub.source_url,
@@ -459,8 +473,17 @@ def _build_psu_row(*, stub: OrHtmlEventStub, html: str, venue: OrHtmlVenueConfig
         city=venue.city,
         state=venue.state,
         activity_type=_infer_activity_type(token_blob),
-        age_min=None,
-        age_max=None,
+        age_min=age_min,
+        age_max=age_max,
+        audience_segment=_infer_or_html_audience(
+            title=title,
+            description=description,
+            category=None,
+            source_url=stub.source_url,
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=_infer_activity_type(token_blob),
+        ),
         drop_in=(" drop in " in token_blob or " drop-in " in token_blob),
         registration_required=(" reserve tickets " in token_blob or " registration " in token_blob or " reserve " in token_blob),
         start_at=stub.start_at,
@@ -532,6 +555,50 @@ def _infer_activity_type(token_blob: str) -> str:
     if any(marker in token_blob for marker in (" lecture ", " talk ", " discussion ", " symposium ", " conversation ")):
         return "lecture"
     return "workshop"
+
+
+def _infer_or_html_audience(
+    *,
+    title: str | None,
+    description: str | None,
+    category: str | None,
+    source_url: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str | None,
+) -> str:
+    blob = _searchable_blob(" ".join(part for part in (title, description, category, source_url) if part))
+    if any(marker in blob for marker in (" creative aging ", " faculty workshop ", " faculty ", " educator ", " educators ")):
+        return "adults"
+    if any(marker in blob for marker in (" family ", " kids ", " youth ", " children ", " scavenger hunt ")):
+        return "kids"
+    if any(marker in blob for marker in (" teen ", " teens ")):
+        return "teens"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if activity_type in {"lecture", "workshop"}:
+        return "adults"
+    return "unknown"
+
+
+def _parse_age_range(text: str | None) -> tuple[int | None, int | None]:
+    if not text:
+        return None, None
+    match = AGE_RANGE_RE.search(text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    plus_match = AGE_PLUS_RE.search(text)
+    if plus_match:
+        return int(plus_match.group(1)), None
+    return None, None
 
 
 def _parse_datetime(value: object) -> datetime | None:
@@ -608,9 +675,10 @@ def _join_non_empty(parts: list[str | None]) -> str | None:
     return " | ".join(cleaned)
 
 
-def get_or_html_source_prefixes() -> tuple[str, ...]:
+def get_or_html_source_prefixes(venues: list[OrHtmlVenueConfig] | tuple[OrHtmlVenueConfig, ...] | None = None) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in OR_HTML_VENUES:
+    selected = list(venues) if venues is not None else list(OR_HTML_VENUES)
+    for venue in selected:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
     return tuple(prefixes)

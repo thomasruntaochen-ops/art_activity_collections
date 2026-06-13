@@ -144,6 +144,7 @@ REGISTRATION_PATTERNS = (
     " tickets ",
 )
 DEFAULT_FREE_ADMISSION_SLUGS = {
+    "block_museum",
     "krannert_art_museum",
     "smart_museum_of_art",
 }
@@ -855,6 +856,8 @@ def _parse_block_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracte
         if not _should_keep_event(full_text):
             continue
 
+        age_min, age_max = _parse_age_range(full_text)
+        activity_type = _infer_activity_type(full_text)
         rows.append(
             ExtractedActivity(
                 source_url=source_url,
@@ -864,15 +867,25 @@ def _parse_block_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracte
                 location_text=location_text,
                 city=venue.city,
                 state=venue.state,
-                activity_type=_infer_activity_type(full_text),
-                age_min=None,
-                age_max=None,
+                activity_type=activity_type,
+                age_min=age_min,
+                age_max=age_max,
+                audience_segment=_infer_il_audience(
+                    venue=venue,
+                    title=title,
+                    description=description,
+                    category=tag_text,
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                    activity_type=activity_type,
+                ),
                 drop_in=_contains_any(full_text, DROP_IN_PATTERNS),
                 registration_required=_registration_required(full_text),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=IL_TIMEZONE,
-                **price_classification_kwargs(full_text, default_is_free=None),
+                **_price_kwargs_for_il_venue(venue, full_text),
             )
         )
 

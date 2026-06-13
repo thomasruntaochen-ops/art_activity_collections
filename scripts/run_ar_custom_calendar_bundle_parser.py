@@ -26,7 +26,8 @@ from src.models.activity import Activity, Source  # noqa: E402
 AR_CUSTOM_SOURCE_URL_PREFIXES = get_ar_custom_calendar_source_prefixes()
 
 
-def clear_ar_custom_calendar_entries() -> dict[str, int]:
+def clear_ar_custom_calendar_entries(*, venues: list | None = None) -> dict[str, int]:
+    venues_to_clear = list(venues) if venues is not None else list(AR_CUSTOM_CALENDAR_VENUES)
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
@@ -35,20 +36,20 @@ def clear_ar_custom_calendar_entries() -> dict[str, int]:
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in AR_CUSTOM_CALENDAR_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in venues_to_clear],
         )
 
         source_ids = db.scalars(
             select(Source.id).where(
                 or_(
-                    Source.base_url.in_([url for venue in AR_CUSTOM_CALENDAR_VENUES for url in venue.list_urls]),
-                    Source.name.like("ar_%_events"),
-                    Source.name.in_([venue.source_name for venue in AR_CUSTOM_CALENDAR_VENUES]),
+                    Source.base_url.in_([url for venue in venues_to_clear for url in venue.list_urls]),
+                    Source.name.in_([venue.source_name for venue in venues_to_clear]),
                 )
             )
         ).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in AR_CUSTOM_SOURCE_URL_PREFIXES]
+        url_prefixes = get_ar_custom_calendar_source_prefixes(venues_to_clear)
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in url_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -116,7 +117,7 @@ async def main() -> None:
     )
 
     if args.clear and not args.commit:
-        deleted = clear_ar_custom_calendar_entries()
+        deleted = clear_ar_custom_calendar_entries(venues=selected_venues)
         print(
             "Deleted AR custom-calendar rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -136,7 +137,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_ar_custom_calendar_entries()
+        deleted = clear_ar_custom_calendar_entries(venues=selected_venues)
         print(
             "Deleted AR custom-calendar rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

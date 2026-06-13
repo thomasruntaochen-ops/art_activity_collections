@@ -32,28 +32,39 @@ from src.models.activity import Source  # noqa: E402
 NH_SOURCE_URL_PREFIXES = get_nh_source_prefixes()
 
 
-def clear_nh_html_entries() -> dict[str, int]:
+def clear_nh_html_entries(*, venues=None) -> dict[str, int]:
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
+    selected_venues = list(venues) if venues is not None else list(NH_HTML_VENUES)
+    source_urls = sorted(
+        {
+            url.rstrip("/")
+            for venue in selected_venues
+            for url in (venue.list_url, venue.fetch_url, *venue.source_prefixes)
+            if url
+        }
+    )
+    source_prefixes = get_nh_source_prefixes(selected_venues) or NH_SOURCE_URL_PREFIXES
 
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in NH_HTML_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in selected_venues],
         )
 
         source_ids = db.scalars(
             select(Source.id).where(
                 or_(
-                    Source.base_url.in_(NH_SOURCE_ROOTS),
-                    Source.adapter_type.in_([venue.source_name for venue in NH_HTML_VENUES]),
+                    Source.base_url.in_(source_urls or NH_SOURCE_ROOTS),
+                    Source.name.in_([venue.source_name for venue in selected_venues]),
+                    Source.adapter_type.in_([venue.source_name for venue in selected_venues]),
                 )
             )
         ).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in NH_SOURCE_URL_PREFIXES]
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in source_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -113,7 +124,7 @@ async def main() -> None:
     selected_venues = list(NH_HTML_VENUES) if args.venue == "all" else [NH_HTML_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_nh_html_entries()
+        deleted = clear_nh_html_entries(venues=selected_venues)
         print(
             "Deleted NH bundle rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -133,7 +144,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_nh_html_entries()
+        deleted = clear_nh_html_entries(venues=selected_venues)
         print(
             "Deleted NH bundle rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "
