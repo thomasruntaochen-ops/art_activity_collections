@@ -1,7 +1,7 @@
 "use client";
 
 import L, { type LayerGroup, type Map as LeafletMap, type TileLayer } from "leaflet";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolveVenueCoordinates, type ResolvedVenueCoordinates } from "../lib/venue-map-data";
 import { VenueSummary } from "../lib/types";
 
@@ -173,13 +173,55 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
     };
   }, [containerNode]);
 
+  // Pan/zoom the map to match the current selection — but only when the map is
+  // actually on screen. On mobile the map lives in a `display:none` container
+  // until the overlay opens; running Leaflet's view math on a 0x0 map throws
+  // (the "client-side exception"), so bail out until it has a real size.
+  const applyView = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const size = map.getSize();
+    if (size.x === 0 || size.y === 0) return;
+
+    if (resolvedVenues.length === 0) {
+      map.setView(USA_CENTER, USA_ZOOM);
+      return;
+    }
+
+    if (viewportMode === "usa") {
+      map.flyTo(USA_CENTER, USA_ZOOM, { duration: 0.6 });
+      return;
+    }
+
+    const bounds = L.latLngBounds(resolvedVenues.map((venue) => L.latLng(venue.resolvedLat, venue.resolvedLng)));
+    if (viewportMode === "fit" && bounds.isValid()) {
+      map.fitBounds(bounds, {
+        padding: [40, 40],
+        maxZoom: 8,
+        animate: true,
+        duration: 0.35,
+      });
+      return;
+    }
+
+    const selectedVenue = resolvedVenues.find((venue) => venue.venue_name === selectedVenueName) ?? null;
+    if (selectedVenue) {
+      // Nudge in just enough to centre the pick without dropping its neighbours.
+      const nextZoom = Math.max(map.getZoom(), FOCUS_MIN_ZOOM);
+      map.flyTo([selectedVenue.resolvedLat, selectedVenue.resolvedLng], nextZoom, {
+        duration: 0.45,
+      });
+    }
+  }, [resolvedVenues, selectedVenueName, viewportMode]);
+
   useEffect(() => {
     const map = mapRef.current;
     const layerGroup = markersRef.current;
     if (!map || !layerGroup) return;
 
     layerGroup.clearLayers();
-    const bounds = L.latLngBounds([]);
+    const mapSize = map.getSize();
+    const hasSize = mapSize.x > 0 && mapSize.y > 0;
 
     resolvedVenues.forEach((venue) => {
       const isSelected = venue.venue_name === selectedVenueName;
@@ -221,59 +263,35 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
 
       halo.addTo(layerGroup);
       marker.addTo(layerGroup);
-      bounds.extend([venue.resolvedLat, venue.resolvedLng]);
 
       if (isSelected) {
         marker.bringToFront();
         // Surface the venue summary in the highlighted dot once the user has
         // actively picked it; on the initial "fit" view we just keep it red.
-        if (viewportMode === "focus") {
+        // Skipped while the map is hidden (mobile) — opening a popup on a 0x0
+        // map throws.
+        if (viewportMode === "focus" && hasSize) {
           marker.openPopup();
         }
       }
     });
 
-    if (resolvedVenues.length === 0) {
-      map.setView(USA_CENTER, USA_ZOOM);
-      return;
-    }
-
-    if (viewportMode === "usa") {
-      map.flyTo(USA_CENTER, USA_ZOOM, { duration: 0.6 });
-      return;
-    }
-
-    const selectedVenue = resolvedVenues.find((venue) => venue.venue_name === selectedVenueName) ?? null;
-    if (viewportMode === "fit" && bounds.isValid()) {
-      map.fitBounds(bounds, {
-        padding: [40, 40],
-        maxZoom: 8,
-        animate: true,
-        duration: 0.35,
-      });
-      return;
-    }
-
-    if (selectedVenue) {
-      // Nudge in just enough to centre the pick without dropping its neighbours.
-      const nextZoom = Math.max(map.getZoom(), FOCUS_MIN_ZOOM);
-      map.flyTo([selectedVenue.resolvedLat, selectedVenue.resolvedLng], nextZoom, {
-        duration: 0.45,
-      });
-    }
-  }, [onSelectVenue, resolvedVenues, selectedVenueName, viewportMode]);
+    applyView();
+  }, [applyView, onSelectVenue, resolvedVenues, selectedVenueName, viewportMode]);
 
   // The mobile overlay reveals the map by switching its container from
-  // `display: none` to full-screen. Leaflet then needs to recompute its size so
-  // tiles fill the container instead of rendering off to one side; the
-  // ResizeObserver usually catches this, but force it on reveal to be safe.
+  // `display: none` to full-screen. Recompute size and re-run the view math we
+  // skipped while it was hidden.
   useEffect(() => {
     if (!active) return;
     const map = mapRef.current;
     if (!map) return;
-    const frame = requestAnimationFrame(() => map.invalidateSize({ animate: false }));
+    const frame = requestAnimationFrame(() => {
+      map.invalidateSize({ animate: false });
+      applyView();
+    });
     return () => cancelAnimationFrame(frame);
-  }, [active]);
+  }, [active, applyView]);
 
   if (resolvedVenues.length === 0) {
     return <div className="venue-map__loading">No venues available for the current filter.</div>;

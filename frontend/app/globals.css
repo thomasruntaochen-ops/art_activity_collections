@@ -1069,6 +1069,12 @@ a {
 
   .explorer-topbar {
     grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .explorer-brand {
+    font-size: 1.35rem;
+    line-height: 1.1;
   }
 
   .explorer-content {
@@ -1169,6 +1175,24 @@ a {
   .ctl-from,
   .ctl-to {
     order: 0;
+  }
+
+  /* Compact From/To boxes. */
+  .explorer-filterbar {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .ctl-from,
+  .ctl-to {
+    gap: 4px;
+  }
+
+  .ctl-from input,
+  .ctl-to input {
+    height: 38px;
+    padding: 0 12px;
+    font-size: 0.85rem;
   }
 
   .filterbar__sheet-trigger,
