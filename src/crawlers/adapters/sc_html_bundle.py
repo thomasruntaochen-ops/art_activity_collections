@@ -25,6 +25,7 @@ from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -388,8 +389,10 @@ def parse_sc_html_events(
     raise RuntimeError(f"Unsupported SC venue mode: {venue.mode}")
 
 
-def get_sc_source_prefixes() -> list[str]:
-    return [venue.list_url.rstrip("/") for venue in SC_HTML_VENUES]
+def get_sc_source_prefixes(
+    venues: list[ScHtmlVenueConfig] | tuple[ScHtmlVenueConfig, ...] = SC_HTML_VENUES,
+) -> list[str]:
+    return [venue.list_url.rstrip("/") for venue in venues]
 
 
 async def _load_columbia_payload(
@@ -509,6 +512,8 @@ def _parse_columbia_detail(
     )
     if not title:
         return None
+    if _should_reject_columbia_event(title=title, description=body, category=category):
+        return None
     if not _should_keep_event(title=title, description=body, category=category):
         return None
 
@@ -545,12 +550,19 @@ def _parse_columbia_detail(
         activity_type=infer_activity_type(title, body, category),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_columbia_audience(
+            title=title,
+            description=body,
+            category=category,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
         registration_required=any(pattern in token_blob for pattern in REGISTER_PATTERNS),
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        **_price_kwargs(title, subtitle, body, category),
+        **_columbia_price_kwargs(title, subtitle, body, category),
     )
 
 
@@ -998,6 +1010,108 @@ def _should_keep_event(*, title: str, description: str | None, category: str | N
     if general_reject:
         return False
     return False
+
+
+def _should_reject_columbia_event(*, title: str, description: str | None, category: str | None) -> bool:
+    title_blob = _searchable_blob(title)
+    combined_blob = _searchable_blob(join_non_empty([title, description, category]) or "")
+    if any(
+        pattern in title_blob
+        for pattern in (
+            " arts draughts ",
+            " art draughts ",
+            " faaac youth aviation workshop ",
+            " free first thursday ",
+            " juneteenth at the cma ",
+            " that which binds us ",
+        )
+    ):
+        return True
+    if any(
+        pattern in combined_blob
+        for pattern in (
+            " aviation workshop ",
+            " book talk ",
+            " book signing ",
+            " free admission ",
+            " music performance ",
+        )
+    ):
+        return True
+    return False
+
+
+def _infer_columbia_audience(
+    *,
+    title: str,
+    description: str | None,
+    category: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _searchable_blob(join_non_empty([title, description, category]) or "")
+    title_category_blob = _searchable_blob(join_non_empty([title, category]) or "")
+    if age_min is not None and 12 <= age_min < 18 and age_max is None:
+        return "teens_adults"
+    if any(
+        pattern in blob
+        for pattern in (
+            " ages 12 and up ",
+            " ages 13 and up ",
+            " ages 14 and up ",
+            " ages 15 and up ",
+            " ages 16 and up ",
+            " ages 17 and up ",
+        )
+    ):
+        return "teens_adults"
+    if any(pattern in blob for pattern in (" gladys ", " preschool ", " toddler ", " kids on the wall ")):
+        return "kids"
+    if any(pattern in title_category_blob for pattern in (" family event ", " family events ", " family ", " children ")):
+        return "kids"
+    if any(pattern in blob for pattern in (" art class ", " artist talk ", " conversation ", " discussion ", " lecture ", " talk ")):
+        return "adults"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if any(pattern in blob for pattern in (" class ", " workshop ", " talk ")):
+        return "adults"
+    return "unknown"
+
+
+def _columbia_price_kwargs(*parts: str | None) -> dict[str, bool | None | str]:
+    raw_text = join_non_empty(parts)
+    normalized_text = normalize_space(raw_text)
+    if not normalized_text:
+        return {"is_free": False, "free_verification_status": "inferred"}
+
+    sanitized_text = re.sub(r"[^a-zA-Z0-9$]+", " ", normalized_text)
+    sanitized_blob = _searchable_blob(sanitized_text)
+    if any(
+        pattern in sanitized_blob
+        for pattern in (
+            " free with admission ",
+            " free with membership ",
+            " free with membership sc residency or admission ",
+            " free for members ",
+            " included with admission ",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    if " free " in sanitized_blob:
+        return {"is_free": True, "free_verification_status": "confirmed"}
+
+    kwargs = price_classification_kwargs(sanitized_text, default_is_free=False)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _extract_meta_description(soup: BeautifulSoup) -> str:

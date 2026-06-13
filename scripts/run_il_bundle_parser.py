@@ -23,32 +23,38 @@ from src.db.session import SessionLocal  # noqa: E402
 from src.models.activity import Activity, Source  # noqa: E402
 
 
-IL_SOURCE_URL_PREFIXES = get_il_source_prefixes()
-
-
-def clear_il_bundle_entries() -> dict[str, int]:
+def clear_il_bundle_entries(*, venues=None) -> dict[str, int]:
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
+    selected_venues = list(venues) if venues is not None else list(IL_VENUES)
 
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in IL_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in selected_venues],
         )
 
         source_ids = db.scalars(
             select(Source.id).where(
                 or_(
-                    Source.base_url.in_([venue.list_url for venue in IL_VENUES]),
-                    Source.name.like("il_%_events"),
-                    Source.name.in_([venue.source_name for venue in IL_VENUES]),
+                    Source.base_url.in_([venue.list_url for venue in selected_venues]),
+                    Source.name.in_([venue.source_name for venue in selected_venues]),
                 )
             )
         ).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in IL_SOURCE_URL_PREFIXES]
+        if venues is None:
+            source_ids = list(
+                dict.fromkeys(
+                    source_ids
+                    + db.scalars(select(Source.id).where(Source.name.like("il_%_events"))).all()
+                )
+            )
+
+        source_url_prefixes = get_il_source_prefixes(selected_venues)
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in source_url_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -103,7 +109,7 @@ async def main() -> None:
     selected_venues = list(IL_VENUES) if args.venue == "all" else [IL_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_il_bundle_entries()
+        deleted = clear_il_bundle_entries(venues=selected_venues)
         print(
             "Deleted IL bundle rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -123,7 +129,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_il_bundle_entries()
+        deleted = clear_il_bundle_entries(venues=selected_venues)
         print(
             "Deleted IL bundle rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

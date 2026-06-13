@@ -10,6 +10,8 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
 BAMPFA_CALENDAR_URL = "https://bampfa.org/visit/calendar"
@@ -217,6 +219,10 @@ def parse_bampfa_events_html(
                 series_name or "",
             ]
         ).lower()
+        price_text = " ".join(
+            part for part in [admission_information or "", description or "", summary or ""] if part
+        )
+        is_free, free_status = _infer_bampfa_price(price_text)
 
         key = (title.casefold(), start_at)
         if key in seen:
@@ -235,12 +241,22 @@ def parse_bampfa_events_html(
                 activity_type=_infer_activity_type(title=title, tags=tags, series_name=series_name),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_bampfa_audience(
+                    title=title,
+                    summary=summary,
+                    event_information=event_information,
+                    tags=tags,
+                    series_name=series_name,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=("drop-in" in text_blob or "drop in" in text_blob),
                 registration_required=("registration" in text_blob and "not required" not in text_blob),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=LA_TIMEZONE,
-                free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+                is_free=is_free,
+                free_verification_status=free_status,
             )
         )
 
@@ -249,6 +265,8 @@ def parse_bampfa_events_html(
 
 def _should_exclude_event(*, title: str, summary: str | None, tags: list[str]) -> bool:
     blob = " ".join([title, summary or "", " ".join(tags)]).lower()
+    if "clothing swap" in blob or "swap circle" in blob:
+        return True
     return any(keyword in blob for keyword in EXCLUDED_KEYWORDS)
 
 
@@ -273,6 +291,54 @@ def _infer_activity_type(*, title: str, tags: list[str], series_name: str | None
     if any(keyword in blob for keyword in ("workshop", "lab", "class")):
         return "workshop"
     return "activity"
+
+
+def _infer_bampfa_price(text: str | None) -> tuple[bool | None, str]:
+    blob = f" {' '.join((text or '').lower().split())} "
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free with admission ",
+            " free with museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " member free ",
+            " members free ",
+        )
+    ):
+        return False, "confirmed"
+    is_free, status = infer_price_classification(text, default_is_free=False)
+    if is_free is None and status == "uncertain":
+        return False, "inferred"
+    return is_free, status
+
+
+def _infer_bampfa_audience(
+    *,
+    title: str,
+    summary: str | None,
+    event_information: str | None,
+    tags: list[str],
+    series_name: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {' '.join(' '.join([title, summary or '', event_information or '', ' '.join(tags), series_name or '']).lower().split())} "
+    if " open art lab " in blob or " family " in blob or " families " in blob:
+        return "all_ages"
+    generic = infer_audience_segment(
+        title=title,
+        description=summary,
+        category=" ".join(tags),
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if generic != "unknown":
+        return generic
+    if any(marker in blob for marker in (" talk ", " lecture ", " conversation ", " workshop ", " class ")):
+        return "adults"
+    return "adults"
 
 
 def _parse_calendar_link_datetimes(popup: BeautifulSoup) -> tuple[datetime | None, datetime | None]:

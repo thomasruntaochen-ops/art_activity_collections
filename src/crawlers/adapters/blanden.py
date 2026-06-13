@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from html import unescape
 from urllib.parse import urljoin
@@ -41,6 +42,7 @@ EXCLUDE_MARKERS = (
     "hospice",
     "tour",
 )
+GENERIC_PLUS_RE = re.compile(r"\b(\d{1,2})\s*\+", re.IGNORECASE)
 
 
 async def load_blanden_payload() -> dict:
@@ -109,12 +111,13 @@ def parse_blanden_html(html: str) -> list[ExtractedActivity]:
                 activity_type=_infer_activity_type(title),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_blanden_audience(title=title, age_min=age_min, age_max=age_max),
                 drop_in="free art saturday" in title.lower() or "open studio" in title.lower(),
                 registration_required=False,
                 start_at=start_at,
                 end_at=end_at,
                 timezone=BLANDEN_TIMEZONE,
-                **price_classification_kwargs(unescape(title)),
+                **_blanden_price_kwargs(title),
             )
         )
 
@@ -166,6 +169,9 @@ def _parse_age_range(*parts: str | None) -> tuple[int | None, int | None]:
     match = AGE_PLUS_RE.search(text)
     if match:
         return int(match.group(1)), None
+    match = GENERIC_PLUS_RE.search(text)
+    if match:
+        return int(match.group(1)), None
     return None, None
 
 
@@ -183,3 +189,28 @@ def _infer_activity_type(title: str) -> str:
     if "class" in lowered:
         return "class"
     return "workshop"
+
+
+def _infer_blanden_audience(*, title: str, age_min: int | None, age_max: int | None) -> str:
+    lowered = f" {title.lower()} "
+    if age_min is not None and age_min >= 13 and (age_max is None or age_max >= 18):
+        return "teens_adults"
+    if age_max is not None and age_max <= 12:
+        return "kids"
+    if " adult " in lowered or " open studio " in lowered:
+        return "adults"
+    if " free art saturday" in lowered:
+        return "kids"
+    if " create like a famous artist" in lowered or " kids " in lowered:
+        return "kids"
+    return "unknown"
+
+
+def _blanden_price_kwargs(title: str) -> dict[str, bool | None | str]:
+    lowered = f" {unescape(title).lower()} "
+    if " free art saturday" in lowered or " free " in lowered:
+        return price_classification_kwargs(title, default_is_free=True)
+    kwargs = price_classification_kwargs(title, default_is_free=False)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs

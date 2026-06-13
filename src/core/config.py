@@ -29,10 +29,15 @@ class Settings(BaseSettings):
     auth_jwks_url: str | None = None
 
     redis_url: str | None = None
-    rate_limit_guest_per_minute: int = 60
-    rate_limit_guest_per_day: int = 2000
-    rate_limit_user_per_minute: int = 120
-    rate_limit_user_per_day: int = 5000
+    # Per-IP (guest) / per-user request caps. The frontend fires ~3-6 API calls
+    # per filter change or venue click, and many real users can share one IP
+    # (schools, libraries, offices, mobile CGNAT), so these are set generously.
+    # They are abuse/DoS guards, not a paid quota — raising them costs nothing on
+    # Railway beyond the tiny compute/egress of the extra served requests.
+    rate_limit_guest_per_minute: int = 180
+    rate_limit_guest_per_day: int = 10000
+    rate_limit_user_per_minute: int = 600
+    rate_limit_user_per_day: int = 50000
 
     log_level: str = "INFO"
 

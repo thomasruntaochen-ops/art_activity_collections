@@ -10,6 +10,8 @@ from src.crawlers.adapters.oh_common import DEFAULT_HEADERS
 from src.crawlers.adapters.oh_common import AGE_PLUS_RE
 from src.crawlers.adapters.oh_common import AGE_RANGE_RE
 from src.crawlers.adapters.oh_common import normalize_space
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.audience import infer_audience_segment_from_age
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -127,6 +129,15 @@ def _build_row(item: dict) -> ExtractedActivity | None:
     ) or None
     blob = f" {title.lower()} {description.lower()} "
 
+    # ISU University Museums (Brunnier, Christian Petersen, Farm House) has free
+    # admission and free programs. Default to free; explicit fee/dollar markers
+    # still win, and residual ambiguity ("admission", "fee" in "no admission
+    # fee") resolves to inferred-free.
+    price_text = " ".join(part for part in [description, " ".join(tag_names)] if part)
+    price_kwargs = price_classification_kwargs(price_text, default_is_free=True)
+    if price_kwargs["is_free"] is None:
+        price_kwargs = {"is_free": True, "free_verification_status": "inferred"}
+
     return ExtractedActivity(
         source_url=source_url,
         title=title,
@@ -138,13 +149,47 @@ def _build_row(item: dict) -> ExtractedActivity | None:
         activity_type=_infer_activity_type(title, description, tag_names),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_iastate_audience(title, description, tag_names, age_min, age_max),
         drop_in="drop by" in blob or "drop-in" in blob or "come-and-go" in blob,
         registration_required="register" in blob or "ticket" in blob or "rsvp" in blob,
         start_at=start_at,
         end_at=end_at,
         timezone=IASTATE_TIMEZONE,
-        **price_classification_kwargs(" ".join(part for part in [description, " ".join(tag_names)] if part)),
+        **price_kwargs,
     )
+
+
+# "Family Programs" (the Explore! series, family story walks, Cyclone Family
+# Weekend) are children/family programming at ISU University Museums.
+FAMILY_PROGRAM_TAGS = {"family programs"}
+
+
+def _infer_iastate_audience(
+    title: str,
+    description: str,
+    tag_names: list[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    age_segment = infer_audience_segment_from_age(age_min=age_min, age_max=age_max)
+    if age_segment != "unknown":
+        return age_segment
+
+    tag_set = {tag.lower() for tag in tag_names}
+    blob = f" {title.lower()} {description.lower()} "
+    if tag_set & FAMILY_PROGRAM_TAGS or "children and families" in blob:
+        return "kids"
+
+    generic = infer_audience_segment(
+        title=title,
+        description=description,
+        category=" ".join(tag_names),
+        age_min=age_min,
+        age_max=age_max,
+    )
+    # Gallery talks, lectures, and student-oriented studio programs are
+    # adult-audience.
+    return generic if generic != "unknown" else "adults"
 
 
 def _should_keep(title: str, description: str, tag_names: list[str]) -> bool:

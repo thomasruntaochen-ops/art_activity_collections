@@ -32,7 +32,6 @@ DEFAULT_HEADERS = {
 
 STRONG_INCLUDE_PATTERNS = (
     " activity ",
-    " art fair ",
     " art making ",
     " art-making ",
     " class ",
@@ -95,9 +94,14 @@ HARD_REJECT_PATTERNS = (
     " community meet up ",
     " community meetup ",
     " dog days ",
+    " art fair ",
+    " hairpins in the lounge ",
     " forest bathing ",
+    " free monthly gathering ",
+    " tai chi ",
     " sound bath ",
     " volunteer orientation ",
+    " wellness ",
 )
 REGISTRATION_PATTERNS = (
     " book ",
@@ -156,7 +160,7 @@ AR_CUSTOM_CALENDAR_VENUES: tuple[ArCustomCalendarVenueConfig, ...] = (
         city="Bentonville",
         state="AR",
         list_urls=(
-            "https://crystalbridges.org/calendar/",
+            "https://crystalbridges.org/calendar",
             "https://crystalbridges.org/families/",
         ),
     ),
@@ -237,6 +241,15 @@ async def load_ar_custom_calendar_bundle_payload(
                 page_urls = _extract_momentary_page_urls(first_html, first_url)
                 for page_url in page_urls[1:]:
                     list_htmls[page_url] = await fetch_html(page_url, client=client)
+            elif venue.slug == "crystal_bridges":
+                for list_url in venue.list_urls:
+                    list_htmls[list_url] = await fetch_html(list_url, client=client)
+                payload[venue.slug] = {
+                    "list_htmls": list_htmls,
+                    "detail_pages": {},
+                    "events": _extract_crystal_bridges_events(list_htmls),
+                }
+                continue
             else:
                 for list_url in venue.list_urls:
                     list_htmls[list_url] = await fetch_html(list_url, client=client)
@@ -264,6 +277,18 @@ def parse_ar_custom_calendar_events(
     current_date = datetime.now(ZoneInfo(AR_TIMEZONE)).date()
     rows: list[ExtractedActivity] = []
     deduped: dict[tuple[str, str, datetime], ExtractedActivity] = {}
+
+    if venue.slug == "crystal_bridges":
+        for event_obj in payload.get("events") or []:
+            row = _parse_crystal_bridges_event(event_obj, venue=venue)
+            if row is None:
+                continue
+            if row.start_at.date() < current_date:
+                continue
+            deduped[(row.source_url, row.title, row.start_at)] = row
+        rows = list(deduped.values())
+        rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
+        return rows
 
     for source_url, html in (payload.get("detail_pages") or {}).items():
         row = _parse_detail_page(source_url=source_url, html=html, venue=venue)
@@ -333,6 +358,228 @@ def _extract_detail_urls(venue_slug: str, list_htmls: dict[str, str]) -> list[st
     return urls
 
 
+def _extract_crystal_bridges_events(list_htmls: dict[str, str]) -> list[dict]:
+    events: list[dict] = []
+    seen_ids: set[str] = set()
+    for html in list_htmls.values():
+        for chunk in _extract_next_data_chunks(html):
+            for event_obj in _extract_event_arrays_from_chunk(chunk):
+                if not isinstance(event_obj, dict):
+                    continue
+                event_id = _normalize_space(event_obj.get("id") or event_obj.get("href") or event_obj.get("title"))
+                if not event_id or event_id in seen_ids:
+                    continue
+                seen_ids.add(event_id)
+                events.append(event_obj)
+    return events
+
+
+def _extract_next_data_chunks(html: str) -> list[str]:
+    soup = BeautifulSoup(html, "html.parser")
+    chunks: list[str] = []
+    for script in soup.find_all("script"):
+        script_text = script.string or script.get_text() or ""
+        if "self.__next_f.push" not in script_text:
+            continue
+        match = re.match(r"\s*self\.__next_f\.push\((?P<payload>.*)\)\s*", script_text, re.DOTALL)
+        if match is None:
+            continue
+        try:
+            payload = json.loads(match.group("payload"))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, list) and len(payload) > 1 and isinstance(payload[1], str):
+            chunks.append(payload[1])
+    return chunks
+
+
+def _extract_event_arrays_from_chunk(chunk: str) -> list[dict]:
+    events: list[dict] = []
+    search_from = 0
+    while True:
+        key_index = chunk.find('"events":[', search_from)
+        if key_index == -1:
+            break
+        array_start = chunk.find("[", key_index)
+        array_end = _find_matching_json_bracket(chunk, array_start)
+        if array_end == -1:
+            search_from = key_index + len('"events":[')
+            continue
+        try:
+            parsed = json.loads(chunk[array_start : array_end + 1])
+        except json.JSONDecodeError:
+            search_from = array_end + 1
+            continue
+        if isinstance(parsed, list):
+            events.extend(item for item in parsed if isinstance(item, dict))
+        search_from = array_end + 1
+    return events
+
+
+def _find_matching_json_bracket(value: str, start: int) -> int:
+    if start < 0 or start >= len(value) or value[start] != "[":
+        return -1
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(value)):
+        char = value[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+            if depth == 0:
+                return index
+    return -1
+
+
+def _parse_crystal_bridges_event(
+    event_obj: dict,
+    *,
+    venue: ArCustomCalendarVenueConfig,
+) -> ExtractedActivity | None:
+    title = _normalize_space(event_obj.get("title"))
+    href = _normalize_space(event_obj.get("href"))
+    source_url = urljoin("https://crystalbridges.org", href) if href else ""
+    start_at, end_at = _parse_crystal_bridges_datetimes(event_obj)
+    if not title or not source_url or start_at is None:
+        return None
+
+    category_names = [
+        _normalize_space(value)
+        for value in [
+            event_obj.get("category"),
+            event_obj.get("eventType"),
+            *(event_obj.get("tags") or []),
+        ]
+        if _normalize_space(value)
+    ]
+    category_text = ", ".join(dict.fromkeys(category_names))
+    description = _normalize_space(event_obj.get("description")) or None
+    location_text = _normalize_space(event_obj.get("location")) or f"{venue.city}, {venue.state}"
+    price_text = _normalize_space(event_obj.get("priceDisplay"))
+    if price_text == "$undefined":
+        price_text = ""
+    chip_text = _normalize_space(event_obj.get("chipText"))
+    if chip_text == "$undefined":
+        chip_text = ""
+
+    token_blob = _searchable_blob(
+        " ".join(part for part in [title, description or "", category_text, price_text, chip_text] if part)
+    )
+    category_blob = _searchable_blob(category_text)
+    if not _should_keep_event(token_blob=token_blob, category_blob=category_blob):
+        return None
+
+    age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
+    is_free, free_status = _classify_ar_custom_price(
+        venue=venue,
+        amount=None,
+        price_text=price_text or description,
+    )
+    full_description = " | ".join(
+        part
+        for part in [
+            description,
+            f"Category: {category_text}" if category_text else None,
+            f"Price: {price_text}" if price_text else None,
+            f"Ticket: {chip_text}" if chip_text else None,
+        ]
+        if part
+    ) or None
+
+    registration_required = any(pattern in token_blob for pattern in REGISTRATION_PATTERNS)
+    if event_obj.get("ticketUrl"):
+        registration_required = True
+    if any(phrase in token_blob for phrase in (" no registration required ", " no tickets required ", " free drop in ")):
+        registration_required = False
+    if is_free is True and any(marker in token_blob for marker in (" second saturday ", " pop in artmaking ")):
+        registration_required = False
+
+    return ExtractedActivity(
+        source_url=source_url,
+        title=title,
+        description=full_description,
+        venue_name=venue.venue_name,
+        location_text=location_text,
+        city=venue.city,
+        state=venue.state,
+        activity_type=_infer_activity_type(token_blob, category_blob=category_blob),
+        age_min=age_min,
+        age_max=age_max,
+        drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
+        registration_required=registration_required,
+        start_at=start_at,
+        end_at=end_at,
+        timezone=AR_TIMEZONE,
+        is_free=is_free,
+        free_verification_status=free_status,
+        audience_segment=_infer_ar_custom_audience(
+            venue=venue,
+            title=title,
+            description=description,
+            category_text=category_text,
+            age_min=age_min,
+            age_max=age_max,
+        ),
+    )
+
+
+def _parse_crystal_bridges_datetimes(event_obj: dict) -> tuple[datetime | None, datetime | None]:
+    start_date = _parse_iso_date(_normalize_space(event_obj.get("startDate")))
+    if start_date is None:
+        return None, None
+    end_date = _parse_iso_date(_normalize_space(event_obj.get("endDate"))) or start_date
+    time_label = _normalize_space(event_obj.get("timeLabel")).replace("–", "-").replace("—", "-")
+
+    range_match = TIME_RANGE_RE.search(time_label)
+    if range_match is not None:
+        start_hour, start_minute = _parse_time_parts(
+            range_match.group(1),
+            range_match.group(2),
+            range_match.group(3),
+        )
+        end_hour, end_minute = _parse_time_parts(
+            range_match.group(4),
+            range_match.group(5),
+            range_match.group(6),
+        )
+        return (
+            start_date.replace(hour=start_hour, minute=start_minute),
+            end_date.replace(hour=end_hour, minute=end_minute),
+        )
+
+    single_match = SINGLE_TIME_RE.search(time_label)
+    if single_match is not None:
+        start_hour, start_minute = _parse_time_parts(
+            single_match.group(1),
+            single_match.group(2),
+            single_match.group(3),
+        )
+        return start_date.replace(hour=start_hour, minute=start_minute), None
+
+    return start_date, None
+
+
+def _parse_iso_date(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
 def _parse_detail_page(
     *,
     source_url: str,
@@ -373,10 +620,11 @@ def _parse_detail_page(
 
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
     amount = _extract_offer_amount(event_obj)
-    if amount is not None:
-        is_free, free_status = infer_price_classification_from_amount(amount, text=price_text, default_is_free=None)
-    else:
-        is_free, free_status = infer_price_classification(price_text or description, default_is_free=None)
+    is_free, free_status = _classify_ar_custom_price(
+        venue=venue,
+        amount=amount,
+        price_text=price_text or description,
+    )
 
     description_parts = [part for part in [description, f"Category: {category_text}" if category_text else None] if part]
     if price_text:
@@ -405,6 +653,14 @@ def _parse_detail_page(
         timezone=AR_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=_infer_ar_custom_audience(
+            venue=venue,
+            title=title,
+            description=description,
+            category_text=category_text or "",
+            age_min=age_min,
+            age_max=age_max,
+        ),
     )
 
 
@@ -637,6 +893,56 @@ def _parse_age_range(text: str) -> tuple[int | None, int | None]:
     if plus_match:
         return int(plus_match.group(1)), None
     return None, None
+
+
+def _classify_ar_custom_price(
+    *,
+    venue: ArCustomCalendarVenueConfig,
+    amount: Decimal | None,
+    price_text: str | None,
+) -> tuple[bool | None, str]:
+    default_is_free = True if venue.slug == "crystal_bridges" else None
+    if amount is not None:
+        return infer_price_classification_from_amount(amount, text=price_text, default_is_free=default_is_free)
+    is_free, status = infer_price_classification(price_text, default_is_free=default_is_free)
+    if venue.slug == "crystal_bridges" and is_free is None and status == "uncertain":
+        return True, "inferred"
+    return is_free, status
+
+
+def _infer_ar_custom_audience(
+    *,
+    venue: ArCustomCalendarVenueConfig,
+    title: str,
+    description: str | None,
+    category_text: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    token_blob = _searchable_blob(" ".join(part for part in [title, description or "", category_text] if part))
+    category_blob = _searchable_blob(category_text)
+
+    if age_min is not None and age_min >= 18:
+        return "adults"
+    if age_min is not None and age_min >= 13 and (age_max is None or age_max >= 18):
+        return "teens_adults"
+    if age_min is not None and age_min >= 13:
+        return "teens"
+    if age_max is not None and age_max <= 12:
+        return "kids"
+    if any(marker in token_blob for marker in (" all ages ", " visitors of all ages ")):
+        return "all_ages"
+    if any(marker in token_blob for marker in (" teen ", " teens ", " grades 7 12 ")):
+        return "teens"
+    if any(marker in token_blob for marker in (" second saturday ", " youth families ", " youth and families ")):
+        return "all_ages"
+    if " family " in token_blob or " families " in token_blob:
+        return "kids"
+    if any(marker in category_blob for marker in (" community ", " the hub ", " art exhibitions ")):
+        return "adults"
+    if any(marker in token_blob for marker in (" class ", " workshop ", " lecture ", " talk ", " conversation ", " discussion ")):
+        return "adults"
+    return "unknown"
 
 
 def _should_keep_event(*, token_blob: str, category_blob: str) -> bool:

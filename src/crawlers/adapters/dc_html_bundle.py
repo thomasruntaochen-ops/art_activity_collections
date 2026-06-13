@@ -69,8 +69,14 @@ STRONG_ACTIVITY_PATTERNS = (
     " collage ",
     " create ",
     " creative ",
+    " discussion ",
+    " discussions ",
+    " lecture ",
+    " lectures ",
     " paint ",
     " studio ",
+    " talk ",
+    " talks ",
     " watercolor ",
     " workshop ",
     " workshops ",
@@ -232,6 +238,7 @@ async def load_dc_html_bundle_payload(
         for venue in selected:
             listing_urls = list(venue.list_urls)
             detail_items: list[dict] = []
+            listing_cards: list[dict] = []
 
             if venue.slug == "kreeger":
                 html = await fetch_html(venue.list_urls[0], client=client)
@@ -251,6 +258,8 @@ async def load_dc_html_bundle_payload(
                     listing_html = await fetch_html(listing_url, client=client)
                 except Exception:
                     continue
+                if venue.slug == "asian_art":
+                    listing_cards.extend(_extract_asian_art_listing_cards(listing_html, listing_url))
                 for link_url, list_text in _extract_listing_links(venue.slug, listing_html, listing_url):
                     if link_url in seen_links:
                         continue
@@ -264,7 +273,11 @@ async def load_dc_html_bundle_payload(
                     continue
                 detail_items.append({"url": link_url, "list_text": list_text, "html": detail_html})
 
-            payload[venue.slug] = {"listing_urls": listing_urls, "detail_items": detail_items}
+            payload[venue.slug] = {
+                "listing_urls": listing_urls,
+                "detail_items": detail_items,
+                "listing_cards": listing_cards,
+            }
 
     return payload
 
@@ -287,6 +300,19 @@ def parse_dc_html_events(payload: dict, *, venue: DcHtmlVenueConfig) -> list[Ext
             continue
         seen.add(key)
         rows.append(row)
+
+    if venue.slug == "asian_art":
+        for item in payload.get("listing_cards") or []:
+            row = _parse_asian_art_listing_item(item, venue=venue)
+            if row is None or row.start_at.date() < current_date:
+                continue
+            if not _passes_common_activity_filter(row):
+                continue
+            key = (row.source_url, row.title, row.start_at)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(row)
 
     rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
     return rows
@@ -327,6 +353,29 @@ def _extract_listing_links(venue_slug: str, html: str, list_url: str) -> list[tu
     return links
 
 
+def _extract_asian_art_listing_cards(html: str, list_url: str) -> list[dict]:
+    soup = BeautifulSoup(html, "html.parser")
+    cards: list[dict] = []
+    seen: set[str] = set()
+
+    for anchor in soup.find_all("a", href=True):
+        href = (anchor.get("href") or "").strip()
+        if not ASIA_EVENT_RE.search(href):
+            continue
+        source_url = urljoin(list_url, href)
+        if source_url in seen:
+            continue
+        title = _normalize_space(anchor.get_text(" ", strip=True))
+        card = anchor.find_parent(class_="card")
+        card_text = _normalize_space(card.get_text(" | ", strip=True)) if card is not None else title
+        if not title or not card_text:
+            continue
+        seen.add(source_url)
+        cards.append({"url": source_url, "title": title, "card_text": card_text})
+
+    return cards
+
+
 def _build_row(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | None:
     if venue.slug == "asian_art":
         parsed = _parse_asian_art_item(item, venue=venue)
@@ -349,6 +398,9 @@ def _build_row(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | N
 
 
 def _passes_common_activity_filter(parsed: ExtractedActivity) -> bool:
+    title_blob = _searchable_blob(parsed.title)
+    if " tour " in title_blob or " tours " in title_blob:
+        return False
     token_blob = _searchable_blob(
         " ".join(
             [
@@ -409,9 +461,7 @@ def _parse_asian_art_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedA
     description_parts = [part for part in [description, f"Topics: {topics}" if topics else None, f"Cost: {cost}" if cost else None] if part]
     full_description = " | ".join(description_parts) if description_parts else None
     token_blob = _searchable_blob(" ".join(part for part in [title, full_description or "", topics] if part))
-    if not any(pattern in token_blob for pattern in YOUTH_FOCUS_PATTERNS):
-        return None
-    is_free, free_verification_status = infer_price_classification(
+    is_free, free_verification_status = _infer_dc_html_price(
         " ".join(part for part in [cost, full_description] if part),
         default_is_free=True,
     )
@@ -424,9 +474,10 @@ def _parse_asian_art_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedA
         location_text=location,
         city=venue.city,
         state=venue.state,
-        activity_type="workshop",
+        activity_type=_infer_dc_html_activity_type(token_blob),
         age_min=None,
         age_max=None,
+        audience_segment=_infer_dc_html_audience(title=title, description=full_description, token_blob=token_blob),
         drop_in=("walk-up" in _searchable_blob(full_description or "")),
         registration_required=("registration" in _searchable_blob(full_description or "") and "no registration" not in _searchable_blob(full_description or "")),
         start_at=start_at,
@@ -435,6 +486,80 @@ def _parse_asian_art_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedA
         is_free=is_free,
         free_verification_status=free_verification_status,
     )
+
+
+def _parse_asian_art_listing_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | None:
+    title = _normalize_space(item.get("title"))
+    source_url = _normalize_space(item.get("url"))
+    card_text = _normalize_space(item.get("card_text"))
+    if not title or not source_url or not card_text:
+        return None
+
+    tail = card_text
+    if tail.startswith(title):
+        tail = tail[len(title):].strip(" |")
+    parts = [_normalize_space(part) for part in tail.split("|") if _normalize_space(part)]
+    if len(parts) < 2:
+        return None
+
+    start_at, end_at = _parse_date_and_times(parts[0], parts[1])
+    if start_at is None:
+        return None
+
+    topics = parts[2] if len(parts) >= 3 else ""
+    full_description = " | ".join(part for part in [f"Topics: {topics}" if topics else None, "Cost: Free (inferred)"] if part)
+    token_blob = _searchable_blob(" ".join(part for part in [title, full_description, topics] if part))
+
+    return ExtractedActivity(
+        source_url=source_url,
+        title=title,
+        description=full_description or None,
+        venue_name=venue.venue_name,
+        location_text=f"{venue.venue_name}, {venue.city}, {venue.state}",
+        city=venue.city,
+        state=venue.state,
+        activity_type=_infer_dc_html_activity_type(token_blob),
+        age_min=None,
+        age_max=None,
+        audience_segment=_infer_dc_html_audience(title=title, description=full_description, token_blob=token_blob),
+        drop_in=None,
+        registration_required=False,
+        start_at=start_at,
+        end_at=end_at,
+        timezone=NY_TIMEZONE,
+        is_free=True,
+        free_verification_status="inferred",
+    )
+
+
+def _infer_dc_html_price(text: str | None, *, default_is_free: bool | None) -> tuple[bool | None, str]:
+    blob = _searchable_blob(text or "")
+    if " free " in blob:
+        return True, "confirmed"
+    is_free, status = infer_price_classification(text, default_is_free=default_is_free)
+    if is_free is None and status == "uncertain" and default_is_free is not None:
+        return default_is_free, "inferred"
+    return is_free, status
+
+
+def _infer_dc_html_audience(*, title: str, description: str | None, token_blob: str) -> str:
+    if any(marker in token_blob for marker in (" kids families ", " kids family ", " k 3 ", " students k 3 ", " children ")):
+        return "kids"
+    if any(marker in token_blob for marker in (" family ", " families ")):
+        return "kids"
+    if any(marker in token_blob for marker in (" teen ", " teens ")):
+        return "teens"
+    if any(marker in token_blob for marker in (" all ages ", " everyone ")):
+        return "all_ages"
+    if any(marker in token_blob for marker in (" lecture ", " discussion ", " talk ", " workshop ", " art break ")):
+        return "adults"
+    return "unknown"
+
+
+def _infer_dc_html_activity_type(token_blob: str) -> str:
+    if any(marker in token_blob for marker in (" lecture ", " discussion ", " talk ")):
+        return "lecture"
+    return "workshop"
 
 
 def _parse_npg_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | None:
@@ -829,11 +954,14 @@ def _searchable_blob(value: str) -> str:
     return f" {' '.join(normalized.split())} "
 
 
-def get_dc_html_source_prefixes() -> tuple[str, ...]:
+def get_dc_html_source_prefixes(
+    venues: list[DcHtmlVenueConfig] | tuple[DcHtmlVenueConfig, ...] | None = None,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in DC_HTML_VENUES:
+    selected_venues = list(venues) if venues is not None else list(DC_HTML_VENUES)
+    for venue in selected_venues:
         for list_url in venue.list_urls:
             parsed = urlparse(list_url)
             prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
             break
-    return tuple(prefixes)
+    return tuple(dict.fromkeys(prefixes))

@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -339,11 +340,17 @@ def _build_row_from_detail_page(*, source_url: str, html: str, venue: GaMecVenue
 
     token_blob = _searchable_blob(" ".join([title, description, price_text or "", location_text or ""]))
     title_blob = _searchable_blob(title)
+    if venue.slug == "gmoa" and " third thursday " in title_blob:
+        return None
     if not _should_keep_event(title_blob=title_blob, token_blob=token_blob):
         return None
 
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description] if part))
-    is_free, free_status = infer_price_classification_from_amount(amount, text=price_text or description)
+    is_free, free_status = _infer_ga_mec_price(
+        venue=venue,
+        amount=amount,
+        text=price_text or description,
+    )
 
     description_parts = [part for part in [description or None, f"Price: {price_text}" if price_text else None] if part]
     full_description = " | ".join(description_parts) if description_parts else None
@@ -359,6 +366,13 @@ def _build_row_from_detail_page(*, source_url: str, html: str, venue: GaMecVenue
         activity_type=_infer_activity_type(token_blob),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_ga_mec_audience(
+            venue=venue,
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
         registration_required=any(pattern in token_blob for pattern in REGISTRATION_PATTERNS),
         start_at=start_at,
@@ -572,6 +586,46 @@ def _should_keep_event(*, title_blob: str, token_blob: str) -> bool:
     return True
 
 
+def _infer_ga_mec_price(
+    *,
+    venue: GaMecVenueConfig,
+    amount: Decimal | None,
+    text: str | None,
+) -> tuple[bool | None, str]:
+    is_free, free_status = infer_price_classification_from_amount(amount, text=text)
+    if venue.slug == "gmoa" and is_free is None and free_status == "uncertain":
+        return True, "inferred"
+    return is_free, free_status
+
+
+def _infer_ga_mec_audience(
+    *,
+    venue: GaMecVenueConfig,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _searchable_blob(" ".join(part for part in [title, description or ""] if part))
+    if venue.slug == "gmoa":
+        if any(pattern in blob for pattern in (" family day ", " family ", " toddler ", " kids ", " children ")):
+            return "kids"
+        if any(pattern in blob for pattern in (" studio workshop ", " workshop ", " lecture ", " talk ", " conversation ")):
+            return "adults"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if any(pattern in blob for pattern in (" class ", " workshop ", " lecture ", " talk ", " conversation ")):
+        return "adults"
+    return "unknown"
+
+
 def _infer_activity_type(token_blob: str) -> str:
     if any(
         pattern in token_blob
@@ -645,9 +699,11 @@ def _normalize_space(value: object) -> str:
     return " ".join(value.split())
 
 
-def get_ga_mec_source_prefixes() -> tuple[str, ...]:
+def get_ga_mec_source_prefixes(
+    venues: list[GaMecVenueConfig] | tuple[GaMecVenueConfig, ...] = GA_MEC_VENUES,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in GA_MEC_VENUES:
+    for venue in venues:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
     return tuple(prefixes)

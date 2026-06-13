@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment_from_age
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -214,7 +215,16 @@ def _build_row_from_event_obj(event_obj: dict) -> ExtractedActivity | None:
     location_text = _build_location_text(event_obj)
     age_min, age_max = _parse_age_range(description or "")
 
+    # Harvard Art Museums admission is free every day, and its public programs
+    # (gallery talks, lectures, seminars, workshops, conservation conversations)
+    # are free as well. Default to free; explicit fee/dollar markers still win.
+    # Ambiguous wording such as "members of our staff" should not leave a
+    # free-admission museum's program unclassified, so treat residual
+    # uncertainty as inferred-free too.
     price_text = description or summary_text or title
+    price_kwargs = price_classification_kwargs(price_text, default_is_free=True)
+    if price_kwargs["is_free"] is None:
+        price_kwargs = {"is_free": True, "free_verification_status": "inferred"}
     return ExtractedActivity(
         source_url=source_url,
         title=title,
@@ -226,13 +236,55 @@ def _build_row_from_event_obj(event_obj: dict) -> ExtractedActivity | None:
         activity_type=_infer_activity_type(event_type=event_type, keyword_blob=keyword_blob),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_harvard_audience(
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         drop_in=_infer_drop_in(keyword_blob),
         registration_required=_infer_registration_required(keyword_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=HARVARD_TIMEZONE,
-        **price_classification_kwargs(price_text, default_is_free=None),
+        **price_kwargs,
     )
+
+
+# Markers that indicate genuinely youth/family-oriented programming. Kept tight
+# on purpose: talks that merely mention "teen"/"high school" (interns presenting
+# to the public) or a donor name like "Hao Family" are still adult-audience.
+_HARVARD_KIDS_MARKERS = (
+    " for families ",
+    " family day ",
+    " family-friendly ",
+    " family friendly ",
+    " families with children ",
+    " for children ",
+    " for kids ",
+    " children ages ",
+)
+
+
+def _infer_harvard_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    age_segment = infer_audience_segment_from_age(age_min=age_min, age_max=age_max)
+    if age_segment != "unknown":
+        return age_segment
+
+    blob = f" {title.lower()} {(description or '').lower()} "
+    if " all ages " in blob:
+        return "all_ages"
+    if any(marker in blob for marker in _HARVARD_KIDS_MARKERS):
+        return "kids"
+    # Default: gallery talks, lectures, seminars, and workshops are general
+    # adult-audience programming.
+    return "adults"
 
 
 def _should_include_event(*, event_type: str, keyword_blob: str) -> bool:

@@ -48,6 +48,8 @@ INCLUDE_PATTERNS = (
 )
 HARD_EXCLUDE_PATTERNS = (
     " admission ",
+    " benefit event ",
+    " benefit events ",
     " camp ",
     " camps ",
     " closed ",
@@ -216,9 +218,17 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         return None
 
     amount = _extract_amount(event_obj.get("cost_details"))
-    is_free, free_status = infer_price_classification_from_amount(amount, text=price_text)
+    is_free, free_status = _infer_parrish_price(
+        amount=amount,
+        text=" ".join(part for part in [price_text, description or ""] if part),
+    )
     location_name = _extract_location_name(event_obj.get("venue"))
     activity_type = _infer_activity_type(token_blob)
+    audience_segment = _infer_parrish_audience(
+        title=title,
+        description=description,
+        category_text=", ".join(category_names),
+    )
 
     return ExtractedActivity(
         source_url=source_url,
@@ -238,11 +248,7 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
-        audience_segment=infer_audience_segment(
-            title=title,
-            description=description,
-            category=", ".join(category_names),
-        ),
+        audience_segment=audience_segment,
     )
 
 
@@ -280,6 +286,37 @@ def _infer_activity_type(token_blob: str) -> str:
     ):
         return "lecture"
     return "workshop"
+
+
+def _infer_parrish_price(*, amount: Decimal | None, text: str | None) -> tuple[bool | None, str]:
+    blob = f" {' '.join((text or '').lower().split())} "
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free with admission ",
+            " free with museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " member free ",
+            " members free ",
+        )
+    ):
+        return False, "confirmed"
+    is_free, status = infer_price_classification_from_amount(amount, text=text, default_is_free=False)
+    if is_free is None and status == "uncertain":
+        return False, "inferred"
+    return is_free, status
+
+
+def _infer_parrish_audience(*, title: str, description: str | None, category_text: str | None) -> str:
+    blob = f" {' '.join(' '.join([title, description or '', category_text or '']).lower().split())} "
+    if " art splash " in blob or " family " in blob or " families " in blob:
+        return "all_ages"
+    if any(marker in blob for marker in (" artist talk ", " lecture ", " talk ", " conversation ", " art in action ")):
+        return "adults"
+    generic = infer_audience_segment(title=title, description=description, category=category_text)
+    return generic if generic != "unknown" else "adults"
 
 
 def _parse_datetime(value: object) -> datetime | None:

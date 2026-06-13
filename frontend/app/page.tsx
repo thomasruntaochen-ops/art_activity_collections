@@ -140,7 +140,8 @@ export default function HomePage() {
   const [tableError, setTableError] = useState("");
   const [tableLoading, setTableLoading] = useState(false);
   const [mapViewportMode, setMapViewportMode] = useState<MapViewportMode>("fit");
-  const [mobilePane, setMobilePane] = useState<"map" | "activities">("map");
+  const [isMapOpen, setIsMapOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const dateFromIso = useMemo(() => toStartOfDayIso(dateFrom), [dateFrom]);
   const dateToIso = useMemo(() => toEndOfDayIso(dateTo), [dateTo]);
 
@@ -162,6 +163,36 @@ export default function HomePage() {
     }
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }, [viewMode]);
+
+  // Lock background scroll while a mobile overlay (map or filters) is open.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.style.overflow = isMapOpen || isFiltersOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMapOpen, isFiltersOpen]);
+
+  // Let Esc and the device Back gesture close the full-screen mobile map overlay
+  // instead of navigating away from the page.
+  useEffect(() => {
+    if (!isMapOpen || typeof window === "undefined") return;
+    window.history.pushState({ mapOverlay: true }, "");
+    const handlePop = () => setIsMapOpen(false);
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") window.history.back();
+    };
+    window.addEventListener("popstate", handlePop);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("popstate", handlePop);
+      window.removeEventListener("keydown", handleKey);
+      // Closed via button/Esc rather than Back: drop the entry we pushed.
+      if ((window.history.state as { mapOverlay?: boolean } | null)?.mapOverlay) {
+        window.history.back();
+      }
+    };
+  }, [isMapOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -417,6 +448,8 @@ export default function HomePage() {
   }
 
   const selectedLocation = formatVenueLine(selectedVenue);
+  const advancedFilterCount =
+    (selectedState ? 1 : 0) + (selectedCity ? 1 : 0) + (audienceFilter ? 1 : 0) + (freeOnly ? 1 : 0);
   const activitySummary = useMemo(() => {
     const counts = {
       total: selectedActivities.length,
@@ -454,7 +487,9 @@ export default function HomePage() {
     : `${tableActivities.length} activities matching the current filters`;
 
   return (
-    <main className="explorer-shell">
+    <main
+      className={`explorer-shell${isMapOpen ? " is-map-open" : ""}${isFiltersOpen ? " is-filters-open" : ""}`}
+    >
       <header className="explorer-topbar">
         <div className="explorer-brand">Art Museum Activities Explorer</div>
         <div className="explorer-headersearch">
@@ -494,66 +529,89 @@ export default function HomePage() {
       </header>
 
       <section className="explorer-filterbar">
-        <label className="explorer-filterbar__control">
-          <span>State</span>
-          <select value={selectedState} onChange={(event) => setSelectedState(event.target.value)}>
-            <option value="">All states</option>
-            {stateOptions.map((state) => (
-              <option key={state} value={state}>
-                {state}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* `display: contents` (desktop) keeps these inline in the grid; on mobile
+            this wrapper becomes a bottom sheet opened by the Filters button. */}
+        <div className="filters-advanced">
+          <p className="filters-advanced__title">Filters</p>
 
-        <label className="explorer-filterbar__control">
-          <span>City</span>
-          <select value={selectedCity} onChange={(event) => setSelectedCity(event.target.value)}>
-            <option value="">All cities</option>
-            {cityOptions.map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="explorer-filterbar__control ctl-state">
+            <span>State</span>
+            <select value={selectedState} onChange={(event) => setSelectedState(event.target.value)}>
+              <option value="">All states</option>
+              {stateOptions.map((state) => (
+                <option key={state} value={state}>
+                  {state}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="explorer-filterbar__control">
-          <span>Audience</span>
-          <select
-            value={audienceFilter}
-            onChange={(event) => setAudienceFilter(event.target.value as "" | AudienceSegment)}
-          >
-            {AUDIENCE_OPTIONS.map((option) => (
-              <option key={option.value || "all"} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="explorer-filterbar__control ctl-city">
+            <span>City</span>
+            <select value={selectedCity} onChange={(event) => setSelectedCity(event.target.value)}>
+              <option value="">All cities</option>
+              {cityOptions.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="explorer-filterbar__control">
+          <label className="explorer-filterbar__control ctl-audience">
+            <span>Audience</span>
+            <select
+              value={audienceFilter}
+              onChange={(event) => setAudienceFilter(event.target.value as "" | AudienceSegment)}
+            >
+              {AUDIENCE_OPTIONS.map((option) => (
+                <option key={option.value || "all"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className={`explorer-toggle ctl-free${freeOnly ? " is-active" : ""}`}>
+            <input
+              type="checkbox"
+              checked={freeOnly}
+              onChange={(event) => setFreeOnly(event.target.checked)}
+            />
+            <span>Free only</span>
+          </label>
+
+          <button type="button" className="filters-advanced__done" onClick={() => setIsFiltersOpen(false)}>
+            Done
+          </button>
+        </div>
+
+        <label className="explorer-filterbar__control ctl-from">
           <span>From</span>
           <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
         </label>
 
-        <label className="explorer-filterbar__control">
+        <label className="explorer-filterbar__control ctl-to">
           <span>To</span>
           <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
         </label>
 
-        <label className={`explorer-toggle${freeOnly ? " is-active" : ""}`}>
-          <input
-            type="checkbox"
-            checked={freeOnly}
-            onChange={(event) => setFreeOnly(event.target.checked)}
-          />
-          <span>Free only</span>
-        </label>
+        <button type="button" className="filterbar__sheet-trigger" onClick={() => setIsFiltersOpen(true)}>
+          Filters
+          {advancedFilterCount > 0 ? <span className="filterbar__badge">{advancedFilterCount}</span> : null}
+        </button>
+
+        <button type="button" className="filterbar__map-trigger" onClick={() => setIsMapOpen(true)}>
+          <span aria-hidden="true">🗺</span> Map
+        </button>
       </section>
 
+      {isFiltersOpen ? (
+        <div className="sheet-backdrop" onClick={() => setIsFiltersOpen(false)} aria-hidden="true" />
+      ) : null}
+
       {viewMode === "map" ? (
-      <section className={`explorer-content is-pane-${mobilePane}`}>
+      <section className="explorer-content">
         <aside className="explorer-sidebar">
           <div className="explorer-sidebar__heading">
             <h1>Venue Explorer</h1>
@@ -592,23 +650,6 @@ export default function HomePage() {
             </div>
           </div>
         </aside>
-
-        <div className="explorer-paneswitch view-switch" role="tablist" aria-label="Map or activities view">
-          <button
-            type="button"
-            className={`view-switch__button${mobilePane === "map" ? " is-active" : ""}`}
-            onClick={() => setMobilePane("map")}
-          >
-            Map
-          </button>
-          <button
-            type="button"
-            className={`view-switch__button${mobilePane === "activities" ? " is-active" : ""}`}
-            onClick={() => setMobilePane("activities")}
-          >
-            Activities
-          </button>
-        </div>
 
         <aside className="explorer-detail">
           <p className="eyebrow">Venue Activities</p>
@@ -667,6 +708,14 @@ export default function HomePage() {
         </aside>
 
         <section className="explorer-map">
+          <button
+            type="button"
+            className="explorer-map__close"
+            onClick={() => setIsMapOpen(false)}
+            aria-label="Close map"
+          >
+            ✕
+          </button>
           <div className="explorer-map__frame">
             <div className="explorer-map__surface is-live">
               <VenueMap
@@ -675,6 +724,7 @@ export default function HomePage() {
                 viewportMode={mapViewportMode}
                 onSelectVenue={handleSelectVenue}
                 onResetView={handleResetMapView}
+                active={isMapOpen}
               />
             </div>
           </div>

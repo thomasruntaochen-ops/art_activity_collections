@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -218,6 +219,7 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         activity_type=_infer_activity_type(token_blob),
         age_min=None,
         age_max=None,
+        audience_segment=_infer_worcester_audience(title=title, description=description),
         drop_in=("drop-in" in token_blob or "drop in" in token_blob),
         registration_required=("register" in token_blob or "ticket" in token_blob),
         start_at=start_at,
@@ -263,9 +265,26 @@ def _infer_activity_type(token_blob: str) -> str:
 
 def _price_classification(*, description: str | None, amount: Decimal | None) -> tuple[bool | None, str]:
     normalized = " ".join((description or "").lower().split())
-    if "with museum admission" in normalized:
-        return None, "uncertain"
-    return infer_price_classification_from_amount(amount, text=description)
+    if "with museum admission" in normalized or "free with admission" in normalized:
+        return False, "confirmed"
+    is_free, free_status = infer_price_classification_from_amount(amount, text=description, default_is_free=False)
+    if is_free is None and free_status == "uncertain":
+        return False, "inferred"
+    return is_free, free_status
+
+
+def _infer_worcester_audience(*, title: str, description: str | None) -> str:
+    blob = f" {' '.join(' '.join(part for part in [title, description or ''] if part).lower().split())} "
+    if " arms and armor demonstration " in blob:
+        return "all_ages"
+    if any(marker in blob for marker in (" curator ", " artist talk ", " lecture ", " talk ", " conversation ")):
+        return "adults"
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in (" class ", " workshop ", " demonstration ")):
+        return "adults"
+    return "unknown"
 
 
 def _parse_datetime(value: object) -> datetime | None:

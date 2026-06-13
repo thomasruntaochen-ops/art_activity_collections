@@ -11,6 +11,9 @@ type Props = {
   viewportMode: "fit" | "focus" | "usa";
   onSelectVenue: (venueName: string) => void;
   onResetView: () => void;
+  // True while the mobile full-screen overlay shows the map. Used to force a
+  // Leaflet resize when the container goes from hidden to full-screen.
+  active?: boolean;
 };
 
 // When a venue is selected we nudge in to this zoom instead of diving all the way
@@ -55,7 +58,7 @@ function buildVenueSummaryHtml(venue: ResolvedVenueCoordinates): string {
     .join("");
 }
 
-export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenue, onResetView }: Props) {
+export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenue, onResetView, active }: Props) {
   const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<LayerGroup | null>(null);
@@ -259,6 +262,18 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
       });
     }
   }, [onSelectVenue, resolvedVenues, selectedVenueName, viewportMode]);
+
+  // The mobile overlay reveals the map by switching its container from
+  // `display: none` to full-screen. Leaflet then needs to recompute its size so
+  // tiles fill the container instead of rendering off to one side; the
+  // ResizeObserver usually catches this, but force it on reveal to be safe.
+  useEffect(() => {
+    if (!active) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const frame = requestAnimationFrame(() => map.invalidateSize({ animate: false }));
+    return () => cancelAnimationFrame(frame);
+  }, [active]);
 
   if (resolvedVenues.length === 0) {
     return <div className="venue-map__loading">No venues available for the current filter.</div>;

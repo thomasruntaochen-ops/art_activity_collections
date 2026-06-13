@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -141,6 +142,17 @@ REGISTRATION_PATTERNS = (
     " sign up ",
     " ticket ",
     " tickets ",
+)
+DEFAULT_FREE_ADMISSION_SLUGS = {
+    "krannert_art_museum",
+    "smart_museum_of_art",
+}
+SMART_REJECT_TITLE_MARKERS = (
+    "chicago expo: south side night",
+    "study at the smart",
+)
+SMART_REJECT_TEXT_MARKERS = (
+    " poetry ",
 )
 
 TIME_RANGE_RE = re.compile(
@@ -453,9 +465,10 @@ def parse_il_events(payload: dict, *, venue: IlVenueConfig) -> list[ExtractedAct
     return out
 
 
-def get_il_source_prefixes() -> tuple[str, ...]:
+def get_il_source_prefixes(venues: list[IlVenueConfig] | tuple[IlVenueConfig, ...] | None = None) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in IL_VENUES:
+    selected = list(venues) if venues is not None else list(IL_VENUES)
+    for venue in selected:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
         if venue.discovery_url:
@@ -779,6 +792,8 @@ def _parse_artic_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracte
         if not _should_keep_event(full_text):
             continue
 
+        age_min, age_max = _parse_age_range(full_text)
+        activity_type = _infer_activity_type(join_non_empty([type_text, title, description]))
         rows.append(
             ExtractedActivity(
                 source_url=source_url,
@@ -947,6 +962,8 @@ def _parse_krannert_events(payload: dict, *, venue: IlVenueConfig) -> list[Extra
         if not _should_keep_event(full_text):
             continue
 
+        age_min, age_max = _parse_age_range(full_text)
+        activity_type = _infer_activity_type(join_non_empty([type_text, title, description]))
         rows.append(
             ExtractedActivity(
                 source_url=source_url,
@@ -956,15 +973,25 @@ def _parse_krannert_events(payload: dict, *, venue: IlVenueConfig) -> list[Extra
                 location_text=location_text,
                 city=venue.city,
                 state=venue.state,
-                activity_type=_infer_activity_type(join_non_empty([type_text, title, description])),
-                age_min=None,
-                age_max=None,
+                activity_type=activity_type,
+                age_min=age_min,
+                age_max=age_max,
                 drop_in=_contains_any(full_text, DROP_IN_PATTERNS),
                 registration_required=_registration_required(full_text),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=IL_TIMEZONE,
-                **price_classification_kwargs(full_text, default_is_free=None),
+                audience_segment=_infer_il_audience(
+                    venue=venue,
+                    title=title,
+                    description=description,
+                    category=type_text,
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                    activity_type=activity_type,
+                ),
+                **_price_kwargs_for_il_venue(venue, full_text),
             )
         )
 
@@ -1208,7 +1235,11 @@ def _parse_smart_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracte
         full_text = join_non_empty([title, description, free_text, item.get("card_text"), location_text])
         if not _should_keep_event(full_text):
             continue
+        if _should_reject_smart_event(title=title, text=full_text):
+            continue
 
+        age_min, age_max = _parse_age_range(full_text)
+        activity_type = _infer_activity_type(full_text)
         rows.append(
             ExtractedActivity(
                 source_url=source_url,
@@ -1218,15 +1249,25 @@ def _parse_smart_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracte
                 location_text=location_text,
                 city=venue.city,
                 state=venue.state,
-                activity_type=_infer_activity_type(full_text),
-                age_min=None,
-                age_max=None,
+                activity_type=activity_type,
+                age_min=age_min,
+                age_max=age_max,
                 drop_in=_contains_any(full_text, DROP_IN_PATTERNS),
                 registration_required=_registration_required(full_text),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=IL_TIMEZONE,
-                **price_classification_kwargs(join_non_empty([description, free_text]), default_is_free=None),
+                audience_segment=_infer_il_audience(
+                    venue=venue,
+                    title=title,
+                    description=description,
+                    category=None,
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                    activity_type=activity_type,
+                ),
+                **_price_kwargs_for_il_venue(venue, join_non_empty([description, free_text])),
             )
         )
 
@@ -1421,6 +1462,15 @@ def _should_keep_event(text: str | None) -> bool:
     return _contains_any(blob, WEAK_INCLUDE_PATTERNS)
 
 
+def _should_reject_smart_event(*, title: str | None, text: str | None) -> bool:
+    normalized_title = (title or "").strip().lower()
+    if any(marker in normalized_title for marker in SMART_REJECT_TITLE_MARKERS):
+        return True
+
+    blob = _searchable_blob(text)
+    return any(marker in blob for marker in SMART_REJECT_TEXT_MARKERS)
+
+
 def _infer_activity_type(text: str | None) -> str | None:
     blob = _searchable_blob(text)
     if not blob:
@@ -1428,6 +1478,89 @@ def _infer_activity_type(text: str | None) -> str | None:
     if any(token in blob for token in (" lecture ", " panel ", " conversation ", " discussion ", " talk ")):
         return "lecture"
     return "workshop"
+
+
+def _infer_il_audience(
+    *,
+    venue: IlVenueConfig,
+    title: str | None,
+    description: str | None,
+    category: str | None,
+    source_url: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str | None,
+) -> str:
+    blob = _searchable_blob(join_non_empty([title, description, category, source_url]))
+
+    if venue.slug == "krannert_art_museum":
+        if any(token in blob for token in (" creative aging ", " memory cafe ", " memory caf ", " seniors ", " dementia ")):
+            return "adults"
+        if " teen night " in blob:
+            return "teens"
+        if any(token in blob for token in (" kids at kam ", " artventures for kids ", " girls rock ", " youth songwriting ")):
+            return "kids"
+        if any(token in blob for token in (" sensory friendly ", " sensory friendly art exploration ", " knit sit ", " all ages ")):
+            return "all_ages"
+        if any(
+            token in blob
+            for token in (
+                " artist talk ",
+                " curator talk ",
+                " gallery talk ",
+                " noontime panel ",
+                " noontime gallery ",
+                " visiting artist talk ",
+            )
+        ):
+            return "adults"
+
+    if venue.slug == "smart_museum_of_art":
+        if any(
+            token in blob
+            for token in (
+                " family day ",
+                " family tour ",
+                " family smart find ",
+                " story time ",
+                " tuesdays together ",
+            )
+        ):
+            return "kids"
+        if any(
+            token in blob
+            for token in (
+                " conversation piece ",
+                " smart salon ",
+                " panel ",
+                " archives ",
+                " quantum color ",
+                " orbiting alma thomas ",
+            )
+        ):
+            return "adults"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if activity_type in {"lecture", "workshop"}:
+        return "adults"
+    return "unknown"
+
+
+def _price_kwargs_for_il_venue(venue: IlVenueConfig, text: str | None) -> dict[str, bool | None | str]:
+    default_is_free = True if venue.slug in DEFAULT_FREE_ADMISSION_SLUGS else None
+    kwargs = price_classification_kwargs(text, default_is_free=default_is_free)
+    if venue.slug in DEFAULT_FREE_ADMISSION_SLUGS and kwargs["is_free"] is None:
+        return {"is_free": True, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _registration_required(text: str | None) -> bool | None:

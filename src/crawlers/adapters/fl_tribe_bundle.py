@@ -105,11 +105,19 @@ ALWAYS_REJECT_PATTERNS = (
     " tours ",
     " yoga ",
 )
+HARD_REJECT_PATTERNS = (
+    " fundraising ",
+    " fundraiser ",
+    " member event ",
+    " member events ",
+    " membership reciprocity ",
+    " signature fundraising ",
+    " soiree ",
+    " soirée ",
+)
 CONTEXTUAL_REJECT_PATTERNS = (
     " exhibition ",
     " exhibitions ",
-    " member event ",
-    " member events ",
     " picnic ",
     " signature ",
 )
@@ -122,7 +130,12 @@ REGISTRATION_PATTERNS = (
     " register ",
     " registration ",
     " reserve ",
+    " member tickets ",
+    " non member tickets ",
+    " nonmember tickets ",
+    " purchase tickets ",
     " reserved tickets ",
+    " ticket is required ",
     " tickets required ",
     " ticket required ",
 )
@@ -395,6 +408,10 @@ def _should_keep_event(*, title_blob: str, token_blob: str) -> bool:
         return False
     if " museum closure " in token_blob or " early closure " in token_blob or " museum closed " in token_blob:
         return False
+    if any(pattern in title_blob for pattern in HARD_REJECT_PATTERNS):
+        return False
+    if any(pattern in token_blob for pattern in HARD_REJECT_PATTERNS):
+        return False
 
     strong_include = any(pattern in token_blob for pattern in STRONG_INCLUDE_PATTERNS)
     weak_include = strong_include or any(pattern in token_blob for pattern in WEAK_INCLUDE_PATTERNS)
@@ -466,7 +483,7 @@ def _infer_fl_tribe_audience(
         if " workshops at the bass " in category_blob:
             return "adults"
 
-    if " all ages " in token_blob or " visitors of all ages " in token_blob:
+    if " all ages " in token_blob or " visitors of all ages " in token_blob or " all are welcome " in token_blob:
         return "all_ages"
     if " adults " in category_blob and " family " in category_blob:
         return "all_ages"
@@ -527,6 +544,8 @@ def _extract_location_name(venue_obj: object) -> str | None:
 
 
 def _infer_activity_type(token_blob: str) -> str:
+    if any(pattern in token_blob for pattern in (" class ", " classes ", " workshop ", " workshops ")):
+        return "workshop"
     if any(pattern in token_blob for pattern in (" lecture ", " lectures ", " talk ", " talks ", " panel ", " conversation ", " conversations ", " discussion ")):
         return "lecture"
     return "workshop"

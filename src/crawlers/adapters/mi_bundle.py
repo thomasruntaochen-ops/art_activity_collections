@@ -396,7 +396,7 @@ def _parse_kalamazoo_events(payload: dict, *, venue: MiVenueConfig) -> list[Extr
     rows: list[ExtractedActivity] = []
 
     for event_obj in payload.get("events") or []:
-        title = _normalize_space(event_obj.get("title"))
+        title = _clean_html(event_obj.get("title"))
         source_url = _normalize_space(event_obj.get("url"))
         start_at = _parse_iso_or_local_datetime(event_obj.get("start_date"), timezone_name=MI_TIMEZONE)
         if not title or not source_url or start_at is None:
@@ -434,12 +434,11 @@ def _parse_kalamazoo_events(payload: dict, *, venue: MiVenueConfig) -> list[Extr
         location_text = ", ".join(part for part in location_parts if part) or f"{venue.city}, {venue.state}"
 
         cost_amount = _extract_first_decimal((event_obj.get("cost_details") or {}).get("values"))
-        is_free, free_status = infer_price_classification_from_amount(
-            cost_amount,
+        is_free, free_status = _infer_kalamazoo_price(
+            cost_amount=cost_amount,
             text=combined_description,
-            default_is_free=None,
         )
-        age_min, age_max = _parse_age_range(combined_description)
+        age_min, age_max = _parse_age_range(" ".join(part for part in (title, combined_description or "") if part))
 
         rows.append(
             ExtractedActivity(
@@ -453,6 +452,13 @@ def _parse_kalamazoo_events(payload: dict, *, venue: MiVenueConfig) -> list[Extr
                 activity_type=_activity_type_for_text(title=title, description=combined_description),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_kalamazoo_audience(
+                    title=title,
+                    description=combined_description,
+                    category_text=category_text,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=_contains_any(_normalize_for_match(f"{title} {combined_description or ''}"), (" drop in ", " drop-in ")),
                 registration_required=_registration_required_for_text(title=title, description=combined_description),
                 start_at=start_at,
@@ -639,6 +645,7 @@ def _parse_msu_broad_events(payload: dict, *, venue: MiVenueConfig) -> list[Extr
 
             price_text = " | ".join(part for part in (combined_description or "", category_text) if part)
             is_free, free_status = infer_price_classification(price_text, default_is_free=None)
+            age_min, age_max = _parse_age_range(combined_description)
 
             rows.append(
                 ExtractedActivity(
@@ -650,8 +657,15 @@ def _parse_msu_broad_events(payload: dict, *, venue: MiVenueConfig) -> list[Extr
                     city=venue.city,
                     state=venue.state,
                     activity_type=_activity_type_for_text(title=title, description=combined_description),
-                    age_min=None,
-                    age_max=None,
+                    age_min=age_min,
+                    age_max=age_max,
+                    audience_segment=_infer_msu_broad_audience(
+                        title=title,
+                        description=combined_description,
+                        category_text=category_text,
+                        age_min=age_min,
+                        age_max=age_max,
+                    ),
                     drop_in=_contains_any(_normalize_for_match(f"{title} {combined_description or ''}"), (" drop in ", " drop-in ")),
                     registration_required=_registration_required_for_text(title=title, description=combined_description),
                     start_at=start_at,
@@ -1069,8 +1083,6 @@ def _should_keep_kalamazoo_event(*, title: str, description: str | None, categor
         return False
     if _contains_any(blob, (" wonder walks ", " gallery gathering ", " demonstration ", " demonstrations ", " workshop ", " class ", " lecture ", " talk ", " activity ", " family ")):
         return True
-    if _contains_any(blob, (" artstream ",)):
-        return True
     return False
 
 
@@ -1112,6 +1124,99 @@ def _infer_grand_rapids_audience(
         age_min=age_min,
         age_max=age_max,
     )
+
+
+def _infer_kalamazoo_price(*, cost_amount: Decimal | None, text: str | None) -> tuple[bool | None, str]:
+    blob = _normalize_for_match(text or "")
+    if _contains_any(
+        blob,
+        (
+            " free for members ",
+            " free with admission ",
+            " free with museum admission ",
+            " member free ",
+            " members free ",
+            " included with admission ",
+            " included with museum admission ",
+        ),
+    ):
+        return False, "confirmed"
+    return infer_price_classification_from_amount(cost_amount, text=text, default_is_free=False)
+
+
+def _infer_kalamazoo_audience(
+    *,
+    title: str,
+    description: str | None,
+    category_text: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _normalize_for_match(" ".join(part for part in (title, description or "", category_text or "") if part))
+    if _contains_any(blob, (" high school ", " college students ", " ages 12 ", " ages 13 ", " ages 14 ", " teen ", " teens ")):
+        inferred = infer_audience_segment(
+            title=title,
+            description=description,
+            category=category_text,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        return inferred if inferred != "unknown" else "teens_adults"
+    if _contains_any(blob, (" community day ", " juneteenth ", " all ages ")):
+        return "all_ages"
+    if _contains_any(blob, (" wonder walk ", " wonder walks ", " art detectives ", " family ", " families ", " kids ", " children ")):
+        return "kids"
+    if _contains_any(blob, (" library activity ",)):
+        return "all_ages"
+    if _contains_any(
+        blob,
+        (
+            " artbreak ",
+            " artful evening ",
+            " artist talk ",
+            " gallery gathering ",
+            " lecture ",
+            " talk ",
+        ),
+    ):
+        return "adults"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category_text,
+        age_min=age_min,
+        age_max=age_max,
+    )
+
+
+def _infer_msu_broad_audience(
+    *,
+    title: str,
+    description: str | None,
+    category_text: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _normalize_for_match(" ".join(part for part in (title, description or "", category_text or "") if part))
+    if any(pattern in blob for pattern in (" family art studio ", " family day ", " families ", " take your child ")):
+        return "kids"
+    if any(pattern in blob for pattern in (" k 12 educator ", " educator workshop ", " teachers ", " professional development ")):
+        return "adults"
+    if " chill out with art " in blob:
+        return "all_ages"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category_text,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if any(pattern in blob for pattern in (" artist talk ", " lecture ", " talk ", " workshop ", " class ")):
+        return "adults"
+    return "unknown"
 
 
 def _should_keep_msu_broad_event(*, title: str, description: str | None, category_text: str | None) -> bool:

@@ -23,32 +23,31 @@ from src.db.session import SessionLocal  # noqa: E402
 from src.models.activity import Activity, Source  # noqa: E402
 
 
-RI_SOURCE_URL_PREFIXES = get_ri_source_prefixes()
-
-
-def clear_ri_bundle_entries() -> dict[str, int]:
+def clear_ri_bundle_entries(venues=None) -> dict[str, int]:
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
+    selected_venues = list(venues) if venues is not None else list(RI_VENUES)
+    source_prefixes = get_ri_source_prefixes(selected_venues)
+    source_conditions = [
+        Source.base_url.in_([venue.list_url for venue in selected_venues]),
+        Source.name.in_([venue.source_name for venue in selected_venues]),
+    ]
+    if len(selected_venues) == len(RI_VENUES):
+        source_conditions.append(Source.name.like("ri_%_events"))
 
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in RI_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in selected_venues],
         )
 
         source_ids = db.scalars(
-            select(Source.id).where(
-                or_(
-                    Source.base_url.in_([venue.list_url for venue in RI_VENUES]),
-                    Source.name.like("ri_%_events"),
-                    Source.name.in_([venue.source_name for venue in RI_VENUES]),
-                )
-            )
+            select(Source.id).where(or_(*source_conditions))
         ).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in RI_SOURCE_URL_PREFIXES]
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in source_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -109,7 +108,7 @@ async def main() -> None:
         "--clear",
         action="store_true",
         help=(
-            "Delete all RI bundle DB rows (activity_tags, activities, ingestion_runs, sources). "
+            "Delete selected RI bundle DB rows (activity_tags, activities, ingestion_runs, sources). "
             "If used without --commit, the script exits after deletion."
         ),
     )
@@ -118,7 +117,7 @@ async def main() -> None:
     selected_venues = list(RI_VENUES) if args.venue == "all" else [RI_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_ri_bundle_entries()
+        deleted = clear_ri_bundle_entries(selected_venues)
         print(
             "Deleted RI bundle rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -138,7 +137,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_ri_bundle_entries()
+        deleted = clear_ri_bundle_entries(selected_venues)
         print(
             "Deleted RI bundle rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

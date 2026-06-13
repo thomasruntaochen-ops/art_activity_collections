@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -614,6 +615,7 @@ def _parse_phoenix_events(payload: dict, *, venue: AzHtmlVenueConfig) -> list[Ex
                 continue
 
             description = f"Category page: {page_label} | {text}"
+            age_min, age_max = _parse_age_range(text)
             rows.append(
                 ExtractedActivity(
                     source_url=source_url,
@@ -624,14 +626,21 @@ def _parse_phoenix_events(payload: dict, *, venue: AzHtmlVenueConfig) -> list[Ex
                     city=venue.city,
                     state=venue.state,
                     activity_type=_infer_activity_type(f"{page_label} {title}"),
-                    age_min=_parse_age_range(text)[0],
-                    age_max=_parse_age_range(text)[1],
+                    age_min=age_min,
+                    age_max=age_max,
+                    audience_segment=_infer_phoenix_audience(
+                        title=title,
+                        description=text,
+                        page_label=page_label,
+                        age_min=age_min,
+                        age_max=age_max,
+                    ),
                     drop_in=None,
                     registration_required=True if "Buy Tickets" in text else None,
                     start_at=start_at,
                     end_at=None,
                     timezone=AZ_TIMEZONE,
-                    **price_classification_kwargs(text),
+                    **_phoenix_price_kwargs(text),
                 )
             )
 
@@ -1053,6 +1062,50 @@ def _should_keep_event(*, title: str, description: str, page_label: str = "") ->
         return not any(pattern in token_blob for pattern in ALWAYS_REJECT_PATTERNS)
 
     return any(pattern in token_blob for pattern in WEAK_INCLUDE_PATTERNS) and " art " in token_blob
+
+
+def _phoenix_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    blob = _searchable_blob(text or "")
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free with admission ",
+            " free with museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " member free ",
+            " members free ",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    kwargs = price_classification_kwargs(text, default_is_free=False)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
+
+
+def _infer_phoenix_audience(
+    *,
+    title: str,
+    description: str,
+    page_label: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _searchable_blob(" ".join([title, description, page_label]))
+    if " create playdate " in blob or " playdate " in blob or " family " in blob:
+        return "kids"
+    if " object of the month " in blob or " lecture " in blob or " talk " in blob:
+        return "adults"
+    generic = infer_audience_segment(
+        title=title,
+        description=description,
+        category=page_label,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    return generic if generic != "unknown" else "adults"
 
 
 def _infer_activity_type(token_blob: str) -> str:

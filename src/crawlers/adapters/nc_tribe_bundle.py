@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -124,6 +125,12 @@ REGISTRATION_PATTERNS = (
     " rsvp ",
     " secure your spot ",
     " sign up ",
+)
+NEGATIVE_REGISTRATION_PATTERNS = (
+    " no prior registration ",
+    " no registration required ",
+    " registration is not required ",
+    " no need to register ",
 )
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE)
@@ -346,14 +353,17 @@ def _build_row(event_obj: dict, *, venue: NcTribeVenueConfig) -> ExtractedActivi
 
     title_blob = _searchable_blob(" ".join([title, " ".join(category_names)]))
     token_blob = _searchable_blob(" ".join([title, description or "", " ".join(category_names)]))
+    if venue.slug == "mint" and _should_reject_mint_event(title_blob=title_blob, token_blob=token_blob):
+        return None
     if not _should_keep_event(title_blob=title_blob, token_blob=token_blob):
         return None
 
     amount = _extract_amount(event_obj.get("cost_details"))
-    is_free, free_status = infer_price_classification_from_amount(
-        amount,
-        text=price_text or description,
-        default_is_free=None,
+    is_free, free_status = _infer_nc_tribe_price(
+        venue=venue,
+        amount=amount,
+        price_text=price_text,
+        description=description,
     )
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
 
@@ -368,8 +378,16 @@ def _build_row(event_obj: dict, *, venue: NcTribeVenueConfig) -> ExtractedActivi
         activity_type=_infer_activity_type(token_blob),
         age_min=age_min,
         age_max=age_max,
-        drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
-        registration_required=any(pattern in token_blob for pattern in REGISTRATION_PATTERNS),
+        audience_segment=_infer_nc_tribe_audience(
+            venue=venue,
+            title=title,
+            description=description,
+            category_text=", ".join(category_names),
+            age_min=age_min,
+            age_max=age_max,
+        ),
+        drop_in=_infer_nc_tribe_drop_in(venue=venue, token_blob=token_blob),
+        registration_required=_infer_nc_tribe_registration_required(token_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
@@ -380,6 +398,8 @@ def _build_row(event_obj: dict, *, venue: NcTribeVenueConfig) -> ExtractedActivi
 
 def _should_keep_event(*, title_blob: str, token_blob: str) -> bool:
     if " cancelled " in token_blob or " canceled " in token_blob or " sold out " in token_blob:
+        return False
+    if " art of wine " in title_blob:
         return False
 
     strong_include = any(pattern in token_blob for pattern in STRONG_INCLUDE_PATTERNS)
@@ -395,6 +415,136 @@ def _should_keep_event(*, title_blob: str, token_blob: str) -> bool:
         return False
 
     return True
+
+
+def _should_reject_mint_event(*, title_blob: str, token_blob: str) -> bool:
+    if any(
+        marker in token_blob
+        for marker in (
+            " davidson community players ",
+            " million dollar quartet ",
+            " mint 2 move ",
+            " potters market ",
+        )
+    ):
+        return True
+    if " wednesday night live " in title_blob and any(
+        marker in token_blob for marker in (" concert ", " performance ", " players ", " play ")
+    ):
+        return True
+    return False
+
+
+def _infer_nc_tribe_price(
+    *,
+    venue: NcTribeVenueConfig,
+    amount: Decimal | None,
+    price_text: str | None,
+    description: str | None,
+) -> tuple[bool | None, str]:
+    text = " ".join(part for part in (price_text or "", description or "") if part)
+    blob = _searchable_blob(text)
+    if venue.slug == "ackland":
+        if any(marker in blob for marker in (" always free ", " free admission ", " admission is free ")):
+            return True, "confirmed"
+        is_free, status = infer_price_classification_from_amount(amount, text=text, default_is_free=True)
+        if is_free is None and status == "uncertain":
+            return True, "inferred"
+        return is_free, status
+    if venue.slug in {"asheville", "mint"}:
+        if any(
+            marker in blob
+            for marker in (
+                " free for members ",
+                " free with admission ",
+                " free with museum admission ",
+                " member free ",
+                " members free ",
+                " included with admission ",
+                " included with museum admission ",
+            )
+        ):
+            return False, "confirmed"
+        is_free, status = infer_price_classification_from_amount(amount, text=text, default_is_free=False)
+        if is_free is None and status == "uncertain":
+            return False, "inferred"
+        return is_free, status
+    return infer_price_classification_from_amount(amount, text=text, default_is_free=None)
+
+
+def _infer_nc_tribe_audience(
+    *,
+    venue: NcTribeVenueConfig,
+    title: str,
+    description: str | None,
+    category_text: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _searchable_blob(" ".join(part for part in (title, description or "", category_text or "") if part))
+    if venue.slug == "ackland":
+        if any(marker in blob for marker in (" artwalk ", " sketch ", " all are welcome ", " extended museum hours ")):
+            return "all_ages"
+        if any(marker in blob for marker in (" family ", " children ", " kids ", " youth ")):
+            return "kids"
+        if any(marker in blob for marker in (" artist talk ", " gallery talk ", " lecture ", " conversation ", " class ", " workshop ")):
+            return "adults"
+    if venue.slug == "asheville":
+        title_blob = _searchable_blob(title)
+        if any(
+            marker in blob
+            for marker in (
+                " adult studio ",
+                " art of wellbeing ",
+                " book art ",
+                " curator ",
+                " demonstration ",
+                " gallery talk ",
+                " lecture ",
+                " slow art ",
+                " talk ",
+                " third thursday ",
+                " wine ",
+            )
+        ):
+            return "adults"
+        if any(marker in title_blob for marker in (" makerspace ",)):
+            return "all_ages"
+        if any(marker in blob for marker in (" art playce ", " intergenerational ", " all ages ")):
+            return "all_ages"
+        if " teen " in blob or " teens " in blob:
+            return "teens"
+        if any(marker in blob for marker in (" family ", " children ", " kids ", " youth ")):
+            return "kids"
+    if venue.slug == "mint":
+        title_blob = _searchable_blob(title)
+        if any(marker in title_blob for marker in (" wild wednesday ", " party in the park ")):
+            return "kids"
+        if any(marker in blob for marker in (" artist talk ", " gallery talk ", " lecture ", " curator ", " conversation ")):
+            return "adults"
+        if any(marker in blob for marker in (" family ", " children ", " kids ", " youth ")):
+            return "kids"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category_text,
+        age_min=age_min,
+        age_max=age_max,
+    )
+
+
+def _infer_nc_tribe_drop_in(*, venue: NcTribeVenueConfig, token_blob: str) -> bool:
+    if venue.slug == "ackland" and " no prior registration " in token_blob:
+        return True
+    return any(pattern in token_blob for pattern in DROP_IN_PATTERNS)
+
+
+def _infer_nc_tribe_registration_required(token_blob: str) -> bool:
+    if any(pattern in token_blob for pattern in NEGATIVE_REGISTRATION_PATTERNS):
+        return False
+    if any(pattern in token_blob for pattern in DROP_IN_PATTERNS):
+        return False
+    return any(pattern in token_blob for pattern in REGISTRATION_PATTERNS)
 
 
 def _searchable_blob(value: str) -> str:

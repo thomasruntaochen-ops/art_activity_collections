@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -222,9 +223,10 @@ class NmBundleAdapter(BaseSourceAdapter):
         raise NotImplementedError("Use load_nm_bundle_payload/parse_nm_events from the script runner.")
 
 
-def get_nm_source_prefixes() -> tuple[str, ...]:
+def get_nm_source_prefixes(venues: list[NmVenueConfig] | tuple[NmVenueConfig, ...] | None = None) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in NM_VENUES:
+    selected = list(venues) if venues is not None else list(NM_VENUES)
+    for venue in selected:
         prefixes.extend(venue.source_prefixes)
     return tuple(prefixes)
 
@@ -420,6 +422,8 @@ def _parse_okeeffe_events(payload: dict, *, venue: NmVenueConfig) -> list[Extrac
         description = _normalize_space(_text_or_none(soup.select_one(".EventHero-description")))
         card_text = cards_by_url.get(source_url)
         full_text = _combine_text(title, description, " ".join(meta_items), card_text)
+        if _is_unavailable_event(title=title, text=full_text):
+            continue
         if not _should_keep_event(title=title, text=full_text):
             continue
 
@@ -437,7 +441,8 @@ def _parse_okeeffe_events(payload: dict, *, venue: NmVenueConfig) -> list[Extrac
 
         location_text = _extract_okeeffe_location(meta_items) or "Santa Fe, NM"
         age_min, age_max = _parse_age_range(full_text)
-        is_free, free_status = infer_price_classification(full_text, default_is_free=None)
+        is_free, free_status = _infer_okeeffe_price(full_text)
+        activity_type = _infer_activity_type(title, full_text)
 
         rows.append(
             ExtractedActivity(
@@ -448,7 +453,7 @@ def _parse_okeeffe_events(payload: dict, *, venue: NmVenueConfig) -> list[Extrac
                 location_text=location_text,
                 city=venue.city,
                 state=venue.state,
-                activity_type=_infer_activity_type(title, full_text),
+                activity_type=activity_type,
                 age_min=age_min,
                 age_max=age_max,
                 drop_in=_has_any_pattern(full_text, DROP_IN_PATTERNS),
@@ -458,6 +463,14 @@ def _parse_okeeffe_events(payload: dict, *, venue: NmVenueConfig) -> list[Extrac
                 timezone=NM_TIMEZONE,
                 free_verification_status=free_status,
                 is_free=is_free,
+                audience_segment=_infer_okeeffe_audience(
+                    title=title,
+                    description=description,
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                    activity_type=activity_type,
+                ),
             )
         )
 
@@ -750,6 +763,14 @@ def _should_keep_event(*, title: str, text: str | None) -> bool:
     return has_include
 
 
+def _is_unavailable_event(*, title: str | None, text: str | None) -> bool:
+    normalized_title = _normalize_space(title).lower()
+    normalized_text = _normalize_space(text).lower()
+    if normalized_title.startswith(("canceled", "cancelled", "postponed", "sold out")):
+        return True
+    return re.search(r"\b(canceled|cancelled|postponed|sold out)\b", normalized_text) is not None
+
+
 def _infer_activity_type(title: str, text: str | None) -> str:
     normalized = f" {_normalize_space(_combine_text(title, text)).lower()} "
     if " first friday" in normalized:
@@ -788,6 +809,81 @@ def _infer_activity_type(title: str, text: str | None) -> str:
     ):
         return "talk"
     return "activity"
+
+
+def _infer_okeeffe_audience(
+    *,
+    title: str | None,
+    description: str | None,
+    source_url: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str | None,
+) -> str:
+    normalized = f" {_normalize_space(_combine_text(title, description, source_url)).lower()} "
+    if any(
+        marker in normalized
+        for marker in (
+            " fine art friday ",
+            " santa fe children's museum ",
+            " family day ",
+            " create with o'keeffe",
+            " create with o’keeffe",
+            " create-with-okeeffe",
+        )
+    ):
+        return "kids"
+    if any(
+        marker in normalized
+        for marker in (
+            " online class ",
+            " in-person class ",
+            " in-person workshop ",
+            " mornings with o'keeffe ",
+            " mornings with o’keeffe ",
+            " conversation ",
+            " still life ",
+            " watercolor ",
+            " charcoal ",
+            " urban sketching ",
+            " plein air ",
+            " traditional wood carving ",
+        )
+    ):
+        return "adults"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if activity_type in {"workshop", "talk", "activity"}:
+        return "adults"
+    return "unknown"
+
+
+def _infer_okeeffe_price(text: str | None) -> tuple[bool | None, str]:
+    normalized = f" {_normalize_space(text).lower()} "
+    if any(
+        marker in normalized
+        for marker in (
+            " free for members ",
+            " free with admission ",
+            " included with admission ",
+            " included in admission ",
+            " museum admission ",
+        )
+    ):
+        return False, "confirmed"
+
+    is_free, status = infer_price_classification(text, default_is_free=False)
+    if is_free is None:
+        return False, "inferred"
+    return is_free, status
 
 
 def _parse_okeeffe_date(text: str | None) -> date | None:

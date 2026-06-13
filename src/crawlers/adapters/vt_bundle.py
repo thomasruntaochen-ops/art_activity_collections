@@ -25,6 +25,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -273,9 +274,11 @@ class VtBundleAdapter(BaseSourceAdapter):
         raise NotImplementedError("Use load_vt_bundle_payload/parse_vt_events from the script runner.")
 
 
-def get_vt_source_prefixes() -> tuple[str, ...]:
+def get_vt_source_prefixes(
+    venues: list[VtVenueConfig] | tuple[VtVenueConfig, ...] = VT_VENUES,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in VT_VENUES:
+    for venue in venues:
         prefixes.extend(venue.source_prefixes)
     return tuple(dict.fromkeys(prefixes))
 
@@ -434,6 +437,7 @@ def _parse_tribe_events(payload: dict[str, object], *, venue: VtVenueConfig, sta
             ]
         ) or venue.default_location
         text_blob = join_non_empty([title, description, categories])
+        age_min, age_max = parse_age_range(text_blob)
 
         rows.append(
             ExtractedActivity(
@@ -445,16 +449,24 @@ def _parse_tribe_events(payload: dict[str, object], *, venue: VtVenueConfig, sta
                 city=venue.city,
                 state=venue.state,
                 activity_type=_infer_vt_activity_type(title=title, description=description, category=categories),
-                age_min=parse_age_range(text_blob)[0],
-                age_max=parse_age_range(text_blob)[1],
+                age_min=age_min,
+                age_max=age_max,
+                audience_segment=_infer_vt_audience(
+                    venue=venue,
+                    title=title,
+                    description=description,
+                    category=categories,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=_infer_drop_in(text_blob),
                 registration_required=_infer_registration_required(text_blob),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
-                **price_classification_kwargs(
-                    join_non_empty([normalize_space(event.get("cost")), description, categories]),
-                    default_is_free=None,
+                **_vt_price_kwargs(
+                    venue=venue,
+                    text=join_non_empty([normalize_space(event.get("cost")), description, categories]),
                 ),
             )
         )
@@ -811,6 +823,8 @@ def _should_keep_event(*, title: str, description: str | None, category: str | N
         return False
     if any(_has_marker(body_blob, marker) for marker in HARD_REJECT_BODY_MARKERS):
         return False
+    if any(_has_marker(combined, marker) for marker in ("film screening", "screening")):
+        return False
 
     include_hit = any(_has_marker(combined, marker) for marker in INCLUDE_MARKERS)
     exclude_hit = any(_has_marker(title_blob, marker) for marker in EXCLUDE_MARKERS)
@@ -818,11 +832,73 @@ def _should_keep_event(*, title: str, description: str | None, category: str | N
 
     if "cancelled" in combined or "canceled" in combined:
         return False
+    if _has_marker(combined, "mindful yoga"):
+        return False
     if exclude_hit and not include_hit:
         return False
     if strong_body_exclude_hit and not include_hit:
         return False
     return include_hit
+
+
+def _vt_price_kwargs(*, venue: VtVenueConfig, text: str | None) -> dict[str, bool | None | str]:
+    if venue.slug != "shelburne":
+        return price_classification_kwargs(text, default_is_free=None)
+
+    blob = f" {normalize_space(unescape(text or '')).lower()} "
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free to members ",
+            " free with admission ",
+            " free with museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " with museum admission ",
+            " with admission ",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+
+    kwargs = price_classification_kwargs(text, default_is_free=False)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
+
+
+def _infer_vt_audience(
+    *,
+    venue: VtVenueConfig,
+    title: str,
+    description: str | None,
+    category: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {normalize_space(unescape(join_non_empty([title, description, category]) or '')).lower()} "
+    if venue.slug == "shelburne":
+        if any(marker in blob for marker in (" adult and teen ", " teens and adults ", " teen and adult ")):
+            return "teens_adults"
+        if any(marker in blob for marker in (" family ", " families ", " kids ", " children ")):
+            return "kids"
+        if any(marker in blob for marker in (" rockwell day ", " all ages ", " community day ")):
+            return "all_ages"
+        if any(marker in blob for marker in (" talk ", " lecture ", " conversation ", " presentation ")):
+            return "adults"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in (" class ", " workshop ", " talk ", " lecture ", " conversation ")):
+        return "adults"
+    return "unknown"
 
 
 def _infer_vt_activity_type(*, title: str, description: str | None, category: str | None) -> str:

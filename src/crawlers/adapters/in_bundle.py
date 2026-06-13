@@ -29,6 +29,7 @@ from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -411,9 +412,11 @@ def parse_in_events(payload: dict, *, venue: InVenueConfig) -> list[ExtractedAct
     return out
 
 
-def get_in_source_prefixes() -> tuple[str, ...]:
+def get_in_source_prefixes(
+    venues: tuple[InVenueConfig, ...] | list[InVenueConfig] | None = None,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in IN_VENUES:
+    for venue in (venues if venues is not None else IN_VENUES):
         for url in (venue.list_url, venue.discovery_url):
             if not url:
                 continue
@@ -512,12 +515,17 @@ def _parse_eskenazi_events(payload: dict, *, venue: InVenueConfig) -> list[Extra
 
         if not title or not source_url or parsed is None:
             continue
+        if _is_unavailable_event(title=title, description=description):
+            continue
+        if _is_eskenazi_plain_tour(title):
+            continue
         if not _should_keep_event(title=title, description=description):
             continue
 
         start_at, end_at = parsed
         text_blob = " ".join(part for part in [title, description] if part)
         age_min, age_max = parse_age_range(text_blob)
+        activity_type = _infer_activity_type(text_blob)
 
         rows.append(
             ExtractedActivity(
@@ -528,7 +536,7 @@ def _parse_eskenazi_events(payload: dict, *, venue: InVenueConfig) -> list[Extra
                 location_text=location_text,
                 city=venue.city,
                 state=venue.state,
-                activity_type=_infer_activity_type(text_blob),
+                activity_type=activity_type,
                 age_min=age_min,
                 age_max=age_max,
                 drop_in=_contains_any(text_blob, DROP_IN_PATTERNS),
@@ -536,7 +544,15 @@ def _parse_eskenazi_events(payload: dict, *, venue: InVenueConfig) -> list[Extra
                 start_at=start_at,
                 end_at=end_at,
                 timezone=IN_TIMEZONE,
-                **price_classification_kwargs(description),
+                audience_segment=_infer_eskenazi_audience(
+                    title=title,
+                    description=description,
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                    activity_type=activity_type,
+                ),
+                **_price_kwargs_for_free_admission(description),
             )
         )
 
@@ -651,7 +667,11 @@ def _parse_raclin_events(payload: dict, *, venue: InVenueConfig) -> list[Extract
                 start_at=start_at,
                 end_at=end_at,
                 timezone=IN_TIMEZONE,
-                **price_classification_kwargs(description),
+                # Raclin Murphy Museum has free admission and its drop-in
+                # programs (family days, Art Lab, StoryWalk, Art + Insight) are
+                # free. Paid Studio Workshops list explicit prices, so those are
+                # still caught as not-free. Default the rest to free.
+                **price_classification_kwargs(description, default_is_free=True),
             )
         )
 
@@ -1034,6 +1054,11 @@ def _should_keep_event(*, title: str, description: str | None) -> bool:
     return any(pattern in title_blob or pattern in token_blob for pattern in WEAK_INCLUDE_PATTERNS)
 
 
+def _is_eskenazi_plain_tour(title: str | None) -> bool:
+    normalized = (title or "").strip().lower()
+    return normalized.startswith("public tour") or normalized.startswith("museum tour")
+
+
 def _infer_activity_type(text: str | None) -> str | None:
     blob = _searchable_blob(text)
     if " workshop " in blob or " workshops " in blob:
@@ -1043,6 +1068,40 @@ def _infer_activity_type(text: str | None) -> str | None:
     if any(pattern in blob for pattern in (" lecture ", " lectures ", " talk ", " talks ", " discussion ", " conversation ")):
         return "lecture"
     return "activity"
+
+
+def _infer_eskenazi_audience(
+    *,
+    title: str | None,
+    description: str | None,
+    source_url: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str | None,
+) -> str:
+    blob = _searchable_blob(" ".join(part for part in [title or "", description or "", source_url or ""] if part))
+    if any(marker in blob for marker in (" kids create ", " family art lab ", " homeschool day ")):
+        return "kids"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if activity_type in {"class", "workshop", "lecture", "activity"}:
+        return "adults"
+    return "unknown"
+
+
+def _price_kwargs_for_free_admission(text: str | None) -> dict[str, bool | None | str]:
+    kwargs = price_classification_kwargs(text, default_is_free=True)
+    if kwargs["is_free"] is None:
+        return {"is_free": True, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _registration_required(text: str | None) -> bool | None:
@@ -1055,6 +1114,10 @@ def _registration_required(text: str | None) -> bool | None:
 
 
 def _is_unavailable_event(*, title: str, description: str | None, event_obj: dict | None = None) -> bool:
+    normalized_title = normalize_space(title).lower()
+    if normalized_title.startswith(("canceled", "cancelled", "postponed", "sold out")):
+        return True
+
     blob = _searchable_blob(" ".join(part for part in [title, description or ""] if part))
     if any(pattern in blob for pattern in (" postponed ", " canceled ", " cancelled ", " sold out ")):
         return True

@@ -276,12 +276,21 @@ def _parse_detail_page(
         timezone=ANCHORAGE_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
+        audience_segment=_infer_audience_segment(
+            title=title,
+            description=description or "",
+            category_slugs=category_slugs,
+            age_min=age_min,
+            age_max=age_max,
+        ),
     )
 
 
 def _should_keep_event(*, title: str, description: str | None, category_slugs: list[str]) -> bool:
     text = " ".join([title, description or "", " ".join(category_slugs)]).lower()
     if "camp" in text:
+        return False
+    if "sold out" in text:
         return False
     if "film" in text and "planetarium" not in text:
         return False
@@ -456,5 +465,31 @@ def _infer_activity_type(title: str, *, category_slugs: list[str]) -> str:
 def _classify_price(text: str) -> tuple[bool | None, str]:
     normalized = f" {normalize_space(text).lower()} "
     if "included with admission" in normalized and "$" not in normalized:
-        return None, "uncertain"
+        return False, "confirmed"
     return infer_price_classification(text)
+
+
+def _infer_audience_segment(
+    *,
+    title: str,
+    description: str,
+    category_slugs: list[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    text = " ".join([title, description, " ".join(category_slugs)]).lower()
+    if age_min is not None and age_min >= 18:
+        return "adults"
+    if age_min is not None and age_min >= 13 and (age_max is None or age_max >= 18):
+        return "teens_adults"
+    if age_min is not None and age_min >= 13:
+        return "teens"
+    if age_max is not None and age_max <= 12:
+        return "kids"
+    if "all ages" in text or "for all ages" in text:
+        return "all_ages"
+    if "teen" in text or "teens" in text:
+        return "teens"
+    if "family_classes" in category_slugs or any(marker in text for marker in ("family", "children", "kids")):
+        return "kids"
+    return "adults"

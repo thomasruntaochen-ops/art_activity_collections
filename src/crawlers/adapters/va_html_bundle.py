@@ -79,6 +79,12 @@ INCLUDE_PATTERNS = (
     " workshops ",
     " youth ",
 )
+VA_QUILT_REJECT_PATTERNS = (
+    " ice cream social ",
+    " opening ",
+    " support the virginia quilt museum ",
+    " tea at ",
+)
 
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE)
@@ -335,12 +341,14 @@ def _build_row(item: dict, *, venue: VaHtmlVenueConfig) -> ExtractedActivity | N
 
     if " cancelled " in token_blob or " canceled " in token_blob:
         return None
+    if _should_reject_va_html_event(venue=venue, title=title, token_blob=token_blob):
+        return None
     if any(pattern in token_blob for pattern in STRICT_EXCLUDE_PATTERNS):
         return None
     if not any(pattern in token_blob for pattern in INCLUDE_PATTERNS):
         return None
 
-    is_free, free_status = infer_price_classification(description)
+    is_free, free_status = _infer_va_html_price(venue=venue, description=description, token_blob=token_blob)
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
     activity_type = _infer_activity_type(token_blob)
 
@@ -355,14 +363,103 @@ def _build_row(item: dict, *, venue: VaHtmlVenueConfig) -> ExtractedActivity | N
         activity_type=activity_type,
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_va_html_audience(
+            venue=venue,
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+            token_blob=token_blob,
+        ),
         drop_in=(" drop-in " in token_blob or " drop in " in token_blob),
-        registration_required=(" register " in token_blob or " registration " in token_blob or " ticket " in token_blob),
+        registration_required=_requires_registration(token_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
         is_free=is_free,
         free_verification_status=free_status,
     )
+
+
+def _should_reject_va_html_event(*, venue: VaHtmlVenueConfig, title: str, token_blob: str) -> bool:
+    if venue.slug != "va_quilt":
+        return False
+    title_blob = _searchable_blob(title)
+    if any(pattern in title_blob for pattern in (" opening ", " tea at ")):
+        return True
+    return any(pattern in token_blob for pattern in VA_QUILT_REJECT_PATTERNS)
+
+
+def _infer_va_html_price(
+    *,
+    venue: VaHtmlVenueConfig,
+    description: str | None,
+    token_blob: str,
+) -> tuple[bool | None, str]:
+    if venue.slug == "va_quilt":
+        if any(
+            marker in token_blob
+            for marker in (
+                " free for members ",
+                " free with admission ",
+                " included with admission ",
+                " included with museum admission ",
+                " with museum admission ",
+            )
+        ):
+            return False, "confirmed"
+        is_free, status = infer_price_classification(description, default_is_free=False)
+        if is_free is None and status == "uncertain":
+            return False, "inferred"
+        return is_free, status
+    return infer_price_classification(description)
+
+
+def _infer_va_html_audience(
+    *,
+    venue: VaHtmlVenueConfig,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    token_blob: str,
+) -> str:
+    if venue.slug == "va_quilt":
+        if any(marker in token_blob for marker in (" child ", " children ", " kid ", " kids ")):
+            return "kids"
+        if age_min is not None and age_min >= 13 and (age_max is None or age_max >= 18):
+            return "teens_adults"
+        if age_max is not None and age_max <= 12:
+            return "kids"
+        if any(marker in token_blob for marker in (" all ages ", " everyone ")):
+            return "all_ages"
+        return "adults"
+    if age_min is not None and age_min >= 13 and (age_max is None or age_max >= 18):
+        return "teens_adults"
+    if age_max is not None and age_max <= 12:
+        return "kids"
+    if any(marker in token_blob for marker in (" family ", " families ", " children ", " kids ")):
+        return "kids"
+    if any(marker in token_blob for marker in (" teen ", " teens ")):
+        return "teens"
+    if any(marker in token_blob for marker in (" talk ", " lecture ", " workshop ", " class ", " conversation ")):
+        return "adults"
+    return "unknown"
+
+
+def _requires_registration(token_blob: str) -> bool:
+    if any(
+        marker in token_blob
+        for marker in (
+            " no registration required ",
+            " registration is not required ",
+            " no need to register ",
+            " drop in ",
+            " drop-in ",
+        )
+    ):
+        return False
+    return any(marker in token_blob for marker in (" register ", " registration ", " ticket ", " tickets ", " rsvp "))
 
 
 def _parse_icavcu_item(item: dict) -> dict | None:
@@ -883,9 +980,12 @@ def _normalize_space(value: object) -> str:
     return " ".join(value.split())
 
 
-def get_va_html_source_prefixes() -> tuple[str, ...]:
+def get_va_html_source_prefixes(
+    venues: list[VaHtmlVenueConfig] | tuple[VaHtmlVenueConfig, ...] | None = None,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in VA_HTML_VENUES:
+    selected_venues = list(venues) if venues is not None else list(VA_HTML_VENUES)
+    for venue in selected_venues:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
-    return tuple(prefixes)
+    return tuple(dict.fromkeys(prefixes))

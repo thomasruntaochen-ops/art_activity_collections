@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.audience import infer_audience_segment_from_age
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -88,6 +89,41 @@ REGISTER_PATTERNS = (
     " pre-register ",
     " register ",
     " registration ",
+)
+
+# LASM charges general admission, so programs that are merely "included with
+# admission" (and only free to members) are not free for the general public.
+ADMISSION_INCLUDED_MARKERS = (
+    "included with admission",
+    "included with museum admission",
+    "included with general admission",
+    "included with the price of general admission",
+    "included with the price of admission",
+    "free with admission",
+    "with museum admission",
+    "free for members",
+    "free to members",
+    "always free to members",
+)
+ADULT_ONLY_MARKERS = (
+    " adults only ",
+    " adult only ",
+    " 18+ ",
+    " 21+ ",
+    " ages 18 ",
+    " ages 21 ",
+)
+KIDS_MARKERS = (
+    " child ",
+    " children ",
+    " kid ",
+    " kids ",
+    " family ",
+    " families ",
+    " youth ",
+    " young scientists ",
+    " story time ",
+    " storytime ",
 )
 
 
@@ -247,6 +283,12 @@ def _build_row(article: BeautifulSoup, *, base_date, list_url: str) -> Extracted
         activity_type=_infer_activity_type(token_blob),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_lasm_audience(
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
         registration_required=(
             not any(pattern in token_blob for pattern in DROP_IN_PATTERNS)
@@ -255,8 +297,38 @@ def _build_row(article: BeautifulSoup, *, base_date, list_url: str) -> Extracted
         start_at=start_at,
         end_at=end_at,
         timezone=CT_TIMEZONE,
-        **price_classification_kwargs(description),
+        **_classify_lasm_price(description),
     )
+
+
+def _classify_lasm_price(description: str | None) -> dict[str, bool | None | str]:
+    normalized = f" {' '.join((description or '').lower().split())} " if description else ""
+    if normalized and any(marker in normalized for marker in ADMISSION_INCLUDED_MARKERS):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    return price_classification_kwargs(description)
+
+
+def _infer_lasm_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    age_segment = infer_audience_segment_from_age(age_min=age_min, age_max=age_max)
+    if age_segment != "unknown":
+        return age_segment
+
+    blob = f" {title.lower()} {(description or '').lower()} "
+    if " all ages " in blob or " of all ages " in blob or " for all ages " in blob:
+        return "all_ages"
+    if any(marker in blob for marker in ADULT_ONLY_MARKERS):
+        return "adults"
+    if any(marker in blob for marker in KIDS_MARKERS):
+        return "kids"
+    # LASM's recurring drop-in programs (art labs, science labs, pop-up
+    # activities, dome shows) are open to the whole family.
+    return "all_ages"
 
 
 def _should_keep_event(*, title_blob: str, token_blob: str) -> bool:

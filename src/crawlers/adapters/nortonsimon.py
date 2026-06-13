@@ -9,6 +9,8 @@ import httpx
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
 NORTON_SIMON_FAMILY_URL = "https://www.nortonsimon.org/calendar/family-youth-and-teens"
@@ -46,12 +48,15 @@ EXCLUDED_KEYWORDS = (
     "tours",
     "fundraiser",
     "fundraising",
+    "meditation",
+    "mindfulness",
     "performance",
     "music",
     "film",
     "screening",
     "admission",
     "membership",
+    "yoga",
 )
 INCLUDED_KEYWORDS = (
     "activity",
@@ -196,6 +201,11 @@ def parse_nortonsimon_events_json(
                 f"Category: {', '.join(categories)}" if categories else None,
             ]
         )
+        is_free, free_status = _infer_nortonsimon_price(
+            title=title,
+            description=description,
+            categories=categories,
+        )
 
         key = (source_url, title, start_at)
         if key in seen:
@@ -214,6 +224,14 @@ def parse_nortonsimon_events_json(
                 activity_type=_infer_activity_type(normalized_blob),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_nortonsimon_audience(
+                    list_url=list_url,
+                    title=title,
+                    description=summary,
+                    categories=categories,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=("drop-in" in normalized_blob or "drop in" in normalized_blob),
                 registration_required=any(
                     keyword in normalized_blob for keyword in ("registration", "register", "reserve", "ticket")
@@ -221,7 +239,8 @@ def parse_nortonsimon_events_json(
                 start_at=start_at,
                 end_at=end_at,
                 timezone=LA_TIMEZONE,
-                free_verification_status=("confirmed" if "free" in normalized_blob else "inferred"),
+                is_free=is_free,
+                free_verification_status=free_status,
             )
         )
 
@@ -328,6 +347,77 @@ def _infer_activity_type(text: str) -> str:
     if any(keyword in text for keyword in ("class", "workshop", "artmaking")):
         return "workshop"
     return "activity"
+
+
+def _infer_nortonsimon_price(*, title: str, description: str | None, categories: list[str]) -> tuple[bool | None, str]:
+    text = " ".join(part for part in (title, description or "", " ".join(categories)) if part)
+    blob = _searchable_blob(text)
+    if any(
+        marker in blob
+        for marker in (
+            " free with admission ",
+            " free for members ",
+            " included with admission ",
+            " members free ",
+        )
+    ):
+        return False, "confirmed"
+    return infer_price_classification(text, default_is_free=False)
+
+
+def _infer_nortonsimon_audience(
+    *,
+    list_url: str,
+    title: str,
+    description: str | None,
+    categories: list[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    category_text = ", ".join(categories)
+    if list_url.rstrip("/") == NORTON_SIMON_CLASSES_URL.rstrip("/"):
+        return infer_audience_segment(
+            title=title,
+            description=description,
+            category=category_text,
+            age_min=age_min,
+            age_max=age_max,
+            default="adults",
+        )
+    if list_url.rstrip("/") == NORTON_SIMON_LECTURES_URL.rstrip("/"):
+        return infer_audience_segment(
+            title=title,
+            description=description,
+            category=category_text,
+            age_min=age_min,
+            age_max=age_max,
+            default="adults",
+        )
+    if list_url.rstrip("/") == NORTON_SIMON_FAMILY_URL.rstrip("/"):
+        blob = _searchable_blob(" ".join(part for part in (title, description or "") if part))
+        if any(marker in blob for marker in (" teen ", " teens ", " high school ")):
+            return "teens"
+        if " all ages " in blob:
+            return "all_ages"
+        inferred = infer_audience_segment(
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        return inferred if inferred != "unknown" else "kids"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=category_text,
+        age_min=age_min,
+        age_max=age_max,
+    )
+
+
+def _searchable_blob(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9+]+", " ", value.lower())
+    return f" {' '.join(normalized.split())} "
 
 
 def _parse_age_range(*, title: str, description: str | None) -> tuple[int | None, int | None]:

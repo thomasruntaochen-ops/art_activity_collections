@@ -144,6 +144,10 @@ class VaTribeVenueConfig:
     state: str
     list_url: str
     api_url: str
+    # Some venues have locked their Tribe REST API behind authentication
+    # (HTTP 403 rest_forbidden). When an iCal feed URL is provided, the loader
+    # uses it instead of the REST API.
+    ical_url: str | None = None
 
 
 VA_TRIBE_VENUES: tuple[VaTribeVenueConfig, ...] = (
@@ -191,6 +195,8 @@ VA_TRIBE_VENUES: tuple[VaTribeVenueConfig, ...] = (
         state="VA",
         list_url="https://virginiamoca.org/event-calendar/",
         api_url="https://virginiamoca.org/wp-json/tribe/events/v1/events",
+        # REST API returns 403 rest_forbidden; use the public iCal feed instead.
+        ical_url="https://virginiamoca.org/event-calendar/?ical=1",
     ),
     VaTribeVenueConfig(
         slug="william_king",
@@ -281,7 +287,15 @@ async def load_va_tribe_bundle_payload(
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         for venue in venues_to_load:
-            events: list[dict] = []
+            if venue.ical_url:
+                try:
+                    events_by_slug[venue.slug] = await _load_ical_events(venue.ical_url, client=client)
+                except Exception as exc:
+                    errors_by_slug[venue.slug] = str(exc)
+                    print(f"[va-tribe-fetch] venue={venue.slug} (ical) failed: {exc}")
+                continue
+
+            events = []
             next_url = f"{venue.api_url}?per_page={per_page}"
             pages_seen = 0
             try:
@@ -299,6 +313,139 @@ async def load_va_tribe_bundle_payload(
             events_by_slug[venue.slug] = events
 
     return {"events_by_slug": events_by_slug, "errors_by_slug": errors_by_slug}
+
+
+async def _load_ical_events(
+    url: str,
+    *,
+    client: httpx.AsyncClient,
+    max_attempts: int = 5,
+    base_backoff_seconds: float = 2.0,
+) -> list[dict]:
+    """Fetch an iCal feed and convert its VEVENTs into Tribe-API-shaped dicts."""
+    last_exception: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = await client.get(url, headers={**DEFAULT_HEADERS, "Accept": "text/calendar,*/*;q=0.8"})
+        except httpx.HTTPError as exc:
+            last_exception = exc
+            if attempt < max_attempts:
+                await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
+                continue
+            break
+
+        if response.status_code < 400:
+            return _ical_text_to_event_dicts(response.text)
+        if response.status_code in (429, 500, 502, 503, 504) and attempt < max_attempts:
+            await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
+            continue
+        response.raise_for_status()
+
+    if last_exception is not None:
+        raise RuntimeError("Unable to fetch VA tribe iCal feed") from last_exception
+    raise RuntimeError("Unable to fetch VA tribe iCal feed after retries")
+
+
+def _ical_text_to_event_dicts(ics_text: str) -> list[dict]:
+    dicts: list[dict] = []
+    for event in _parse_ics_events(ics_text):
+        title = _ics_text_value(event.get("SUMMARY"))
+        url = _ics_text_value(event.get("URL"))
+        start_date = _ics_datetime_to_api_str(event.get("DTSTART"))
+        if not title or not url or not start_date:
+            continue
+        category_names = [name.strip() for name in _ics_text_value(event.get("CATEGORIES")).split(",") if name.strip()]
+        location = _ics_text_value(event.get("LOCATION"))
+        dicts.append(
+            {
+                "title": title,
+                "url": url,
+                "start_date": start_date,
+                "end_date": _ics_datetime_to_api_str(event.get("DTEND")),
+                "description": _ics_text_value(event.get("DESCRIPTION")),
+                "excerpt": "",
+                "categories": [{"name": name} for name in category_names],
+                "cost": "",
+                "cost_details": None,
+                "venue": {"venue": location} if location else None,
+            }
+        )
+    return dicts
+
+
+def _parse_ics_events(ics_text: str) -> list[dict[str, dict[str, object]]]:
+    events: list[dict[str, dict[str, object]]] = []
+    current_event: dict[str, dict[str, object]] | None = None
+    for line in _unfold_ics_lines(ics_text):
+        if line == "BEGIN:VEVENT":
+            current_event = {}
+            continue
+        if line == "END:VEVENT":
+            if current_event:
+                events.append(current_event)
+            current_event = None
+            continue
+        if current_event is None or ":" not in line:
+            continue
+        raw_key, raw_value = line.split(":", 1)
+        key_parts = raw_key.split(";")
+        key = key_parts[0].upper()
+        params: dict[str, str] = {}
+        for item in key_parts[1:]:
+            if "=" in item:
+                param_key, param_value = item.split("=", 1)
+                params[param_key.upper()] = param_value
+        current_event[key] = {"value": raw_value, "params": params}
+    return events
+
+
+def _unfold_ics_lines(ics_text: str) -> list[str]:
+    unfolded: list[str] = []
+    for raw_line in ics_text.splitlines():
+        line = raw_line.rstrip("\r")
+        if line.startswith((" ", "\t")) and unfolded:
+            unfolded[-1] += line[1:]
+            continue
+        unfolded.append(line)
+    return unfolded
+
+
+def _ics_text_value(field: dict[str, object] | None) -> str:
+    if not field:
+        return ""
+    value = str(field.get("value") or "")
+    return (
+        value.replace("\\n", " ")
+        .replace("\\N", " ")
+        .replace("\\,", ",")
+        .replace("\\;", ";")
+        .replace("\\\\", "\\")
+    )
+
+
+def _ics_datetime_to_api_str(field: dict[str, object] | None) -> str | None:
+    """Return the iCal datetime as a naive local 'YYYY-MM-DD HH:MM:SS' string.
+
+    Tribe exports these times labeled TZID=UTC but the values are the venue's
+    local wall-clock times, which is exactly what the pipeline stores.
+    """
+    if not field:
+        return None
+    value = str(field.get("value") or "").strip().rstrip("Z")
+    if not value:
+        return None
+    if len(value) == 8:
+        try:
+            parsed = datetime.strptime(value, "%Y%m%d")
+        except ValueError:
+            return None
+        return parsed.strftime("%Y-%m-%d")
+    for fmt in ("%Y%m%dT%H%M%S", "%Y%m%dT%H%M"):
+        try:
+            return datetime.strptime(value, fmt).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+    return None
 
 
 def parse_va_tribe_events(
@@ -366,6 +513,10 @@ def _build_row(event_obj: dict, *, venue: VaTribeVenueConfig) -> ExtractedActivi
         category_names=category_names,
     ):
         return None
+    if venue.slug == "virginia_moca" and any(
+        pattern in _searchable_blob(title) for pattern in VIRGINIA_MOCA_TITLE_EXCLUDE_PATTERNS
+    ):
+        return None
     if any(pattern in token_blob for pattern in STRICT_EXCLUDE_PATTERNS):
         return None
     if any(pattern in token_blob for pattern in HARD_EXCLUDE_PATTERNS):
@@ -390,7 +541,11 @@ def _build_row(event_obj: dict, *, venue: VaTribeVenueConfig) -> ExtractedActivi
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
     amount = _extract_amount(event_obj.get("cost_details"))
     price_context = _pricing_text(" ".join(part for part in [price_text, description or ""] if part))
-    is_free, free_status = infer_price_classification_from_amount(amount, text=price_context)
+    is_free, free_status = _infer_va_tribe_price(
+        venue=venue,
+        amount=amount,
+        price_context=price_context,
+    )
     location_text = _extract_location_name(event_obj.get("venue")) or f"{venue.city}, {venue.state}"
     activity_type = _infer_activity_type(token_blob)
     audience_segment = _infer_va_tribe_audience(
@@ -426,6 +581,56 @@ def _build_row(event_obj: dict, *, venue: VaTribeVenueConfig) -> ExtractedActivi
     )
 
 
+def _audience_from_moca_categories(category_names: list[str]) -> str | None:
+    """Map Virginia MOCA's Tribe audience categories to an audience segment.
+
+    Tribe tags carry the audience directly (e.g. "Adults", "Teens",
+    "Kids & Families", "Ages 2-5"). Taxonomy buckets such as "Programs",
+    "Classes", "Members", "Teachers", "Types", and "Exhibitions" are ignored.
+    """
+    audience: set[str] = set()
+    for raw in category_names:
+        name = raw.strip().lower()
+        if name == "adults":
+            audience.add("adults")
+        elif name == "teens":
+            audience.add("teens")
+        elif (
+            name.startswith("ages ")
+            or "caregiver" in name
+            or "kids" in name
+            or "families" in name
+            or "family" in name
+            or "youth" in name
+            or "children" in name
+        ):
+            audience.add("kids")
+
+    if not audience:
+        return None
+    has_kids = "kids" in audience
+    has_teen = "teens" in audience
+    has_adult = "adults" in audience
+    if has_kids and (has_teen or has_adult):
+        return "all_ages"
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_kids:
+        return "kids"
+    if has_teen:
+        return "teens"
+    return "adults"
+
+
+# Virginia MOCA runs a "Summer Teachers Institute" professional-development
+# program that should not surface as a public art activity.
+VIRGINIA_MOCA_TITLE_EXCLUDE_PATTERNS = (
+    " teachers institute ",
+    " teacher institute ",
+    " summer institute ",
+)
+
+
 def _should_reject_chrysler_event(*, title: str, category_names: list[str]) -> bool:
     title_blob = _searchable_blob(title)
     if any(pattern in title_blob for pattern in CHRYSLER_TITLE_EXCLUDE_PATTERNS):
@@ -447,6 +652,22 @@ def _infer_va_tribe_audience(
 ) -> str:
     category = " ".join(category_names)
 
+    if venue.slug == "virginia_moca":
+        segment = _audience_from_moca_categories(category_names)
+        if segment is not None:
+            return segment
+        generic = infer_audience_segment(
+            title=title,
+            description=description,
+            category=category,
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        # Virginia MOCA's uncategorized programs (after-hours events, socials)
+        # are adult-audience by default.
+        return generic if generic != "unknown" else "adults"
+
     if venue.slug == "chrysler":
         title_category_blob = _searchable_blob(" ".join(part for part in [title, category] if part))
         if any(pattern in title_category_blob or pattern in token_blob for pattern in ALL_AGES_AUDIENCE_PATTERNS):
@@ -459,6 +680,21 @@ def _infer_va_tribe_audience(
         if any(pattern in title_category_blob for pattern in ADULT_AUDIENCE_PATTERNS):
             return "adults"
 
+    if venue.slug == "william_king":
+        if any(marker in token_blob for marker in (" teen adult ", " teen adults ", " teen through adult ")):
+            return "teens_adults"
+        if " teens " in token_blob and any(marker in token_blob for marker in (" adult class ", " adults ", " adult ")):
+            return "teens_adults"
+        generic = infer_audience_segment(
+            title=title,
+            description=description,
+            category=category,
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        return generic if generic != "unknown" else "adults"
+
     return infer_audience_segment(
         title=title,
         description=description,
@@ -466,6 +702,20 @@ def _infer_va_tribe_audience(
         source_url=source_url,
         age_min=age_min,
         age_max=age_max,
+    )
+
+
+def _infer_va_tribe_price(
+    *,
+    venue: VaTribeVenueConfig,
+    amount: Decimal | None,
+    price_context: str,
+) -> tuple[bool | None, str]:
+    default_is_free = True if venue.slug == "william_king" else None
+    return infer_price_classification_from_amount(
+        amount,
+        text=price_context,
+        default_is_free=default_is_free,
     )
 
 

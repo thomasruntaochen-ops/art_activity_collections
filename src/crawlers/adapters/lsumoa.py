@@ -50,6 +50,8 @@ STRONG_INCLUDE_PATTERNS = (
 CONTEXTUAL_REJECT_PATTERNS = (
     " members only ",
     " member only ",
+    " no free first sunday programming ",
+    " no programming ",
     " reception ",
     " student led tour ",
     " tour ",
@@ -244,6 +246,7 @@ def _build_row(*, source_url: str, html: str) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=CT_TIMEZONE,
+        audience_segment=_infer_audience_segment(title=title, token_blob=token_blob),
         **price_classification_kwargs(description),
     )
 
@@ -262,6 +265,21 @@ def _infer_activity_type(token_blob: str) -> str:
     if any(pattern in token_blob for pattern in (" conversation ", " curator talk ", " lecture ", " talk ")):
         return "lecture"
     return "workshop"
+
+
+def _infer_audience_segment(*, title: str, token_blob: str) -> str:
+    title_blob = _searchable_blob(title)
+    if " teens and adults " in token_blob or " teens adults " in token_blob:
+        return "teens_adults"
+    if " teen " in token_blob or " teens " in token_blob:
+        return "teens"
+    if any(marker in token_blob for marker in (" all ages ", " open to the public ", " free first sunday ")):
+        return "all_ages"
+    if any(marker in token_blob for marker in (" children ", " child ", " family ", " families ", " storytime ")):
+        return "kids"
+    if any(marker in title_blob for marker in (" art break ", " curator talk ", " lecture ")):
+        return "adults"
+    return "adults"
 
 
 def _requires_registration(token_blob: str) -> bool:

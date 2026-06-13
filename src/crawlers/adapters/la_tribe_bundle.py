@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -332,6 +333,8 @@ def _build_row(event_obj: dict, *, venue: LaTribeVenueConfig) -> ExtractedActivi
     cost_text = _normalize_space(event_obj.get("cost"))
     token_blob = _searchable_blob(" ".join(part for part in [title, description, excerpt, category_text, cost_text] if part))
     title_blob = _searchable_blob(title)
+    if venue.slug == "noma" and _should_reject_noma_event(title_blob=title_blob, token_blob=token_blob):
+        return None
     if not _should_keep_event(title_blob=title_blob, token_blob=token_blob):
         return None
 
@@ -350,6 +353,8 @@ def _build_row(event_obj: dict, *, venue: LaTribeVenueConfig) -> ExtractedActivi
         ]
     )
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description, excerpt] if part))
+    amount = _extract_offer_amount(event_obj.get("cost_details"))
+    price_text = " ".join(part for part in [cost_text, description, excerpt] if part)
 
     return ExtractedActivity(
         source_url=_normalize_space(event_obj.get("url")) or venue.list_url,
@@ -362,12 +367,21 @@ def _build_row(event_obj: dict, *, venue: LaTribeVenueConfig) -> ExtractedActivi
         activity_type=_infer_activity_type(token_blob),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_la_tribe_audience(
+            venue=venue,
+            title=title,
+            description=description_text,
+            category_text=category_text,
+            age_min=age_min,
+            age_max=age_max,
+            token_blob=token_blob,
+        ),
         drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
         registration_required=_requires_registration(token_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=CT_TIMEZONE,
-        **price_classification_kwargs_from_amount(_extract_offer_amount(event_obj.get("cost_details")), text=cost_text),
+        **_la_price_kwargs(venue=venue, amount=amount, text=price_text, token_blob=token_blob),
     )
 
 
@@ -397,6 +411,16 @@ def _should_keep_event(*, title_blob: str, token_blob: str) -> bool:
     return True
 
 
+def _should_reject_noma_event(*, title_blob: str, token_blob: str) -> bool:
+    if " sold out " in token_blob:
+        return True
+    if any(marker in token_blob for marker in (" soul sip ", " noma at night ", " producer s choice ")):
+        return True
+    if any(marker in title_blob for marker in (" screening ", " film ")):
+        return True
+    return False
+
+
 def _infer_activity_type(token_blob: str) -> str:
     if any(
         pattern in token_blob
@@ -421,6 +445,98 @@ def _requires_registration(token_blob: str) -> bool:
     if any(pattern in token_blob for pattern in DROP_IN_PATTERNS):
         return False
     return any(pattern in token_blob for pattern in REGISTER_PATTERNS)
+
+
+def _la_price_kwargs(
+    *,
+    venue: LaTribeVenueConfig,
+    amount: Decimal | None,
+    text: str | None,
+    token_blob: str,
+) -> dict[str, bool | None | str]:
+    if venue.slug == "hilliard":
+        if (
+            " create play " in token_blob
+            and any(marker in token_blob for marker in (" participate free ", " children 10 and under participate free "))
+        ):
+            return {"is_free": True, "free_verification_status": "confirmed"}
+        if any(
+            marker in token_blob
+            for marker in (
+                " public entrance with museum admission ",
+                " free for members ",
+                " free with admission ",
+                " free with museum admission ",
+                " included with admission ",
+                " included with museum admission ",
+                " member free ",
+                " members free ",
+                " with museum admission ",
+            )
+        ):
+            return {"is_free": False, "free_verification_status": "confirmed"}
+        kwargs = price_classification_kwargs_from_amount(amount, text=text, default_is_free=False)
+        if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+            return {"is_free": False, "free_verification_status": "inferred"}
+        return kwargs
+    if venue.slug in {"noma", "ogden"}:
+        if any(
+            marker in token_blob
+            for marker in (
+                " free for members ",
+                " free with admission ",
+                " free with museum admission ",
+                " included with admission ",
+                " included with museum admission ",
+                " member free ",
+                " members free ",
+            )
+        ):
+            return {"is_free": False, "free_verification_status": "confirmed"}
+        kwargs = price_classification_kwargs_from_amount(amount, text=text, default_is_free=False)
+        if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+            return {"is_free": False, "free_verification_status": "inferred"}
+        return kwargs
+    return price_classification_kwargs_from_amount(amount, text=text)
+
+
+def _infer_la_tribe_audience(
+    *,
+    venue: LaTribeVenueConfig,
+    title: str,
+    description: str | None,
+    category_text: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    token_blob: str,
+) -> str:
+    if venue.slug == "noma":
+        if any(marker in token_blob for marker in (" little learners ", " studio kids ", " kids ", " children ")):
+            return "kids"
+        if any(marker in token_blob for marker in (" family ", " families ", " all ages ")):
+            return "all_ages"
+        if any(
+            marker in token_blob
+            for marker in (
+                " art thrives ",
+                " gallery talk ",
+                " kolaj fest ",
+                " lecture ",
+                " talk ",
+                " conversation ",
+                " roundtable ",
+                " workshop ",
+            )
+        ):
+            return "adults"
+    generic = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category_text,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    return generic if generic != "unknown" else "adults"
 
 
 def _extract_location_text(venue_obj: object, venue: LaTribeVenueConfig) -> str:

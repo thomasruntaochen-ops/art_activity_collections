@@ -277,7 +277,12 @@ def _parse_event_block(block: list, *, default_year: int) -> list[ExtractedActiv
                 start_at=start_at,
                 end_at=end_at,
                 timezone=FITCHBURG_TIMEZONE,
-                **price_classification_kwargs(description, default_is_free=None),
+                audience_segment=_infer_audience_segment(
+                    title=title,
+                    description=description or "",
+                    age_min=age_min,
+                ),
+                **_infer_fitchburg_price_kwargs(description),
             )
         )
 
@@ -505,6 +510,30 @@ def _parse_age_min(description: str) -> int | None:
     if match is None:
         return None
     return int(match.group("age"))
+
+
+def _infer_audience_segment(*, title: str, description: str, age_min: int | None) -> str:
+    keyword_blob = _keyword_blob(" ".join([title, description]))
+    if age_min is not None and age_min >= 18:
+        return "adults"
+    if age_min is not None and age_min >= 13:
+        return "teens_adults"
+    if " all ages " in keyword_blob or " everyone " in keyword_blob:
+        return "all_ages"
+    if any(marker in keyword_blob for marker in (" alzheimer ", " dementia ", " care partners ")):
+        return "adults"
+    if any(marker in keyword_blob for marker in (" artist talk ", " curator talk ", " lecture ", " conversation ")):
+        return "adults"
+    if any(marker in keyword_blob for marker in (" children ", " child ", " family ", " families ")):
+        return "kids"
+    return "adults"
+
+
+def _infer_fitchburg_price_kwargs(description: str | None) -> dict[str, bool | None | str]:
+    kwargs = price_classification_kwargs(description, default_is_free=False)
+    if kwargs["is_free"] is None:
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _extract_year(month_label: str) -> int:

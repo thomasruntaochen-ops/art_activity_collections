@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from sqlalchemy import bindparam, delete, or_, select, text
 
@@ -26,29 +27,45 @@ from src.models.activity import Activity, Source  # noqa: E402
 GA_HTML_SOURCE_URL_PREFIXES = get_ga_html_source_prefixes()
 
 
-def clear_ga_html_entries() -> dict[str, int]:
+def _source_url_prefixes_for_venues(venues) -> tuple[str, ...]:
+    prefixes: list[str] = []
+    for venue in venues:
+        parsed = urlparse(venue.list_url)
+        if parsed.scheme and parsed.netloc:
+            prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
+    return tuple(dict.fromkeys(prefixes)) or GA_HTML_SOURCE_URL_PREFIXES
+
+
+def clear_ga_html_entries(venues=None) -> dict[str, int]:
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
+    selected_venues = list(venues) if venues is not None else list(GA_HTML_VENUES)
+    source_url_prefixes = _source_url_prefixes_for_venues(selected_venues)
+    source_base_urls = [prefix.rstrip("/") for prefix in source_url_prefixes]
 
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in GA_HTML_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in selected_venues],
         )
+
+        source_conditions = [
+            Source.base_url.in_([venue.list_url for venue in selected_venues] + source_base_urls),
+            Source.name.in_([venue.source_name for venue in selected_venues]),
+            Source.adapter_type.in_([venue.source_name for venue in selected_venues]),
+        ]
+        if len(selected_venues) == len(GA_HTML_VENUES):
+            source_conditions.append(Source.name.like("ga_%_events"))
 
         source_ids = db.scalars(
             select(Source.id).where(
-                or_(
-                    Source.base_url.in_([venue.list_url for venue in GA_HTML_VENUES]),
-                    Source.name.like("ga_%_events"),
-                    Source.name.in_([venue.source_name for venue in GA_HTML_VENUES]),
-                )
+                or_(*source_conditions)
             )
         ).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in GA_HTML_SOURCE_URL_PREFIXES]
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in source_url_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -112,7 +129,7 @@ async def main() -> None:
     selected_venues = list(GA_HTML_VENUES) if args.venue == "all" else [GA_HTML_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_ga_html_entries()
+        deleted = clear_ga_html_entries(selected_venues)
         print(
             "Deleted GA HTML rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -132,7 +149,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_ga_html_entries()
+        deleted = clear_ga_html_entries(selected_venues)
         print(
             "Deleted GA HTML rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

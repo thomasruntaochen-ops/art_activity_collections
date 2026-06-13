@@ -241,12 +241,19 @@ def _build_row_from_detail_page(*, source_url: str, html: str) -> ExtractedActiv
         activity_type=_infer_activity_type(title=title, text_blob=inclusion_blob),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_ccmoa_audience(
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+            token_blob=_tokenize_text(f"{title} {description or ''}"),
+        ),
         drop_in=("drop-in" in text_blob or "drop in" in text_blob or "pop-in" in text_blob or "pop in" in text_blob),
         registration_required=_has_registration_offer(event_obj.get("offers"), text_blob=text_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        **price_classification_kwargs_from_amount(offer_amount, text=text_blob),
+        **_ccmoa_price_kwargs(offer_amount=offer_amount, title=title, text=text_blob),
     )
 
 
@@ -343,6 +350,63 @@ def _infer_activity_type(*, title: str, text_blob: str) -> str:
     if _contains_marker(token_blob, ("talk", "lecture", "discussion", "discuss", "q a", "historian")):
         return "lecture"
     return "activity"
+
+
+def _infer_ccmoa_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    token_blob: str,
+) -> str:
+    title_blob = _tokenize_text(title)
+    if any(marker in title_blob for marker in (" paint night ",)):
+        return "teens_adults"
+    if any(marker in token_blob for marker in (" middle school ", " high school ", " participating parent ")):
+        return "teens_adults"
+    if age_min is not None and age_min >= 13 and (age_max is None or age_max >= 18):
+        return "teens_adults"
+    if age_max is not None and age_max <= 12:
+        return "kids"
+    if any(marker in title_blob for marker in (" family fun day ", " family activity ")):
+        return "kids"
+    if any(marker in token_blob for marker in (" family ", " children ", " kids ")):
+        return "kids"
+    if any(marker in token_blob for marker in (" all ages ",)):
+        return "all_ages"
+    if any(marker in token_blob for marker in (" art talk ", " lecture ", " discussion ", " historian ", " talk ")):
+        return "adults"
+    if description:
+        return "adults"
+    return "unknown"
+
+
+def _ccmoa_price_kwargs(
+    *,
+    offer_amount: Decimal | None,
+    title: str,
+    text: str | None,
+) -> dict[str, bool | None | str]:
+    token_blob = _tokenize_text(f"{title} {text or ''}")
+    if any(marker in token_blob for marker in (" free family fun day ", " free family ", " free fun activities ")):
+        return {"is_free": True, "free_verification_status": "confirmed"}
+    if any(
+        marker in token_blob
+        for marker in (
+            " included with paid museum admission ",
+            " paid museum admission ",
+            " includes museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " with museum admission ",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    kwargs = price_classification_kwargs_from_amount(offer_amount, text=text, default_is_free=False)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _parse_datetime(value: object) -> datetime | None:

@@ -34,8 +34,13 @@ REJECT_PATTERNS = (
     " member opportunity ",
     " achievement awards ",
     " award ",
+    " art wellness ",
+    " art+wellness ",
+    " forest bathing ",
     " gala ",
+    " mind body art ",
     " reception ",
+    " summer youth workshops ",
 )
 INCLUDE_PATTERNS = (
     " art+wellness ",
@@ -183,7 +188,14 @@ def _build_row(event: dict, detail_html: str) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=MOWA_TIMEZONE,
-        **price_classification_kwargs(full_description),
+        audience_segment=_infer_mowa_audience(
+            title=title,
+            description=full_description,
+            age_min=age_min,
+            age_max=age_max,
+            blob=blob,
+        ),
+        **_mowa_price_kwargs(full_description),
     )
 
 
@@ -305,3 +317,50 @@ def _html_to_text(value: str | None) -> str | None:
 
 def _blob(value: str) -> str:
     return f" {normalize_space(value).lower()} "
+
+
+def _mowa_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    blob = _blob(text or "")
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free with admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " with museum admission ",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    kwargs = price_classification_kwargs(text, default_is_free=False)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
+
+
+def _infer_mowa_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    blob: str,
+) -> str:
+    title_blob = _blob(title)
+    if age_min is not None and age_min >= 13 and (age_max is None or age_max >= 18):
+        return "teens_adults"
+    if age_max is not None and age_max <= 12:
+        return "kids"
+    if any(marker in title_blob for marker in (" mini makers ",)):
+        return "kids"
+    if any(marker in blob for marker in (" children ", " kids ", " family ", " families ")):
+        return "kids"
+    if any(marker in title_blob for marker in (" second saturday ",)):
+        return "all_ages"
+    if any(marker in blob for marker in (" all ages ",)):
+        return "all_ages"
+    if any(marker in blob for marker in (" artist meet ", " artist talk ", " class ", " photography ", " studio ", " talk ")):
+        return "adults"
+    if description:
+        return "adults"
+    return "unknown"

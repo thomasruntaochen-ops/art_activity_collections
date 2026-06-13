@@ -26,7 +26,8 @@ from src.models.activity import Activity, Source  # noqa: E402
 IN_SOURCE_URL_PREFIXES = get_in_source_prefixes()
 
 
-def clear_in_bundle_entries() -> dict[str, int]:
+def clear_in_bundle_entries(*, venues: list | None = None) -> dict[str, int]:
+    venues_to_clear = list(venues) if venues is not None else list(IN_VENUES)
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
@@ -35,20 +36,19 @@ def clear_in_bundle_entries() -> dict[str, int]:
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in IN_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in venues_to_clear],
         )
 
-        source_ids = db.scalars(
-            select(Source.id).where(
-                or_(
-                    Source.base_url.in_([venue.list_url.rstrip("/") for venue in IN_VENUES]),
-                    Source.name.like("in_%_events"),
-                    Source.name.in_([venue.source_name for venue in IN_VENUES]),
-                )
-            )
-        ).all()
+        source_filters = [
+            Source.base_url.in_([venue.list_url.rstrip("/") for venue in venues_to_clear]),
+            Source.name.in_([venue.source_name for venue in venues_to_clear]),
+        ]
+        if len(venues_to_clear) == len(IN_VENUES):
+            source_filters.append(Source.name.like("in_%_events"))
+        source_ids = db.scalars(select(Source.id).where(or_(*source_filters))).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in IN_SOURCE_URL_PREFIXES]
+        url_prefixes = get_in_source_prefixes(tuple(venues_to_clear))
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in url_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -108,7 +108,7 @@ async def main() -> None:
     selected_venues = list(IN_VENUES) if args.venue == "all" else [IN_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_in_bundle_entries()
+        deleted = clear_in_bundle_entries(venues=selected_venues)
         print(
             "Deleted IN bundle rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -128,7 +128,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_in_bundle_entries()
+        deleted = clear_in_bundle_entries(venues=selected_venues)
         print(
             "Deleted IN bundle rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

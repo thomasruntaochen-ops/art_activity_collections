@@ -9,6 +9,8 @@ from urllib.request import Request
 from urllib.request import urlopen
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
 BLANTON_PROGRAMS_URL = "https://blantonmuseum.org/programs/"
@@ -234,6 +236,8 @@ def parse_blanton_payload(payload: dict[str, object]) -> list[ExtractedActivity]
                 description = " | ".join(
                     part for part in [parent_excerpt, parent_description] if part
                 ) or None
+                age_min, age_max = _extract_age_range(parent_title, description or "")
+                is_free, free_status = _infer_blanton_price(description)
                 item = ExtractedActivity(
                     source_url=source_url,
                     title=parent_title,
@@ -243,14 +247,21 @@ def parse_blanton_payload(payload: dict[str, object]) -> list[ExtractedActivity]
                     city=BLANTON_CITY,
                     state=BLANTON_STATE,
                     activity_type="activity",
-                    age_min=None,
-                    age_max=None,
+                    age_min=age_min,
+                    age_max=age_max,
+                    audience_segment=_infer_blanton_audience(
+                        title=parent_title,
+                        description=description,
+                        age_min=age_min,
+                        age_max=age_max,
+                    ),
                     drop_in=False,
                     registration_required=_requires_registration(description),
                     start_at=parent_start_at,
                     end_at=parent_end_at,
                     timezone=BLANTON_TIMEZONE,
-                    free_verification_status=_free_status(description),
+                    is_free=is_free,
+                    free_verification_status=free_status,
                 )
                 key = (item.source_url, item.title, item.start_at)
                 if key not in seen:
@@ -284,6 +295,7 @@ def parse_blanton_payload(payload: dict[str, object]) -> list[ExtractedActivity]
                 if schedule_time and not _time_is_precise(schedule_time):
                     description_parts.append(f"Schedule time: {schedule_time}")
                 description = " | ".join(description_parts) if description_parts else None
+                is_free, free_status = _infer_blanton_price(description)
 
                 for start_at in start_times:
                     item = ExtractedActivity(
@@ -297,12 +309,19 @@ def parse_blanton_payload(payload: dict[str, object]) -> list[ExtractedActivity]
                         activity_type=_infer_activity_type(schedule_title, schedule_content),
                         age_min=age_min,
                         age_max=age_max,
+                        audience_segment=_infer_blanton_audience(
+                            title=schedule_title,
+                            description=description,
+                            age_min=age_min,
+                            age_max=age_max,
+                        ),
                         drop_in=("drop-in" in (description or "").lower() or "drop in" in (description or "").lower()),
                         registration_required=_requires_registration(description),
                         start_at=start_at,
                         end_at=None,
                         timezone=BLANTON_TIMEZONE,
-                        free_verification_status=_free_status(description),
+                        is_free=is_free,
+                        free_verification_status=free_status,
                     )
                     key = (item.source_url, item.title, item.start_at)
                     if key in seen:
@@ -505,6 +524,57 @@ def _requires_registration(description: str | None) -> bool | None:
 def _free_status(description: str | None) -> str:
     text = (description or "").lower()
     return "confirmed" if "free" in text else "inferred"
+
+
+def _infer_blanton_price(description: str | None) -> tuple[bool | None, str]:
+    blob = _searchable_blob(description or "")
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free with admission ",
+            " free with museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " member free ",
+            " members free ",
+        )
+    ):
+        return False, "confirmed"
+    is_free, status = infer_price_classification(description, default_is_free=False)
+    if is_free is None and status == "uncertain":
+        return False, "inferred"
+    return is_free, status
+
+
+def _infer_blanton_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _searchable_blob(" ".join([title, description or ""]))
+    if " look listen storytime " in blob or " look and listen storytime " in blob:
+        return "kids"
+    if " looking together " in blob and age_min == 12 and age_max is None:
+        return "teens_adults"
+    generic = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if generic != "unknown":
+        return generic
+    if any(marker in blob for marker in (" curator ", " talk ", " conversation ", " lecture ")):
+        return "adults"
+    return "adults"
+
+
+def _searchable_blob(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", " ", value.lower())
+    return f" {' '.join(normalized.split())} "
 
 
 def _fetch_sync(url: str) -> dict[str, object]:

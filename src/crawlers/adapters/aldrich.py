@@ -7,6 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -204,7 +205,7 @@ def parse_aldrich_calendar_payload(payload: dict) -> list[ExtractedActivity]:
                 ],
             )
         )
-        is_free, free_status = infer_price_classification(price_blob)
+        is_free, free_status = _infer_aldrich_price(price_blob)
 
         key = (source_url, detail["title"], start_at)
         if key in seen:
@@ -223,6 +224,13 @@ def parse_aldrich_calendar_payload(payload: dict) -> list[ExtractedActivity]:
                 activity_type=_infer_activity_type(text_blob),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_aldrich_audience(
+                    title=detail["title"],
+                    description=detail.get("description") or listing.get("description"),
+                    age_min=age_min,
+                    age_max=age_max,
+                    text_blob=text_blob,
+                ),
                 drop_in=("drop-in" in text_blob or "drop in" in text_blob or "no registration" in text_blob),
                 registration_required=_is_registration_required(text_blob),
                 start_at=start_at,
@@ -356,6 +364,10 @@ def _should_include_event(*, listing: dict, detail: dict) -> bool:
     strong_title_include = any(keyword in title for keyword in STRONG_INCLUDE_TITLE_KEYWORDS)
     detail_include = any(keyword in combined_blob for keyword in DETAIL_INCLUDE_KEYWORDS)
 
+    if any(keyword in title for keyword in ("happy hour", "film", "screening", "sold out")):
+        return False
+    if "sold out" in combined_blob:
+        return False
     if any(keyword in title for keyword in HARD_EXCLUDED_TITLE_KEYWORDS) and not strong_title_include:
         return False
     if any(keyword in combined_blob for keyword in GENERIC_EXCLUDED_KEYWORDS) and not (
@@ -473,6 +485,50 @@ def _infer_activity_type(text_blob: str) -> str:
     if any(keyword in text_blob for keyword in ("lecture", "talk", "conversation", "discussion")):
         return "talk"
     return "workshop"
+
+
+def _infer_aldrich_price(price_blob: str | None) -> tuple[bool | None, str]:
+    blob = f" {' '.join((price_blob or '').lower().split())} "
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free with admission ",
+            " free with museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " member free ",
+            " members free ",
+        )
+    ):
+        return False, "confirmed"
+    is_free, status = infer_price_classification(price_blob, default_is_free=False)
+    if is_free is None and status == "uncertain":
+        return False, "inferred"
+    return is_free, status
+
+
+def _infer_aldrich_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    text_blob: str,
+) -> str:
+    if "sensory saturday" in text_blob:
+        return "kids"
+    generic = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if generic != "unknown":
+        return generic
+    if any(marker in text_blob for marker in ("lecture", "talk", "conversation", "workshop", "class")):
+        return "adults"
+    return "adults"
 
 
 def _is_registration_required(text_blob: str) -> bool | None:

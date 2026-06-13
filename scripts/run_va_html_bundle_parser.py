@@ -23,32 +23,38 @@ from src.db.session import SessionLocal  # noqa: E402
 from src.models.activity import Activity, Source  # noqa: E402
 
 
-VA_HTML_SOURCE_URL_PREFIXES = get_va_html_source_prefixes()
-
-
-def clear_va_html_entries() -> dict[str, int]:
+def clear_va_html_entries(venues=None) -> dict[str, int]:
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
+    selected_venues = list(venues) if venues is not None else list(VA_HTML_VENUES)
+    source_url_prefixes = get_va_html_source_prefixes(selected_venues)
 
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in VA_HTML_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in selected_venues],
         )
 
+        source_names = [
+            name
+            for venue in selected_venues
+            for name in (venue.source_name, f"va_html_{venue.slug}")
+        ]
+        source_conditions = [
+            Source.base_url.in_([venue.list_url for venue in selected_venues]),
+            Source.name.in_(source_names),
+            Source.adapter_type.in_([venue.source_name for venue in selected_venues]),
+        ]
+        if len(selected_venues) == len(VA_HTML_VENUES):
+            source_conditions.append(Source.name.like("va_html_%"))
+
         source_ids = db.scalars(
-            select(Source.id).where(
-                or_(
-                    Source.base_url.in_([venue.list_url for venue in VA_HTML_VENUES]),
-                    Source.name.like("va_html_%"),
-                    Source.name.in_([venue.source_name for venue in VA_HTML_VENUES]),
-                )
-            )
+            select(Source.id).where(or_(*source_conditions))
         ).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in VA_HTML_SOURCE_URL_PREFIXES]
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in source_url_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -110,7 +116,7 @@ async def main() -> None:
         "--clear",
         action="store_true",
         help=(
-            "Delete all VA HTML bundle DB rows (activity_tags, activities, ingestion_runs, sources). "
+            "Delete selected VA HTML bundle DB rows (activity_tags, activities, ingestion_runs, sources). "
             "If used without --commit, the script exits after deletion."
         ),
     )
@@ -123,7 +129,7 @@ async def main() -> None:
     )
 
     if args.clear and not args.commit:
-        deleted = clear_va_html_entries()
+        deleted = clear_va_html_entries(selected_venues)
         print(
             "Deleted VA HTML rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -143,7 +149,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_va_html_entries()
+        deleted = clear_va_html_entries(selected_venues)
         print(
             "Deleted VA HTML rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

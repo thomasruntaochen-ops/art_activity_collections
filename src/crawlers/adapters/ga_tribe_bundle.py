@@ -352,11 +352,13 @@ def _build_row(event_obj: dict, *, venue: GaTribeVenueConfig) -> ExtractedActivi
         return None
 
     amount = _extract_amount(event_obj.get("cost_details"))
-    is_free, free_status = infer_price_classification_from_amount(
-        amount,
-        text=price_text or description,
-    )
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
+    is_free, free_status = _infer_ga_tribe_price(
+        venue=venue,
+        amount=amount,
+        text=price_text or description,
+        token_blob=token_blob,
+    )
     audience_segment = _infer_ga_tribe_audience(
         venue=venue,
         title=title,
@@ -464,6 +466,33 @@ def _infer_ga_tribe_audience(
         if " adult classes " in category_blob or any(marker in token_blob for marker in TELFAIR_ADULT_MARKERS):
             return "adults"
 
+    if venue.slug == "marietta":
+        if " toddler time " in token_blob:
+            return "kids"
+        generic = infer_audience_segment(
+            title=title,
+            description=description,
+            category=category,
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        if generic != "unknown":
+            return generic
+        if any(
+            marker in token_blob
+            for marker in (
+                " heritage craft circle ",
+                " open draw ",
+                " studio art classes ",
+                " figure drawing ",
+                " nude model ",
+                " clothed model ",
+                " still life ",
+            )
+        ):
+            return "adults"
+
     return infer_audience_segment(
         title=title,
         description=description,
@@ -472,6 +501,35 @@ def _infer_ga_tribe_audience(
         age_min=age_min,
         age_max=age_max,
     )
+
+
+def _infer_ga_tribe_price(
+    *,
+    venue: GaTribeVenueConfig,
+    amount: Decimal | None,
+    text: str | None,
+    token_blob: str,
+) -> tuple[bool | None, str]:
+    if venue.slug == "marietta":
+        if any(
+            marker in token_blob
+            for marker in (
+                " free for members ",
+                " free with admission ",
+                " free with museum admission ",
+                " included with admission ",
+                " included with museum admission ",
+                " member free ",
+                " members free ",
+            )
+        ):
+            return False, "confirmed"
+        is_free, status = infer_price_classification_from_amount(amount, text=text, default_is_free=False)
+        if is_free is None and status == "uncertain":
+            return False, "inferred"
+        return is_free, status
+
+    return infer_price_classification_from_amount(amount, text=text)
 
 
 def _searchable_blob(value: str) -> str:

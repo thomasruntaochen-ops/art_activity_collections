@@ -17,6 +17,7 @@ from src.crawlers.adapters.oh_common import infer_activity_type
 from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -191,6 +192,7 @@ def _build_row(*, detail_url: str, detail_html: str, listing_item: dict | None) 
         activity_type=infer_activity_type(title, full_description),
         age_min=None,
         age_max=None,
+        audience_segment=_infer_mmoca_audience(title=title, description=full_description),
         drop_in=" drop-in " in blob,
         registration_required=(
             (" advance registration " in blob)
@@ -242,6 +244,21 @@ def _should_include(*, title: str, description: str | None) -> bool:
     if any(pattern in blob for pattern in REJECT_PATTERNS):
         return False
     return any(pattern in blob for pattern in INCLUDE_PATTERNS)
+
+
+def _infer_mmoca_audience(*, title: str, description: str | None) -> str:
+    blob = _blob(" ".join(part for part in [title, description or ""] if part))
+    if " saturday sketching " in blob:
+        return "all_ages"
+    if " ceramic animal " in blob:
+        return "all_ages"
+
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    if any(pattern in blob for pattern in (" class ", " lecture ", " talk ", " workshop ")):
+        return "adults"
+    return "all_ages"
 
 
 def _blob(value: str) -> str:

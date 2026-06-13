@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -497,14 +498,14 @@ def _parse_high_events(payload: dict, *, venue: GaHtmlVenueConfig) -> list[Extra
             else ""
         )
         location_text = _extract_high_location(meta_text) or "High Museum of Art, Atlanta, GA"
-        registration_required = any(marker in _searchable_blob(f"{meta_text} {description}") for marker in REGISTRATION_PATTERNS)
-        if price_text:
-            is_free, free_status = infer_price_classification(price_text)
-        else:
-            is_free, free_status = infer_price_classification(" | ".join(part for part in [description, meta_text] if part))
-
         description_parts = [part for part in [description or None, meta_text or None, f"Price: {price_text}" if price_text else None] if part]
         full_description = " | ".join(dict.fromkeys(description_parts)) or None
+        registration_required = any(marker in _searchable_blob(f"{meta_text} {description}") for marker in REGISTRATION_PATTERNS)
+        is_free, free_status = _infer_high_price(
+            price_text=price_text,
+            description=full_description,
+            meta_text=meta_text,
+        )
 
         rows.append(
             ExtractedActivity(
@@ -518,6 +519,11 @@ def _parse_high_events(payload: dict, *, venue: GaHtmlVenueConfig) -> list[Extra
                 activity_type=_infer_activity_type(f"{title} {meta_text} {description}"),
                 age_min=None,
                 age_max=None,
+                audience_segment=_infer_high_audience(
+                    title=title,
+                    description=full_description,
+                    meta_text=meta_text,
+                ),
                 drop_in=" drop in " in _searchable_blob(f"{meta_text} {description}"),
                 registration_required=registration_required,
                 start_at=start_at,
@@ -665,12 +671,55 @@ def _extract_high_location(meta_text: str) -> str | None:
     return _normalize_space(match.group(1))
 
 
+def _infer_high_price(*, price_text: str | None, description: str | None, meta_text: str | None) -> tuple[bool | None, str]:
+    text = " | ".join(part for part in (price_text or "", description or "", meta_text or "") if part)
+    blob = _searchable_blob(text)
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free with admission ",
+            " free with museum admission ",
+            " member free ",
+            " members free ",
+            " not yet members ",
+            " not yet member ",
+            " included with admission ",
+            " included with museum admission ",
+        )
+    ):
+        return False, "confirmed"
+    return infer_price_classification(text, default_is_free=False)
+
+
+def _infer_high_audience(*, title: str, description: str | None, meta_text: str | None) -> str:
+    blob = _searchable_blob(" ".join(part for part in (title, description or "", meta_text or "") if part))
+    title_blob = _searchable_blob(title)
+    if any(marker in title_blob for marker in (" family saturday ", " toddler takeover ")):
+        return "kids"
+    if " juneteenth " in title_blob or " all ages " in blob:
+        return "all_ages"
+    if any(marker in title_blob for marker in (" teen ", " teens ", " teen team ", " teen night ")):
+        return "teens"
+    if any(marker in blob for marker in (" children ", " kids ", " youth ")):
+        return "kids"
+    if any(marker in blob for marker in (" oasis ", " photo walk ", " studio workshop ", " art conversations ", " culture collective ")):
+        return "adults"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        category=meta_text,
+    )
+
+
 def _should_keep_event(*, title: str, description: str) -> bool:
     title_blob = _searchable_blob(title)
     token_blob = _searchable_blob(" ".join([title, description]))
     strong_include = any(pattern in token_blob for pattern in STRONG_INCLUDE_PATTERNS)
     weak_include = strong_include or any(pattern in token_blob for pattern in WEAK_INCLUDE_PATTERNS)
     if not weak_include:
+        return False
+    if " oasis " in title_blob:
         return False
     if any(pattern in title_blob for pattern in ALWAYS_REJECT_PATTERNS):
         return False

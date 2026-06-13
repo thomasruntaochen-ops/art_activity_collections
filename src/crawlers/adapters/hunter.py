@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
-from src.crawlers.pipeline.pricing import infer_price_classification
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -204,7 +204,10 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         )
     )
     token_blob = f" {signal_text or ''} "
+    title_blob = f" {_normalize_signal_text(title) or ''} "
 
+    if " full " in title_blob or " sold out " in token_blob:
+        return None
     if any(pattern in token_blob for pattern in HARD_EXCLUDE_PATTERNS):
         return None
     if not any(pattern in token_blob for pattern in INCLUDE_PATTERNS):
@@ -216,11 +219,9 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
 
     price_text = info.get("pricing")
     amount = _extract_amount(price_text)
-    is_free, free_status = (
-        infer_price_classification_from_amount(amount, text=signal_text)
-        if amount is not None
-        else infer_price_classification(signal_text)
-    )
+    is_free, free_status = _infer_hunter_price(amount=amount, text=signal_text)
+    age_min = _extract_age_min(token_blob)
+    age_max = _extract_age_max(token_blob)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -237,8 +238,16 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         city=HUNTER_CITY,
         state=HUNTER_STATE,
         activity_type=_infer_activity_type(token_blob),
-        age_min=_extract_age_min(token_blob),
-        age_max=_extract_age_max(token_blob),
+        age_min=age_min,
+        age_max=age_max,
+        audience_segment=_infer_hunter_audience(
+            title=title,
+            description=description,
+            category=category,
+            age_min=age_min,
+            age_max=age_max,
+            token_blob=token_blob,
+        ),
         drop_in=(" drop-in " in token_blob or " drop in " in token_blob),
         registration_required=_requires_registration(token_blob),
         start_at=start_at,
@@ -376,6 +385,60 @@ def _infer_activity_type(token_blob: str) -> str:
     if any(keyword in token_blob for keyword in (" symposium ", " talk ", " talks ", " discussion ", " speaker ")):
         return "lecture"
     return "workshop"
+
+
+def _infer_hunter_price(*, amount: Decimal | None, text: str | None) -> tuple[bool | None, str]:
+    blob = f" {' '.join((text or '').lower().split())} "
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free with regular admission ",
+            " free with admission ",
+            " free with museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " member free ",
+            " members free ",
+            " regular admission applies ",
+            " museum admission applies ",
+            " admission applies ",
+        )
+    ):
+        return False, "confirmed"
+    is_free, status = infer_price_classification_from_amount(amount, text=text, default_is_free=False)
+    if is_free is None and status == "uncertain":
+        return False, "inferred"
+    return is_free, status
+
+
+def _infer_hunter_audience(
+    *,
+    title: str,
+    description: str | None,
+    category: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    token_blob: str,
+) -> str:
+    if " teen " in token_blob or " teens " in token_blob or " art after dark teen " in token_blob:
+        return "teens"
+    if " sunday studio " in token_blob or " mother child " in token_blob or " nutcracker magic " in token_blob:
+        return "kids"
+    generic = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if generic != "unknown":
+        return generic
+    if any(marker in token_blob for marker in (" make and move ",)):
+        return "all_ages"
+    if any(marker in token_blob for marker in (" art wise ", " create sip ", " symposium ", " artist talk ", " talk ")):
+        return "adults"
+    return "adults"
 
 
 def _requires_registration(token_blob: str) -> bool:

@@ -81,6 +81,7 @@ STRONG_INCLUDE_PATTERNS = (
     " studio ",
     " talk ",
     " talks ",
+    " what s in the box ",
     " workshop ",
     " workshops ",
 )
@@ -123,6 +124,7 @@ ALWAYS_REJECT_PATTERNS = (
     " reception ",
     " sale ",
     " screening ",
+    " story time ",
     " storytime ",
     " tea ",
     " tour ",
@@ -130,6 +132,12 @@ ALWAYS_REJECT_PATTERNS = (
     " writing ",
     " yoga ",
     " dance ",
+    " mindful ",
+    " meditation ",
+    " meditative ",
+    " movie ",
+    " movies ",
+    " trivia ",
 )
 CONTEXTUAL_REJECT_PATTERNS = (
     " exhibition ",
@@ -141,7 +149,13 @@ NON_OVERRIDE_REJECT_PATTERNS = (
     " film ",
     " films ",
     " guided tour ",
+    " anime bazaar ",
+    " birding ",
+    " community day ",
     " screening ",
+    " member monday ",
+    " sing along ",
+    " sing-along ",
     " tai chi ",
     " walking tour ",
     " yoga ",
@@ -222,7 +236,7 @@ NC_HTML_VENUES: tuple[NcHtmlVenueConfig, ...] = (
         venue_name="North Carolina Museum of Art",
         city="Raleigh",
         state="NC",
-        list_url="https://ncartmuseum.org/events-and-exhibitions/events-calendar/",
+        list_url="https://ncartmuseum.org/events/",
     ),
     NcHtmlVenueConfig(
         slug="reynolda",
@@ -377,16 +391,31 @@ async def load_nc_html_bundle_payload(
                 }
                 continue
 
+            list_pages = [list_html]
+            if venue.slug == "ncma":
+                for page_url in _extract_ncma_pagination_urls(list_html, venue.list_url):
+                    try:
+                        list_pages.append(await fetch_html(page_url, client=client))
+                    except Exception as exc:
+                        print(f"[nc-html-fetch] ncma page failed url={page_url}: {exc}")
+
+            detail_urls: list[str] = []
+            list_blobs: dict[str, str] = {}
+            for page_html in list_pages:
+                detail_urls.extend(_extract_detail_urls(venue.slug, page_html, venue.list_url))
+                if venue.slug == "ncma":
+                    list_blobs.update(_extract_ncma_list_blobs(page_html, venue.list_url))
             detail_pages = {}
-            for detail_url in _extract_detail_urls(venue.slug, list_html, venue.list_url)[:max_links_per_venue]:
+            for detail_url in list(dict.fromkeys(detail_urls))[:max_links_per_venue]:
                 try:
                     detail_pages[detail_url] = await fetch_html(detail_url, client=client)
                 except Exception as exc:
                     print(f"[nc-html-fetch] detail failed slug={venue.slug} url={detail_url}: {exc}")
 
             payload[venue.slug] = {
-                "list_html": list_html,
+                "list_html": "\n".join(list_pages),
                 "detail_pages": detail_pages,
+                "list_blobs": list_blobs,
             }
 
     return payload
@@ -581,14 +610,17 @@ def _parse_hickory_events(payload: dict, *, venue: NcHtmlVenueConfig) -> list[Ex
 
 def _parse_mec_events(payload: dict, *, venue: NcHtmlVenueConfig) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
+    list_blobs = payload.get("list_blobs") or {}
     for source_url, detail_html in (payload.get("detail_pages") or {}).items():
         parsed = _parse_mec_detail_page(detail_html, source_url=source_url, venue=venue)
         if parsed is None:
             continue
         title, description, start_at, end_at, location_text, category_text, price_text = parsed
+        list_blob = _normalize_space(list_blobs.get(source_url) or "")
+        effective_description = description or list_blob or None
         token_blob = _searchable_blob(
             " ".join(
-                part for part in [title, description or "", category_text or "", location_text or "", price_text or ""]
+                part for part in [title, effective_description or "", category_text or "", price_text or ""]
                 if part
             )
         )
@@ -599,7 +631,7 @@ def _parse_mec_events(payload: dict, *, venue: NcHtmlVenueConfig) -> list[Extrac
                 venue=venue,
                 source_url=source_url,
                 title=title,
-                description=_join_non_empty([description, category_text and f"Category: {category_text}"]),
+                description=_join_non_empty([effective_description, category_text and f"Category: {category_text}"]),
                 location_text=location_text or f"{venue.venue_name}, {venue.city}, {venue.state}",
                 activity_type=_infer_activity_type(token_blob),
                 start_at=start_at,
@@ -657,7 +689,7 @@ def _extract_detail_urls(slug: str, list_html: str, list_url: str) -> list[str]:
     for anchor in soup.find_all("a", href=True):
         href = (anchor.get("href") or "").strip()
         if slug == "ncma":
-            if "/events/" not in href or "occurrence=" not in href:
+            if "/event/" not in href:
                 continue
         elif slug == "weatherspoon":
             if "/events/" not in href:
@@ -679,6 +711,43 @@ def _extract_detail_urls(slug: str, list_html: str, list_url: str) -> list[str]:
         urls.append(absolute_url)
 
     return urls
+
+
+def _extract_ncma_pagination_urls(list_html: str, list_url: str) -> list[str]:
+    soup = BeautifulSoup(list_html, "html.parser")
+    urls: list[str] = []
+    seen: set[str] = set()
+    for anchor in soup.find_all("a", href=True):
+        href = anchor.get("href") or ""
+        if "ev_page=" not in href:
+            continue
+        absolute_url = urljoin(list_url, href)
+        if "/events/" not in absolute_url:
+            continue
+        if absolute_url in seen:
+            continue
+        seen.add(absolute_url)
+        urls.append(absolute_url)
+    return urls[:6]
+
+
+def _extract_ncma_list_blobs(list_html: str, list_url: str) -> dict[str, str]:
+    soup = BeautifulSoup(list_html, "html.parser")
+    blobs: dict[str, str] = {}
+    for article in soup.select("article.wp-block-ncma-events-grid__item"):
+        anchors = article.find_all("a", href=True)
+        source_url = ""
+        for anchor in anchors:
+            href = anchor.get("href") or ""
+            if "/event/" in href:
+                source_url = urljoin(list_url, href)
+                break
+        if not source_url:
+            continue
+        blob = _normalize_space(article.get_text(" ", strip=True))
+        if blob:
+            blobs[source_url] = blob
+    return blobs
 
 
 def _extract_gregg_detail_urls(widget_js: str) -> list[str]:
@@ -729,7 +798,13 @@ def _parse_mec_detail_page(
         return None
 
     description = google_meta["details"] or _extract_meta_description(soup)
+    if venue.slug == "ncma":
+        ncma_overview = _extract_ncma_overview_description(soup)
+        if ncma_overview and (not description or len(description) < 80):
+            description = ncma_overview
     cost_text = _extract_mec_meta_text(soup, selectors=[".mec-event-cost", "h3.mec-cost"], fallback_label="Cost")
+    if venue.slug == "ncma" and not cost_text:
+        cost_text = _extract_ncma_ticket_text(soup)
     location_text = _extract_mec_meta_text(soup, selectors=[".mec-location", "h3.mec-location"], fallback_label="Location")
     category_text = _extract_mec_category_text(soup)
 
@@ -757,8 +832,10 @@ def _make_row(
     token_blob: str,
     price_text: str | None,
 ) -> ExtractedActivity:
-    is_free, free_status = infer_price_classification(price_text)
+    is_free, free_status = _infer_nc_html_price(venue=venue, price_text=price_text)
     registration_blob = _searchable_blob(" ".join(part for part in [title, description or "", price_text or ""] if part))
+    age_min = _parse_age_min(token_blob)
+    age_max = _parse_age_max(token_blob)
     return ExtractedActivity(
         source_url=source_url,
         title=title,
@@ -768,8 +845,15 @@ def _make_row(
         city=venue.city,
         state=venue.state,
         activity_type=activity_type,
-        age_min=_parse_age_min(token_blob),
-        age_max=_parse_age_max(token_blob),
+        age_min=age_min,
+        age_max=age_max,
+        audience_segment=_infer_nc_html_audience(
+            venue=venue,
+            title=title,
+            token_blob=token_blob,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         drop_in=("drop-in" in token_blob or "drop in" in token_blob or " open studio " in token_blob),
         registration_required=(
             " register " in registration_blob
@@ -787,9 +871,71 @@ def _make_row(
     )
 
 
+def _infer_nc_html_price(
+    *,
+    venue: NcHtmlVenueConfig,
+    price_text: str | None,
+) -> tuple[bool | None, str]:
+    if venue.slug == "ncma":
+        blob = _searchable_blob(price_text or "")
+        if any(marker in blob for marker in (" free with purchase ", " exhibition ticket ", " purchase of an exhibition ticket ")):
+            return False, "confirmed"
+        is_free, status = infer_price_classification(price_text, default_is_free=True)
+        if is_free is None and status == "uncertain":
+            return True, "inferred"
+        return is_free, status
+    return infer_price_classification(price_text)
+
+
+def _infer_nc_html_audience(
+    *,
+    venue: NcHtmlVenueConfig,
+    title: str,
+    token_blob: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    title_blob = _searchable_blob(title)
+    if age_min is not None and age_min >= 13 and (age_max is None or age_max >= 18):
+        return "teens_adults"
+    if age_min is not None and age_min >= 13:
+        return "teens"
+    if age_max is not None and age_max <= 12:
+        return "kids"
+    if any(marker in token_blob for marker in (" teen ", " teens ")):
+        return "teens"
+    if any(marker in token_blob for marker in (" all ages ", " visitors of all ages ")):
+        return "all_ages"
+    if any(
+        marker in token_blob
+        for marker in (
+            " art kits ",
+            " children ",
+            " family ",
+            " families ",
+            " kids ",
+            " preschoolers ",
+            " what s in the box ",
+        )
+    ):
+        return "kids"
+    if venue.slug == "ncma":
+        if any(marker in token_blob for marker in (" educator ", " educators ", " teacher ", " teachers ", " online course ")):
+            return "adults"
+        if any(marker in title_blob for marker in (" in the moment ", " memory community ")):
+            return "adults"
+        if any(marker in token_blob for marker in (" craft nights ", " sun prints ", " workshop ", " lecture ", " talk ", " class ")):
+            return "adults"
+    if any(marker in token_blob for marker in (" workshop ", " lecture ", " talk ", " class ", " open studio ")):
+        return "adults"
+    return "unknown"
+
+
 def _should_keep_event(*, title: str, token_blob: str) -> bool:
     title_blob = _searchable_blob(title)
     if " cancelled " in token_blob or " canceled " in token_blob or " sold out " in token_blob:
+        return False
+    if " after hours " in title_blob:
         return False
     if any(pattern in title_blob for pattern in NON_OVERRIDE_REJECT_PATTERNS):
         return False
@@ -1030,6 +1176,7 @@ def _extract_page_title(html_text: str) -> str | None:
     for suffix in (
         " - Weatherspoon Art Museum",
         " - North Carolina Museum of Art",
+        " - NCMA Raleigh",
         " - Reynolda",
         " - NC State University Calendar",
         " | The Bechtler",
@@ -1076,6 +1223,32 @@ def _extract_mec_category_text(soup: BeautifulSoup) -> str | None:
         if text:
             return text
     return None
+
+
+def _extract_ncma_ticket_text(soup: BeautifulSoup) -> str | None:
+    text = _html_to_text(str(soup))
+    blob = _searchable_blob(text)
+    if " tickets free " in blob:
+        return "Tickets Free"
+    price_match = re.search(
+        r"(General Admission\s+\$\s*\d+(?:\.\d{2})?(?:\s+Members\s+\$\s*\d+(?:\.\d{2})?)?)",
+        text,
+        re.IGNORECASE,
+    )
+    if price_match:
+        return _normalize_space(price_match.group(1))
+    ticketed_match = re.search(r"(Ticketed.{0,120}?\$\s*\d+(?:\.\d{2})?)", text, re.IGNORECASE)
+    if ticketed_match:
+        return _normalize_space(ticketed_match.group(1))
+    return None
+
+
+def _extract_ncma_overview_description(soup: BeautifulSoup) -> str | None:
+    node = soup.select_one(".wp-block-ncma-event-overview__description")
+    if node is None:
+        return None
+    text = _normalize_space(node.get_text(" ", strip=True))
+    return text or None
 
 
 def _decode_document_write_js(value: str) -> str:
@@ -1213,9 +1386,12 @@ def _looks_like_challenge(html_text: str) -> bool:
     return any(marker in lowered for marker in CHALLENGE_MARKERS)
 
 
-def get_nc_html_source_prefixes() -> tuple[str, ...]:
+def get_nc_html_source_prefixes(
+    venues: list[NcHtmlVenueConfig] | tuple[NcHtmlVenueConfig, ...] | None = None,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in NC_HTML_VENUES:
+    selected_venues = list(venues) if venues is not None else list(NC_HTML_VENUES)
+    for venue in selected_venues:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
-    return tuple(prefixes)
+    return tuple(dict.fromkeys(prefixes))

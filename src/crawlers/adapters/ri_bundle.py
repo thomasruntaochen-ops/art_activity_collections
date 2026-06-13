@@ -31,6 +31,7 @@ from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -302,9 +303,11 @@ def _looks_like_challenge(html: str) -> bool:
     return any(marker in probe for marker in CHALLENGE_MARKERS)
 
 
-def get_ri_source_prefixes() -> tuple[str, ...]:
+def get_ri_source_prefixes(
+    venues: list[RiVenueConfig] | tuple[RiVenueConfig, ...] = RI_VENUES,
+) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in RI_VENUES:
+    for venue in venues:
         prefixes.extend(venue.source_prefixes)
     return tuple(dict.fromkeys(prefixes))
 
@@ -543,6 +546,7 @@ def _parse_newport_events(
         signal_text = join_non_empty([short_description, description, price_text]) or ""
         if not _should_include_event(title=title, description=signal_text):
             continue
+        age_min, age_max = _parse_age_range_extended(signal_text)
 
         rows.append(
             ExtractedActivity(
@@ -554,17 +558,23 @@ def _parse_newport_events(
                 city=venue.city,
                 state=venue.state,
                 activity_type=_infer_activity_type(title=title, description=signal_text),
-                age_min=None,
-                age_max=None,
+                age_min=age_min,
+                age_max=age_max,
+                audience_segment=_infer_newport_audience(
+                    title=title,
+                    description=signal_text,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=False,
                 registration_required=True,
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
-                **_price_kwargs(
-                    price_text or signal_text,
+                **_newport_price_kwargs(
+                    signal_text,
+                    title=title,
                     amount=_extract_amount(price_text),
-                    default_is_free=None,
                 ),
             )
         )
@@ -593,6 +603,7 @@ def _parse_newport_class_cards(
         signal_text = join_non_empty([dates_text, days_text, instructor_text]) or ""
         if not _should_include_event(title=title, description=signal_text):
             continue
+        age_min, age_max = _parse_age_range_extended(signal_text)
 
         start_text = dates_text.split(" - ", 1)[0]
         event_date = parse_date_text(start_text)
@@ -615,14 +626,20 @@ def _parse_newport_class_cards(
                 city=venue.city,
                 state=venue.state,
                 activity_type=_infer_activity_type(title=title, description=signal_text),
-                age_min=None,
-                age_max=None,
+                age_min=age_min,
+                age_max=age_max,
+                audience_segment=_infer_newport_audience(
+                    title=title,
+                    description=signal_text,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=False,
                 registration_required=True,
                 start_at=start_at,
                 end_at=None,
                 timezone=NY_TIMEZONE,
-                **_price_kwargs(signal_text, default_is_free=None),
+                **_newport_price_kwargs(title=title, text=signal_text),
             )
         )
 
@@ -955,6 +972,10 @@ def _parse_age_range_extended(text: str | None) -> tuple[int | None, int | None]
     if match:
         return int(match.group(1)), None
 
+    match = re.search(r"\b(?P<age>\d{1,2})\s*\+", blob)
+    if match:
+        return int(match.group("age")), None
+
     return None, None
 
 
@@ -1011,6 +1032,57 @@ def _price_kwargs(
     if amount is not None:
         return price_classification_kwargs_from_amount(amount, text=text, default_is_free=default_is_free)
     return price_classification_kwargs(text, default_is_free=default_is_free)
+
+
+def _newport_price_kwargs(
+    text: str | None,
+    *,
+    title: str,
+    amount: Decimal | None = None,
+) -> dict[str, bool | None | str]:
+    blob = _token_blob(join_non_empty([title, text]) or "")
+    if any(marker in blob for marker in (" free with admission ", " with museum admission ", " included with admission ", " free for members ")):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    if " artist day " in blob:
+        if " donation " in blob or " donations " in blob:
+            return {"is_free": True, "free_verification_status": "confirmed"}
+        return {"is_free": True, "free_verification_status": "inferred"}
+    if " free for all saturday " in blob:
+        return {"is_free": True, "free_verification_status": "confirmed"}
+
+    kwargs = _price_kwargs(text, amount=amount, default_is_free=False)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
+
+
+def _infer_newport_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _token_blob(join_non_empty([title, description]) or "")
+    if " why play matters " in blob:
+        return "adults"
+    if any(marker in blob for marker in (" free for all saturday ", " kids ", " children ", " family ")):
+        return "all_ages"
+    if any(marker in blob for marker in (" 18+ ", " must be 18+ ", " artist day ", " workshop ", " conversation ")):
+        inferred = infer_audience_segment(title=title, description=description, age_min=age_min, age_max=age_max)
+        return inferred if inferred != "unknown" else "adults"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in (" class ", " talk ", " lecture ", " discussion ")):
+        return "adults"
+    return "unknown"
 
 
 def _has_registration_marker(text: str | None) -> bool:

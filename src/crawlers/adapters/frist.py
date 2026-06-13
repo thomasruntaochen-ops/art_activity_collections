@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -64,6 +65,14 @@ HARD_EXCLUDE_PATTERNS = (
     " member morning ",
     " music in the cafe ",
     " music in the café ",
+)
+TITLE_EXCLUDE_PATTERNS = (
+    " dave eggers ",
+    " frist arts fest ",
+    " liminal flow ",
+    " music in the cafe ",
+    " music in the café ",
+    " woven nashville ",
 )
 REJECT_TAGS = {
     "member event",
@@ -219,17 +228,18 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
 
     include_blob = " ".join([title, description or "", price_text or "", " ".join(tags)]).lower()
     token_blob = f" {' '.join(include_blob.split())} "
+    title_blob = f" {' '.join(title.lower().replace(':', ' ').replace('-', ' ').replace('\u2013', ' ').split())} "
     if any(pattern in token_blob for pattern in HARD_EXCLUDE_PATTERNS):
+        return None
+    if any(pattern in title_blob for pattern in TITLE_EXCLUDE_PATTERNS):
+        return None
+    if any(pattern in token_blob for pattern in (" sold out ", " book talk ", " book signing ", " expressive writing ", " pilates ")):
         return None
     if not any(pattern in token_blob for pattern in INCLUDE_PATTERNS):
         return None
 
     amount = _extract_amount(price_text or description)
-    is_free, free_status = (
-        infer_price_classification_from_amount(amount, text=signal_text)
-        if amount is not None
-        else infer_price_classification(signal_text)
-    )
+    is_free, free_status = _frist_price_classification(amount=amount, text=signal_text)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -242,6 +252,13 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         activity_type=_infer_activity_type(token_blob, tags),
         age_min=_extract_age_min(token_blob),
         age_max=_extract_age_max(token_blob),
+        audience_segment=_infer_frist_audience(
+            title=title,
+            description=description,
+            tags=tags,
+            age_min=_extract_age_min(token_blob),
+            age_max=_extract_age_max(token_blob),
+        ),
         drop_in=(" drop-in " in token_blob or " drop in " in token_blob),
         registration_required=_requires_registration(signal_text or token_blob, register_text),
         start_at=start_at,
@@ -392,6 +409,60 @@ def _requires_registration(token_blob: str, register_text: str | None) -> bool:
         keyword in normalized
         for keyword in (" register ", " registration required ", " tickets go on sale ", " sold out ", " wait list ")
     )
+
+
+def _frist_price_classification(*, amount: Decimal | None, text: str | None) -> tuple[bool | None, str]:
+    normalized = f" {' '.join((text or '').lower().split())} "
+    if any(
+        marker in normalized
+        for marker in (
+            " free for members ",
+            " free for member ",
+            " gallery admission required ",
+            " included with admission ",
+            " with admission ",
+        )
+    ):
+        return False, "confirmed"
+    if amount is not None:
+        return infer_price_classification_from_amount(amount, text=text, default_is_free=False)
+    is_free, free_status = infer_price_classification(text, default_is_free=False)
+    if is_free is None and free_status == "uncertain":
+        return False, "inferred"
+    return is_free, free_status
+
+
+def _infer_frist_audience(
+    *,
+    title: str,
+    description: str | None,
+    tags: list[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {' '.join(' '.join([title, description or '', ' '.join(tags)]).lower().split())} "
+    if any(pattern in blob for pattern in (" family sunday ", " sensory sunday ", " family ", " children ", " kids ")):
+        return "kids"
+    if any(pattern in blob for pattern in (" teen ", " teens ")):
+        inferred = infer_audience_segment(
+            title=title,
+            description=description,
+            tags=tags,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        return inferred if inferred != "unknown" else "teens"
+    if any(pattern in blob for pattern in (" conversation ", " lecture ", " gallery talk ", " talk ", " workshop ", " class ")):
+        return "adults"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        tags=tags,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    return inferred if inferred != "unknown" else "adults"
 
 
 def _extract_amount(text: str | None) -> Decimal | None:

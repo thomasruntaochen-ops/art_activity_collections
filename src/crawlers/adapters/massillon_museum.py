@@ -17,6 +17,7 @@ from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.adapters.oh_common import should_include_event
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -40,6 +41,30 @@ LISTING_ITEM_RE = re.compile(
     r"(?P<title>.+?)\s+Massillon Museum,",
     re.IGNORECASE,
 )
+WORD_AGE_RANGE_RE = re.compile(
+    r"\bages?\s+(?P<min_word>[a-z]+|\d{1,2})\s+(?:through|to|-|–)\s+(?P<max_word>[a-z]+|\d{1,2})\b",
+    re.IGNORECASE,
+)
+AGE_WORDS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+}
 EXPLICIT_INCLUDE_MARKERS = (
     "story and art time",
     "do the mu",
@@ -60,6 +85,14 @@ EXPLICIT_EXCLUDE_MARKERS = (
     "podcast",
     "pure potentiality",
     "concert",
+)
+PAID_CLASS_TITLE_MARKERS = (
+    "ceramics open studio",
+    "introduction to ceramics",
+    "water-soluble oil",
+    "wheel throwing",
+    "floral resin bookmark",
+    "cartooning workshop",
 )
 
 
@@ -231,13 +264,15 @@ def _build_row(
     if start_at is None or start_at.date() < today:
         return None
 
-
-    age_min, age_max = parse_age_range(join_non_empty([title, description_text]))
+    body_text = normalize_space(soup.get_text(" ", strip=True))
+    text_blob = join_non_empty([title, description_text, body_text])
+    age_min, age_max = _parse_massillon_age_range(text_blob)
     full_description = join_non_empty([description_text])
     lowered_meta = normalize_space(
         (soup.find("meta", attrs={"name": "description"}) or {}).get("content")
         or description_text
     ).lower()
+    activity_type = infer_activity_type(title, full_description)
 
     return ExtractedActivity(
         source_url=detail_url,
@@ -247,7 +282,7 @@ def _build_row(
         location_text=normalize_space(listing_item.get("location_text")) or MASSILLON_LOCATION,
         city=MASSILLON_CITY,
         state=MASSILLON_STATE,
-        activity_type=infer_activity_type(title, full_description),
+        activity_type=activity_type,
         age_min=age_min,
         age_max=age_max,
         drop_in=False,
@@ -259,7 +294,15 @@ def _build_row(
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        **price_classification_kwargs(full_description),
+        audience_segment=_infer_massillon_audience(
+            title=title,
+            description=description_text,
+            source_url=detail_url,
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+        ),
+        **_price_kwargs_for_massillon(title=title, text=text_blob),
     )
 
 
@@ -331,3 +374,63 @@ def _listing_title_is_candidate(title: str) -> bool:
     if any(marker in lowered for marker in EXPLICIT_INCLUDE_MARKERS):
         return True
     return should_include_event(title=title_text)
+
+
+def _parse_massillon_age_range(text: str | None) -> tuple[int | None, int | None]:
+    age_min, age_max = parse_age_range(text)
+    if age_min is not None or age_max is not None:
+        return age_min, age_max
+
+    match = WORD_AGE_RANGE_RE.search(text or "")
+    if match is None:
+        return None, None
+    return _parse_age_word(match.group("min_word")), _parse_age_word(match.group("max_word"))
+
+
+def _parse_age_word(value: str | None) -> int | None:
+    normalized = normalize_space(value).lower()
+    if normalized.isdigit():
+        return int(normalized)
+    return AGE_WORDS.get(normalized)
+
+
+def _infer_massillon_audience(
+    *,
+    title: str | None,
+    description: str | None,
+    source_url: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str | None,
+) -> str:
+    blob = f" {normalize_space(join_non_empty([title, description, source_url])).lower()} "
+    if " do the mu " in blob:
+        return "all_ages"
+    if any(marker in blob for marker in (" tots 'n' pots ", " littles lunch ", " tactile tales ", " sensory lab ")):
+        return "kids"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if activity_type in {"class", "workshop", "activity"}:
+        return "adults"
+    return "unknown"
+
+
+def _price_kwargs_for_massillon(*, title: str | None, text: str | None) -> dict[str, bool | None | str]:
+    title_blob = f" {normalize_space(title).lower()} "
+    full_blob = f" {normalize_space(text).lower()} "
+    kwargs = price_classification_kwargs(text, default_is_free=True)
+    if kwargs["is_free"] is not None:
+        return kwargs
+
+    if any(marker in title_blob for marker in PAID_CLASS_TITLE_MARKERS) and " free " not in full_blob:
+        return {"is_free": False, "free_verification_status": "inferred"}
+
+    return {"is_free": True, "free_verification_status": "inferred"}

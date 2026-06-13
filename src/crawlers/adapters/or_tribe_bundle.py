@@ -328,10 +328,11 @@ def _build_row(event_obj: dict, *, venue: OrTribeVenueConfig) -> ExtractedActivi
             activity_type=activity_type,
             venue=venue,
         ),
-        **price_classification_kwargs_from_amount(
-            amount,
+        **_price_kwargs_for_or_event(
+            amount=amount,
             text=price_text or description,
-            default_is_free=_default_is_free_for_or_event(token_blob=token_blob, venue=venue),
+            token_blob=token_blob,
+            venue=venue,
         ),
     )
 
@@ -354,6 +355,10 @@ def _should_include_event(*, token_blob: str, title: str, venue: OrTribeVenueCon
 
     normalized_title = title.lower()
     if "camp" in normalized_title or "exhibition" in normalized_title:
+        return False
+    if venue.slug == "coos" and "pay-to-fire" in normalized_title:
+        return False
+    if "open house" in normalized_title:
         return False
     if "opening celebration" in normalized_title or "opening reception" in normalized_title:
         return False
@@ -433,6 +438,8 @@ def _infer_or_audience(
 ) -> str:
     title_blob = _searchable_blob(title)
     full_blob = _searchable_blob(" ".join([title, description or "", category or ""]))
+    if age_min is not None and 12 <= age_min < 18 and (age_max is None or age_max > 18):
+        return "teens_adults"
     if any(pattern in full_blob for pattern in (" all ages ", " all to enjoy ", " family friendly ")):
         return "all_ages"
     if venue.slug == "portland":
@@ -454,6 +461,25 @@ def _infer_or_audience(
         age_min=age_min,
         age_max=age_max,
         default=default,
+    )
+
+
+def _price_kwargs_for_or_event(
+    *,
+    amount: Decimal | None,
+    text: str | None,
+    token_blob: str,
+    venue: OrTribeVenueConfig,
+) -> dict[str, bool | None | str]:
+    if venue.slug == "coos":
+        if " donation based " in token_blob or " donation-based " in token_blob:
+            return {"is_free": True, "free_verification_status": "confirmed"}
+        if " pay to fire " in token_blob or " pay-to-fire " in token_blob:
+            return {"is_free": False, "free_verification_status": "confirmed"}
+    return price_classification_kwargs_from_amount(
+        amount,
+        text=text,
+        default_is_free=_default_is_free_for_or_event(token_blob=token_blob, venue=venue),
     )
 
 

@@ -50,47 +50,47 @@ Undefined means `audience_segment = unknown` or `audience_segment IS NULL`.
 | ~~Yellowstone Art Museum~~ fixed 2026-06-11: now 14 active rows, 0 undefined audience | Billings | MT | 32 | 2026-06-03 | 2026-08-06 | 2026-06-03 |
 | ~~Oklahoma City Museum of Art~~ fixed 2026-06-11: now 13 active rows, 0 undefined audience | Oklahoma City | OK | 30 | 2026-04-10 | 2026-12-12 | 2026-06-03 |
 | ~~Cedar Rapids Museum of Art~~ fixed 2026-06-11: now 15 active rows, 0 undefined audience | Cedar Rapids | IA | 28 | 2026-04-16 | 2026-11-22 | 2026-06-03 |
-| Harvard Art Museums | Cambridge | MA | 28 | 2026-04-03 | 2026-08-18 | 2026-06-04 |
-| Louisiana Art & Science Museum | Baton Rouge | LA | 27 | 2026-04-11 | 2026-06-28 | 2026-06-03 |
-| Virginia Museum of Contemporary Art | Virginia Beach | VA | 27 | 2026-04-18 | 2026-08-06 | 2026-03-18 |
-| University Museums - Iowa State University | Ames | IA | 26 | 2026-02-28 | 2026-11-17 | 2026-06-03 |
-| Raclin Murphy Museum of Art | Notre Dame | IN | 26 | 2026-04-07 | 2026-07-09 | 2026-06-03 |
-| Baltimore Museum of Art | Baltimore | MD | 25 | 2026-04-09 | 2026-06-19 | 2026-04-15 |
-| Asheville Art Museum | Asheville | NC | 25 | 2026-04-04 | 2026-10-24 | 2026-06-04 |
-| Norton Simon Museum | Pasadena | CA | 23 | 2026-04-11 | 2026-08-29 | 2026-06-02 |
-| Kalamazoo Institute of Arts | Kalamazoo | MI | 22 | 2026-04-03 | 2026-07-18 | 2026-04-01 |
-| High Museum of Art | Atlanta | GA | 21 | 2026-04-03 | 2026-09-19 | 2026-06-03 |
-| Coos Art Museum | Coos Bay | OR | 21 | 2026-04-08 | 2026-07-25 | 2026-06-02 |
-| William King Museum of Art | Abingdon | VA | 21 | 2026-04-03 | 2026-12-20 | 2026-03-18 |
-| Marietta Cobb Museum of Art | Marietta | GA | 20 | 2026-04-17 | 2026-12-04 | 2026-06-02 |
-| Blanton Museum of Art | Austin | TX | 20 | 2026-04-11 | 2026-08-08 | 2026-06-03 |
-| Berkeley Art Museum and Pacific Film Archive | Berkeley | CA | 19 | 2026-06-04 | 2026-07-04 | 2026-06-03 |
-| The Mint Museum | Charlotte | NC | 19 | 2026-04-04 | 2026-12-04 | 2026-06-04 |
-| Hunter Museum of American Art | Chattanooga | TN | 19 | 2026-06-07 | 2026-12-21 | 2026-06-03 |
-| The Aldrich Contemporary Art Museum | Ridgefield | CT | 17 | 2026-04-11 | 2026-09-04 | 2026-06-04 |
-| New Orleans Museum of Art | New Orleans | LA | 17 | 2026-06-03 | 2026-10-21 | 2026-06-04 |
-| Parrish Art Museum | Water Mill | NY | 17 | 2026-04-10 | 2026-08-16 | 2026-06-04 |
-| Phoenix Art Museum | Phoenix | AZ | 16 | 2026-04-03 | 2026-07-04 | 2026-06-03 |
-| Krannert Art Museum | Champaign | IL | 16 | 2026-04-03 | 2026-08-08 | 2026-06-02 |
-| Smart Museum of Art | Chicago | IL | 16 | 2026-04-03 | 2026-06-30 | 2026-04-08 |
-| Sidney and Lois Eskenazi Museum of Art | Bloomington | IN | 16 | 2026-04-04 | 2026-06-14 | 2026-06-03 |
-| Georgia O'Keeffe Museum | Santa Fe | NM | 16 | 2026-04-04 | 2026-06-12 | 2026-06-04 |
-| Massillon Museum | Massillon | OH | 16 | 2026-04-04 | 2026-06-28 | 2026-06-03 |
-| Shelburne Museum | Shelburne | VT | 16 | 2026-06-02 | 2026-09-26 | 2026-06-03 |
-| Madison Museum of Contemporary Art | Madison | WI | 16 | 2026-04-19 | 2026-08-29 | 2026-06-03 |
-| Huntsville Museum of Art | Huntsville | AL | 15 | 2026-04-10 | 2026-09-14 | 2026-06-03 |
-| Georgia Museum of Art | Athens | GA | 15 | 2026-04-04 | 2026-06-27 | 2026-06-03 |
-| Ogden Museum of Southern Art | New Orleans | LA | 15 | 2026-06-04 | 2027-05-13 | 2026-06-04 |
-| Worcester Art Museum | Worcester | MA | 15 | 2026-04-25 | 2026-08-23 | 2026-06-04 |
-| MSU Broad Art Museum | East Lansing | MI | 15 | 2026-04-04 | 2026-07-24 | 2026-06-04 |
-| Newport Art Museum | Newport | RI | 15 | 2026-06-06 | 2026-10-08 | 2026-06-03 |
-| Columbia Museum of Art | Columbia | SC | 15 | 2026-06-06 | 2026-08-05 | 2026-06-04 |
-| Frist Art Museum | Nashville | TN | 15 | 2026-06-06 | 2026-12-13 | 2026-06-03 |
-| Virginia Quilt Museum | Dayton | VA | 15 | 2026-05-14 | 2026-10-31 | 2026-06-03 |
-| Museum of Wisconsin Art | West Bend | WI | 15 | 2026-04-04 | 2026-07-31 | 2026-06-03 |
-| National Museum of Asian Art | Washington | DC | 14 | 2026-04-05 | 2027-05-07 | 2026-06-04 |
-| Norton Museum of Art | West Palm Beach | FL | 14 | 2026-04-04 | 2026-05-22 | 2026-04-01 |
-| Blanden Memorial Art Museum | Fort Dodge | IA | 14 | 2026-06-20 | 2026-08-01 | 2026-06-03 |
+| ~~Harvard Art Museums~~ fixed 2026-06-11: now 13 active rows, 0 undefined audience (all adult gallery talks/lectures/workshops; free-admission museum so all free) | Cambridge | MA | 28 | 2026-04-03 | 2026-08-18 | 2026-06-04 |
+| ~~Louisiana Art & Science Museum~~ fixed 2026-06-11: now 16 active rows, 0 undefined audience (kids labs/read&create age-tagged; family drop-in programs all_ages). Free fixed: paid-admission museum, so "included with admission / free for members" programs marked not-free | Baton Rouge | LA | 27 | 2026-04-11 | 2026-06-28 | 2026-06-03 |
+| ~~Virginia Museum of Contemporary Art~~ fixed 2026-06-11: now 7 active rows, 0 undefined audience. Tribe REST API now 403 rest_forbidden (stale since 2026-03-18); switched fetch to public iCal feed and mapped Tribe audience categories (Adults/Teens/Kids&Families/Ages) to segments. Free=uncertain (iCal has no price data; paid-admission museum). Excluded Summer Teachers Institute + storytimes | Virginia Beach | VA | 27 | 2026-04-18 | 2026-08-06 | 2026-03-18 |
+| ~~University Museums - Iowa State University~~ fixed 2026-06-11: now 13 active rows, 0 undefined audience (Family Programs/Explore! → kids; gallery talks/lectures/student studio → adults). Free fixed: ISU University Museums is free-admission, so all programs marked free. Added --clear flag to its parser script | Ames | IA | 26 | 2026-02-28 | 2026-11-17 | 2026-06-03 |
+| ~~Raclin Murphy Museum of Art~~ fixed 2026-06-11: now 9 active rows, 0 undefined audience (Family Day/Art Lab/StoryWalk → kids; Art+Insight 55+ & Studio Workshops → adults). Free fixed: free-admission museum, default free; paid Studio Workshops ($100-125) stay not-free. Made in_bundle --clear venue-scoped so it no longer wipes other IN venues | Notre Dame | IN | 26 | 2026-04-07 | 2026-07-09 | 2026-06-03 |
+| Baltimore Museum of Art - blocked 2026-06-11: live page serves Cloudflare verification to Playwright, so no safe non-empty parse; local rows left unchanged (25 undefined audience) | Baltimore | MD | 25 | 2026-04-09 | 2026-06-19 | 2026-04-15 |
+| ~~Asheville Art Museum~~ fixed 2026-06-11: now 18 active rows, 0 undefined audience (adult talks/classes/demos plus Makerspace all_ages). Paid-admission museum: "free with/included with admission" and "free for members" marked not-free; Art of Wine filtered | Asheville | NC | 25 | 2026-04-04 | 2026-10-24 | 2026-06-04 |
+| ~~Norton Simon Museum~~ fixed 2026-06-11: now 12 active rows, 0 undefined audience (Family/Stories -> kids, teen drawing -> teens, lectures/adult classes -> adults). Paid-admission museum, so default not-free; added scoped --clear support | Pasadena | CA | 23 | 2026-04-11 | 2026-08-29 | 2026-06-02 |
+| ~~Kalamazoo Institute of Arts~~ fixed 2026-06-11: now 7 active rows, 0 undefined audience (Wonder Walks kids, Gallery/Artful talks adults, Juneteenth/Community Day all_ages). Paid-admission default not-free; removed stale Artstream/book-swap style rows | Kalamazoo | MI | 22 | 2026-04-03 | 2026-07-18 | 2026-04-01 |
+| ~~High Museum of Art~~ fixed 2026-06-11: now 5 active rows, 0 undefined audience (Family Saturday kids). Paid-admission museum: member/included admission rows marked not-free; Oasis mindfulness/yoga rows filtered; GA --clear is venue-scoped | Atlanta | GA | 21 | 2026-04-03 | 2026-09-19 | 2026-06-03 |
+| ~~Coos Art Museum~~ fixed 2026-06-11: now 9 active rows, 0 undefined audience (adult classes/workshops plus Trash Club age 16+ -> teens_adults). Pricing confirmed; open house and year-long Pay-to-Fire service filtered | Coos Bay | OR | 21 | 2026-04-08 | 2026-07-25 | 2026-06-02 |
+| ~~William King Museum of Art~~ fixed 2026-06-11: now 17 active rows, 0 undefined audience (Teen-Adult Art Lab classes/workshops -> teens_adults; all paid confirmed) | Abingdon | VA | 21 | 2026-04-03 | 2026-12-20 | 2026-03-18 |
+| ~~Marietta Cobb Museum of Art~~ fixed 2026-06-11: now 14 active rows, 0 undefined audience (Toddler Time kids; Studio Art Classes all_ages; Heritage Craft/Open Draw adults). Paid-admission default not-free | Marietta | GA | 20 | 2026-04-17 | 2026-12-04 | 2026-06-02 |
+| ~~Blanton Museum of Art~~ fixed 2026-06-11: now 10 active rows, 0 undefined audience (Storytime kids; Looking Together age 12+ -> teens_adults; Curator's Choice adults). Paid-admission default not-free; added --clear support | Austin | TX | 20 | 2026-04-11 | 2026-08-08 | 2026-06-03 |
+| ~~Berkeley Art Museum and Pacific Film Archive~~ fixed 2026-06-11: now 12 active rows, 0 undefined audience (Open Art Lab all_ages). Paid-admission default not-free; clothing-swap row filtered | Berkeley | CA | 19 | 2026-06-04 | 2026-07-04 | 2026-06-03 |
+| ~~The Mint Museum~~ fixed 2026-06-11: now 5 active rows, 0 undefined audience (family art activities kids; artist talks adults). Performance/market/dance rows filtered; explicit public-free rows remain free | Charlotte | NC | 19 | 2026-04-04 | 2026-12-04 | 2026-06-04 |
+| ~~Hunter Museum of American Art~~ fixed 2026-06-11: now 14 active rows, 0 undefined audience (teen workshops teens; family studios kids; Art Wise adults). Sold-out rows filtered; regular-admission/free-with-admission rows marked not-free | Chattanooga | TN | 19 | 2026-06-07 | 2026-12-21 | 2026-06-03 |
+| ~~The Aldrich Contemporary Art Museum~~ fixed 2026-06-11: now 1 active row, 0 undefined audience (Sensory Saturday kids). Happy-hour, film/screening, and sold-out rows filtered | Ridgefield | CT | 17 | 2026-04-11 | 2026-09-04 | 2026-06-04 |
+| ~~New Orleans Museum of Art~~ fixed 2026-06-11: now 9 active rows, 0 undefined audience (Studio KIDS/Little Learners kids; gallery talks/Kolaj adult/all_ages). Sold-out, Soul-Sip/NOMA at Night, and film/screening rows filtered; free-with-admission marked not-free | New Orleans | LA | 17 | 2026-06-03 | 2026-10-21 | 2026-06-04 |
+| ~~Parrish Art Museum~~ fixed 2026-06-11: now 2 active rows, 0 undefined audience (Art in Action and artist talk adults). Paid-admission default not-free; benefit/fundraiser event filtered | Water Mill | NY | 17 | 2026-04-10 | 2026-08-16 | 2026-06-04 |
+| ~~Phoenix Art Museum~~ fixed 2026-06-11: now 10 active rows, 0 undefined audience (Create Playdate kids; Object of the Month adults). Paid-admission default not-free; AZ --clear is venue-scoped | Phoenix | AZ | 16 | 2026-04-03 | 2026-07-04 | 2026-06-03 |
+| ~~Krannert Art Museum~~ fixed 2026-06-11: now 15 active rows, 0 undefined audience (kids/family programs kids; talks and creative-aging programs adults; Knit & Sit/sensory programs all_ages). Free-admission default free; IL --clear is venue-scoped | Champaign | IL | 16 | 2026-04-03 | 2026-08-08 | 2026-06-02 |
+| ~~Smart Museum of Art~~ fixed 2026-06-11: now 4 active rows, 0 undefined audience (Family Day/Tuesdays Together kids). South Side Night, poetry, and study-only rows filtered; free-admission default free; IL --clear is venue-scoped | Chicago | IL | 16 | 2026-04-03 | 2026-06-30 | 2026-04-08 |
+| ~~Sidney and Lois Eskenazi Museum of Art~~ fixed 2026-06-11: now 5 active rows, 0 undefined audience (drawing/fiber workshops adults; Family Art Lab/Kids Create kids). Canceled and plain public-tour rows filtered; free-admission default free | Bloomington | IN | 16 | 2026-04-04 | 2026-06-14 | 2026-06-03 |
+| ~~Georgia O'Keeffe Museum~~ fixed 2026-06-11: now 7 active rows, 0 undefined audience (online/still-life classes adults; Create with O'Keeffe/Family Day kids). Canceled rows filtered; paid-admission default not-free | Santa Fe | NM | 16 | 2026-04-04 | 2026-06-12 | 2026-06-04 |
+| ~~Massillon Museum~~ fixed 2026-06-11: now 7 active rows, 0 undefined audience (adult workshops adults; Tots/Tactile Tales kids; Do the Mu all_ages). Humanitix paid classes marked not-free; explicit free programs remain free; runner now supports --clear | Massillon | OH | 16 | 2026-04-04 | 2026-06-28 | 2026-06-03 |
+| ~~Shelburne Museum~~ fixed 2026-06-12: now 5 active rows, 0 undefined audience (Family Artmaking kids; Adult and Teen teens_adults; lecture adults; Rockwell Day all_ages). Yoga filtered; paid-admission free-for-members/with-admission rows marked not-free; VT --clear is venue-scoped | Shelburne | VT | 16 | 2026-06-02 | 2026-09-26 | 2026-06-03 |
+| ~~Madison Museum of Contemporary Art~~ fixed 2026-06-12: now 13 active rows, 0 undefined audience (Saturday Sketching and ceramic animal activity all_ages). All retained rows are confirmed free; runner now supports --clear | Madison | WI | 16 | 2026-04-19 | 2026-08-29 | 2026-06-03 |
+| ~~Huntsville Museum of Art~~ fixed 2026-06-12: now 9 active rows, 0 undefined audience (Artsy Tots/Drop-In & CREATE kids; Master Artist Workshop adults). Paid classes and free family drop-ins confirmed | Huntsville | AL | 15 | 2026-04-10 | 2026-09-14 | 2026-06-03 |
+| ~~Georgia Museum of Art~~ fixed 2026-06-12: now 2 active rows, 0 undefined audience (Family Day kids; Studio Workshop adults). Third Thursday filtered; free-admission default free except paid workshop; GA MEC --clear is venue-scoped | Athens | GA | 15 | 2026-04-04 | 2026-06-27 | 2026-06-03 |
+| ~~Ogden Museum of Southern Art~~ fixed 2026-06-12: now 13 active rows, 0 undefined audience (adult class and Hey Y'all Art Talk adults). Free-with-admission rows marked not-free for paid-admission museum | New Orleans | LA | 15 | 2026-06-04 | 2027-05-13 | 2026-06-04 |
+| ~~Worcester Art Museum~~ fixed 2026-06-12: now 9 active rows, 0 undefined audience (arms-and-armor demos and art talks adults). Free-with-admission/member rows and paid-admission default marked not-free | Worcester | MA | 15 | 2026-04-25 | 2026-08-23 | 2026-06-04 |
+| ~~MSU Broad Art Museum~~ fixed 2026-06-12: now 8 active rows, 0 undefined audience (Family Art Studio kids; educator workshop adults; Chill Out with Art all_ages). Free programs confirmed | East Lansing | MI | 15 | 2026-04-04 | 2026-07-24 | 2026-06-04 |
+| ~~Newport Art Museum~~ fixed 2026-06-12: now 11 active rows, 0 undefined audience (18+ Artist Days/classes/talks adults; Free For All Saturday all_ages). Donation Artist Days marked free; classes/ticketed talks not-free; RI --clear is venue-scoped | Newport | RI | 15 | 2026-06-06 | 2026-10-08 | 2026-06-03 |
+| ~~Columbia Museum of Art~~ fixed 2026-06-12: now 14 active rows, 0 undefined audience (Gladys Gang/Kids on Wall kids; ages 15+ art classes teens_adults; talks adults). Aviation, admission-day, book, and party rows filtered; admission/member rows marked not-free | Columbia | SC | 15 | 2026-06-06 | 2026-08-05 | 2026-06-04 |
+| ~~Frist Art Museum~~ fixed 2026-06-12: now 10 active rows, 0 undefined audience (Family/Sensory Sunday kids; exhibition conversation adults). Music/book/wellness/sold-out rows filtered; member/admission rows marked not-free | Nashville | TN | 15 | 2026-06-06 | 2026-12-13 | 2026-06-03 |
+| ~~Virginia Quilt Museum~~ fixed 2026-06-13: committed 9 rows, 0 undefined audience in parser output (adult quilt talks/workshops/turnings; opening and tea fundraiser filtered; paid-admission default not-free; VA HTML --clear is venue-scoped) | Dayton | VA | 15 | 2026-05-14 | 2026-10-31 | 2026-06-03 |
+| ~~Museum of Wisconsin Art~~ fixed 2026-06-13: committed 6 rows, 0 undefined audience in parser output (Second Saturday all_ages; Mini Makers kids; artist talk/photography adults; summer youth workshops and wellness row filtered; paid-admission default not-free; runner now supports --clear) | West Bend | WI | 15 | 2026-04-04 | 2026-07-31 | 2026-06-03 |
+| ~~National Museum of Asian Art~~ fixed 2026-06-13: committed 13 rows, 0 undefined audience in parser output (kids/family Art Break, Art & Me, K-3 webinar plus adult conservation cart talks; film/meditation/tours filtered; listing-card fallback added because detail pages intermittently 403; free-admission default free; DC HTML --clear is venue-scoped) | Washington | DC | 14 | 2026-04-05 | 2027-05-07 | 2026-06-04 |
+| Norton Museum of Art - blocked 2026-06-13: current program/calendar pages fetch as static navigation with no event-card data; dry run parsed 0 rows, so local rows were left unchanged | West Palm Beach | FL | 14 | 2026-04-04 | 2026-05-22 | 2026-04-01 |
+| ~~Blanden Memorial Art Museum~~ fixed 2026-06-13: committed 7 rows, 0 undefined audience in parser output (14+ adult classes teens_adults; Adult Open Studio adults; Create Like a Famous Artist and Free Art Saturday kids; Free Art Saturday confirmed free, other classes default not-free; runner now supports --clear) | Fort Dodge | IA | 14 | 2026-06-20 | 2026-08-01 | 2026-06-03 |
 | Hilliard Art Museum | Lafayette | LA | 14 | 2026-06-25 | 2027-05-08 | 2026-06-04 |
 | Cape Cod Museum of Art | Dennis | MA | 14 | 2026-04-16 | 2026-08-21 | 2026-06-03 |
 | Ackland Art Museum | Chapel Hill | NC | 14 | 2026-04-10 | 2026-07-10 | 2026-06-04 |
