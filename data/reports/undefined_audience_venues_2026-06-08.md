@@ -101,29 +101,29 @@ Undefined means `audience_segment = unknown` or `audience_segment IS NULL`.
 | ~~The Dali Museum~~ fixed 2026-06-13: committed 4 rows, 0 undefined audience (sensory/neurographic all_ages, curator lecture and photography adults; member reciprocity/fundraiser filtered; paid admission/workshops not-free) | St. Petersburg | FL | 13 | 2026-04-07 | 2026-10-24 | 2026-06-03 |
 | ~~LSU Museum of Art~~ fixed 2026-06-13: committed 7 rows, 0 undefined audience (Free First Sundays all_ages/free; Art Break teens_adults/free; no-programming admission day filtered) | Baton Rouge | LA | 13 | 2026-04-18 | 2026-12-12 | 2026-06-02 |
 | ~~Fitchburg Art Museum~~ fixed 2026-06-13: committed 5 rows, 0 undefined audience (Make Art all_ages/free, Hidden Treasures adults/free, artist talks adults/not-free inferred by paid-admission default) | Fitchburg | MA | 13 | 2026-04-16 | 2026-07-19 | 2026-06-03 |
-| Cameron Art Museum | Wilmington | NC | 13 | 2026-04-09 | 2026-07-11 | 2026-06-04 |
-| Currier Museum of Art | Manchester | NH | 13 | 2026-04-10 | 2026-08-19 | 2026-06-03 |
-| McNay Art Museum | San Antonio | TX | 13 | 2026-04-03 | 2026-07-10 | 2026-06-03 |
-| Mary and Leigh Block Museum of Art | Evanston | IL | 12 | 2026-04-05 | 2026-05-23 | 2026-04-08 |
-| Jordan Schnitzer Museum of Art | Eugene | OR | 12 | 2026-04-04 | 2026-09-18 | 2026-06-03 |
-| Amon Carter Museum of American Art | Fort Worth | TX | 12 | 2026-04-04 | 2026-07-02 | 2026-06-02 |
-| J. Paul Getty Museum | Los Angeles | CA | 11 | 2026-04-04 | 2026-06-28 | 2026-03-11 |
-| Delaware Art Museum | Wilmington | DE | 11 | 2026-04-12 | 2026-08-21 | 2026-06-04 |
-| Museum of Contemporary Art Cleveland | Cleveland | OH | 11 | 2026-04-03 | 2026-08-01 | 2026-06-03 |
-| Center for Creative Photography | Tucson | AZ | 10 | 2026-04-04 | 2026-06-30 | 2026-06-03 |
-| Museum of Contemporary Art Chicago | Chicago | IL | 10 | 2026-04-11 | 2026-08-02 | 2026-06-03 |
-| Detroit Institute of Arts | Detroit | MI | 10 | 2026-04-03 | 2026-06-07 | 2026-06-04 |
-| Taubman Museum of Art | Roanoke | VA | 10 | 2026-04-11 | 2026-06-27 | 2026-03-18 |
-| Birmingham Museum of Art | Birmingham | AL | 9 | 2026-04-11 | 2026-07-08 | 2026-06-03 |
-| Heard Museum | Phoenix | AZ | 9 | 2026-04-10 | 2026-09-10 | 2026-06-03 |
-| Stanley Museum of Art | Iowa City | IA | 9 | 2026-06-05 | 2026-08-21 | 2026-06-03 |
-| Rose Art Museum | Waltham | MA | 9 | 2026-04-15 | 2026-08-19 | 2026-06-02 |
-| Missoula Art Museum | Missoula | MT | 9 | 2026-04-11 | 2026-06-20 | 2026-06-02 |
+| ~~Cameron Art Museum~~ fixed 2026-06-14: committed 1 row, 0 undefined audience (adult educator workshop/free; opening/reception and unrelated special-event rows filtered) | Wilmington | NC | 13 | 2026-04-09 | 2026-07-11 | 2026-06-04 |
+| ~~Currier Museum of Art~~ fixed 2026-06-14: committed 5 rows, 0 undefined audience (adult paid workshops and teen paid workshops kept; Summer Art Ventures youth summer program filtered) | Manchester | NH | 13 | 2026-04-10 | 2026-08-19 | 2026-06-03 |
+| ~~McNay Art Museum~~ fixed 2026-06-14: committed 5 rows, 0 undefined audience (adult/teens_adults workshops and sketching kept; camp/film/tour rows filtered; paid-admission free-with-admission/member rows marked not-free) | San Antonio | TX | 13 | 2026-04-03 | 2026-07-10 | 2026-06-03 |
+| ~~Mary and Leigh Block Museum of Art~~ fixed 2026-06-14: cleared 12 stale rows; current live page parsed 0 current activity rows after review | Evanston | IL | 12 | 2026-04-05 | 2026-05-23 | 2026-04-08 |
+| ~~Jordan Schnitzer Museum of Art~~ fixed 2026-06-14: committed 2 rows, 0 undefined audience (Creative Aging and faculty workshop adults/free) | Eugene | OR | 12 | 2026-04-04 | 2026-09-18 | 2026-06-03 |
+| ~~Amon Carter Museum of American Art~~ fixed 2026-06-14: committed 6 rows, 0 undefined audience (kids/family free programs plus adult free/paid workshops; social/access rows filtered) | Fort Worth | TX | 12 | 2026-04-04 | 2026-07-02 | 2026-06-02 |
+| ~~J. Paul Getty Museum~~ fixed 2026-06-14: committed 23 rows, 0 undefined audience (free family/art-making rows and all_ages celebration kept; tours/music/performance rows filtered) | Los Angeles | CA | 11 | 2026-04-04 | 2026-06-28 | 2026-03-11 |
+| ~~Delaware Art Museum~~ fixed 2026-06-14: committed 6 rows, 0 undefined audience (Family 2nd Sunday all_ages and adult Slow Art/talk rows; paid-admission included/member rows marked not-free) | Wilmington | DE | 11 | 2026-04-12 | 2026-08-21 | 2026-06-04 |
+| ~~Museum of Contemporary Art Cleveland~~ fixed 2026-06-14: committed 4 rows, 0 undefined audience (adult art-therapy sessions plus all_ages artist/family activities; free rows confirmed) | Cleveland | OH | 11 | 2026-04-03 | 2026-08-01 | 2026-06-03 |
+| ~~Center for Creative Photography~~ fixed 2026-06-14: committed 4 rows, 0 undefined audience (open-to-public hands-on photography activities all_ages/free) | Tucson | AZ | 10 | 2026-04-04 | 2026-06-30 | 2026-06-03 |
+| ~~Museum of Contemporary Art Chicago~~ fixed 2026-06-14: committed 2 rows, 0 undefined audience (youth creative workshop teens and emerging-adult alumni program adults; music/book-signing talks filtered; paid-admission default not-free) | Chicago | IL | 10 | 2026-04-11 | 2026-08-02 | 2026-06-03 |
+| ~~Detroit Institute of Arts~~ fixed 2026-06-14: committed 4 rows, 0 undefined audience (family drop-in/drawing, all_ages ages 6-adult drawing, teens_adults 16+ studio session; film/tour/member rows filtered; paid-admission default not-free) | Detroit | MI | 10 | 2026-04-03 | 2026-06-07 | 2026-06-04 |
+| ~~Taubman Museum of Art~~ fixed 2026-06-14: committed 6 rows, 0 undefined audience (kids/all_ages/adult workshops; sold-out class filtered; free programs confirmed and paid classes confirmed not-free) | Roanoke | VA | 10 | 2026-04-11 | 2026-06-27 | 2026-03-18 |
+| ~~Birmingham Museum of Art~~ fixed 2026-06-14: committed 3 rows, 0 undefined audience (family festival kids plus adult ArtBreak/artist talk; free-admission default free) | Birmingham | AL | 9 | 2026-04-11 | 2026-07-08 | 2026-06-03 |
+| ~~Heard Museum~~ fixed 2026-06-14: committed 3 rows, 0 undefined audience in parser output (adult curator talks; paid-admission included/free-member rows marked not-free) | Phoenix | AZ | 9 | 2026-04-10 | 2026-09-10 | 2026-06-03 |
+| ~~Stanley Museum of Art~~ fixed 2026-06-14: committed 13 rows, 0 undefined audience in parser output (adult Friday Crafternoons and student creative events; free-admission default free) | Iowa City | IA | 9 | 2026-06-05 | 2026-08-21 | 2026-06-03 |
+| ~~Rose Art Museum~~ fixed 2026-06-14: cleared 9 stale rows; live parser now has 0 qualifying rows after yoga/exhibition/film/performance/reception filters | Waltham | MA | 9 | 2026-04-15 | 2026-08-19 | 2026-06-02 |
+| ~~Missoula Art Museum~~ fixed 2026-06-14: committed 2 rows, 0 undefined audience in parser output (adult Third Thursday curator talk/free and all_ages Pride printmaking workshop/free) | Missoula | MT | 9 | 2026-04-11 | 2026-06-20 | 2026-06-02 |
 | ~~The Momentary~~ fixed 2026-06-13: committed 3 rows, 0 undefined audience after AR clear side-effect restore (Coffee & Chalk kids/free, soft sculpture teens_adults/paid, Crowns & Cocktails adults/paid; AR custom clear now venue-scoped) | Bentonville | AR | 8 | 2026-04-07 | 2026-08-01 | 2026-05-29 |
-| Orange County Museum of Art | Costa Mesa | CA | 8 | 2026-04-03 | 2026-07-15 | 2026-06-03 |
-| Fairfield University Art Museum | Fairfield | CT | 8 | 2026-04-09 | 2026-06-14 | 2026-06-03 |
-| Hirshhorn Museum and Sculpture Garden | Washington | DC | 8 | 2026-04-04 | 2026-04-25 | 2026-03-24 |
-| Nasher Museum of Art at Duke University | Durham | NC | 8 | 2026-04-12 | 2026-08-09 | 2026-06-04 |
+| ~~Orange County Museum of Art~~ fixed 2026-06-14: committed 1 row, 0 undefined audience in parser output (new Langson calendar; all_ages MAKE program/free; opening/member/tour rows filtered) | Costa Mesa | CA | 8 | 2026-04-03 | 2026-07-15 | 2026-06-03 |
+| ~~Fairfield University Art Museum~~ fixed 2026-06-14: committed 1 row, 0 undefined audience in parser output (all_ages Arts & Minds Flag Day/free; curator tours filtered) | Fairfield | CT | 8 | 2026-04-09 | 2026-06-14 | 2026-06-03 |
+| Hirshhorn Museum and Sculpture Garden - blocked 2026-06-14: official REST/HTML/iCal and repeated browser fetches are blocked by Cloudflare; local rows left unchanged | Washington | DC | 8 | 2026-04-04 | 2026-04-25 | 2026-03-24 |
+| ~~Nasher Museum of Art at Duke University~~ fixed 2026-06-14: committed 4 rows, 0 undefined audience in parser output (Second Sundays all_ages/free; educator institute adults/free; free-admission default free) | Durham | NC | 8 | 2026-04-12 | 2026-08-09 | 2026-06-04 |
 | Hood Museum of Art | Hanover | NH | 8 | 2026-04-11 | 2026-07-29 | 2026-06-02 |
 | Nevada Museum of Art | Reno | NV | 8 | 2026-06-03 | 2026-06-25 | 2026-06-03 |
 | Cleveland Museum of Art | Cleveland | OH | 8 | 2026-04-05 | 2026-11-21 | 2026-06-03 |

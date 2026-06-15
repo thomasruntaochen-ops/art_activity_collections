@@ -707,7 +707,7 @@ def _parse_birmingham_events(pages: list[str], *, venue: AlVenueConfig) -> list[
                         age_max=age_max,
                         activity_type=activity_type,
                     ),
-                    **price_classification_kwargs(description),
+                    **price_classification_kwargs(description, default_is_free=True),
                 )
             )
 

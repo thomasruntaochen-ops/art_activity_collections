@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -205,6 +206,8 @@ def _build_row_from_entry(
     )
 
     text_blob = _normalize_space(" ".join([title, description or "", hero_text])).lower()
+    if _should_reject_rose_event(title=title, source_url=source_url, text_blob=text_blob):
+        return None
     registration_required = bool(detail.get("registration_required") or "register" in text_blob)
     location_text = _build_location_text(hero_text)
 
@@ -219,6 +222,7 @@ def _build_row_from_entry(
         activity_type=_infer_activity_type(text_blob),
         age_min=None,
         age_max=None,
+        audience_segment=_infer_rose_audience(title=title, description=description, text_blob=text_blob),
         drop_in=("drop-in" in text_blob or "drop in" in text_blob),
         registration_required=registration_required,
         start_at=start_at,
@@ -226,6 +230,41 @@ def _build_row_from_entry(
         timezone=ROSE_TIMEZONE,
         **price_classification_kwargs("All programs are free to attend."),
     )
+
+
+def _should_reject_rose_event(*, title: str, source_url: str, text_blob: str) -> bool:
+    if "/exhibitions/" in source_url:
+        return True
+    if any(
+        marker in text_blob
+        for marker in (
+            " yoga ",
+            " exhibition ",
+            " film ",
+            " performance ",
+            " reading ",
+            " reception ",
+            " tour ",
+            " meditation ",
+            " mindfulness ",
+        )
+    ):
+        return True
+    return False
+
+
+def _infer_rose_audience(*, title: str, description: str | None, text_blob: str) -> str:
+    if any(marker in text_blob for marker in (" family ", " families ", " children ", " kids ", " youth ")):
+        return "kids"
+    if any(marker in text_blob for marker in (" teen ", " teens ", " high school ")):
+        inferred = infer_audience_segment(title=title, description=description)
+        return inferred if inferred != "unknown" else "teens"
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    if any(marker in text_blob for marker in (" talk ", " lecture ", " workshop ", " conversation ", " program ")):
+        return "adults"
+    return "unknown"
 
 
 def _parse_detail_page(html: str) -> dict[str, str | bool | None]:

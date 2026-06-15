@@ -148,6 +148,9 @@ DEFAULT_FREE_ADMISSION_SLUGS = {
     "krannert_art_museum",
     "smart_museum_of_art",
 }
+DEFAULT_PAID_ADMISSION_SLUGS = {
+    "mca_chicago",
+}
 SMART_REJECT_TITLE_MARKERS = (
     "chicago expo: south side night",
     "study at the smart",
@@ -1089,7 +1092,12 @@ def _parse_mca_events(payload: dict, *, venue: IlVenueConfig) -> list[ExtractedA
         full_text = join_non_empty([title, item.get("program"), description, ticket_notice, item.get("card_text")])
         if not _should_keep_event(full_text):
             continue
+        if _should_reject_mca_event(title=title, text=full_text):
+            continue
 
+        age_min = 0 if "under 12" in (description or "").lower() else None
+        age_max = 12 if "under 12" in (description or "").lower() else None
+        activity_type = _infer_activity_type(full_text)
         rows.append(
             ExtractedActivity(
                 source_url=source_url,
@@ -1099,15 +1107,25 @@ def _parse_mca_events(payload: dict, *, venue: IlVenueConfig) -> list[ExtractedA
                 location_text=venue.default_location,
                 city=venue.city,
                 state=venue.state,
-                activity_type=_infer_activity_type(full_text),
-                age_min=0 if "under 12" in (description or "").lower() else None,
-                age_max=12 if "under 12" in (description or "").lower() else None,
+                activity_type=activity_type,
+                age_min=age_min,
+                age_max=age_max,
+                audience_segment=_infer_il_audience(
+                    venue=venue,
+                    title=title,
+                    description=description,
+                    category=item.get("program"),
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                    activity_type=activity_type,
+                ),
                 drop_in=_contains_any(full_text, DROP_IN_PATTERNS),
                 registration_required=_registration_required(join_non_empty([ticket_notice, description])),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=IL_TIMEZONE,
-                **price_classification_kwargs(join_non_empty([ticket_notice, description]), default_is_free=None),
+                **_price_kwargs_for_il_venue(venue, join_non_empty([ticket_notice, description])),
             )
         )
 
@@ -1484,6 +1502,15 @@ def _should_reject_smart_event(*, title: str | None, text: str | None) -> bool:
     return any(marker in blob for marker in SMART_REJECT_TEXT_MARKERS)
 
 
+def _should_reject_mca_event(*, title: str | None, text: str | None) -> bool:
+    title_blob = _searchable_blob(title)
+    if " music talk " in title_blob:
+        return True
+    if " book signing " in title_blob:
+        return True
+    return False
+
+
 def _infer_activity_type(text: str | None) -> str | None:
     blob = _searchable_blob(text)
     if not blob:
@@ -1553,6 +1580,16 @@ def _infer_il_audience(
         ):
             return "adults"
 
+    if venue.slug == "mca_chicago":
+        if " youth led programming " in blob:
+            return "teens"
+        if " emerging adult programming " in blob:
+            return "adults"
+        if any(token in blob for token in (" family day ", " family canvas ", " children ", " kids ")):
+            return "kids"
+        if any(token in blob for token in (" artist talk ", " panel ", " discussion ", " talk ")):
+            return "adults"
+
     inferred = infer_audience_segment(
         title=title,
         description=description,
@@ -1570,7 +1607,22 @@ def _infer_il_audience(
 
 def _price_kwargs_for_il_venue(venue: IlVenueConfig, text: str | None) -> dict[str, bool | None | str]:
     default_is_free = True if venue.slug in DEFAULT_FREE_ADMISSION_SLUGS else None
+    if venue.slug in DEFAULT_PAID_ADMISSION_SLUGS:
+        blob = _searchable_blob(text)
+        if any(
+            marker in blob
+            for marker in (
+                " included with admission ",
+                " included with museum admission ",
+                " free for members ",
+                " members free ",
+            )
+        ):
+            return {"is_free": False, "free_verification_status": "confirmed"}
+        default_is_free = False
     kwargs = price_classification_kwargs(text, default_is_free=default_is_free)
+    if venue.slug in DEFAULT_PAID_ADMISSION_SLUGS and kwargs["is_free"] is None:
+        return {"is_free": False, "free_verification_status": "inferred"}
     if venue.slug in DEFAULT_FREE_ADMISSION_SLUGS and kwargs["is_free"] is None:
         return {"is_free": True, "free_verification_status": "inferred"}
     return kwargs

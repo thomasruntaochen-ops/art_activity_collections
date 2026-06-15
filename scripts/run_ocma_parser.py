@@ -26,6 +26,7 @@ from src.models.activity import Activity, Source  # noqa: E402
 
 DEFAULT_CACHE_DIR = Path("data") / "html" / "ocma"
 OCMA_SOURCE_URL_PREFIX = "https://ocma.art/%"
+OCMA_LANGSON_SOURCE_URL_PREFIX = "https://langson.uci.edu/%"
 
 def _write_html_cache(html: str, cache_dir: Path) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -100,12 +101,16 @@ def clear_ocma_entries() -> dict[str, int]:
             select(Source.id).where(
                 or_(
                     Source.base_url.like(OCMA_SOURCE_URL_PREFIX),
+                    Source.base_url.like(OCMA_LANGSON_SOURCE_URL_PREFIX),
                     Source.name.like("ocma_%"),
                 )
             )
         ).all()
 
-        activity_filter = Activity.source_url.like(OCMA_SOURCE_URL_PREFIX)
+        activity_filter = or_(
+            Activity.source_url.like(OCMA_SOURCE_URL_PREFIX),
+            Activity.source_url.like(OCMA_LANGSON_SOURCE_URL_PREFIX),
+        )
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
         if venue_ids:

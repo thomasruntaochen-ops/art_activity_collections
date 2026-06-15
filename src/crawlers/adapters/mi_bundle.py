@@ -59,6 +59,7 @@ TIME_SINGLE_RE = re.compile(
     re.IGNORECASE,
 )
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
+AGE_TO_ADULT_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*adult\b", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})(?:\+|\s*(?:and\s+up|up))\b", re.IGNORECASE)
 MATCH_NORMALIZE_RE = re.compile(r"[\W_]+", re.UNICODE)
 
@@ -487,12 +488,13 @@ def _parse_dia_events(payload: dict, *, venue: MiVenueConfig) -> list[ExtractedA
         source_url = urljoin(venue.list_url, link.get("href") or "")
         event_type = _normalize_space(type_node.get_text(" ", strip=True))
         description = _normalize_space(right_side.get_text(" ", strip=True) if right_side else None)
+        card_text = _normalize_space(card.get_text(" ", strip=True))
         combined_description = " | ".join(part for part in (description, f"Type: {event_type}") if part) or None
         if not _should_keep_dia_event(title=title, description=combined_description, event_type=event_type):
             continue
 
-        age_min, age_max = _parse_age_range(description)
-        is_free, free_status = infer_price_classification(combined_description, default_is_free=None)
+        age_min, age_max = _parse_age_range(combined_description)
+        is_free, free_status = _infer_dia_price(combined_description)
 
         for start_at, end_at in _extract_dia_occurrences(card):
             rows.append(
@@ -507,8 +509,18 @@ def _parse_dia_events(payload: dict, *, venue: MiVenueConfig) -> list[ExtractedA
                     activity_type=_activity_type_for_text(title=event_type, description=combined_description),
                     age_min=age_min,
                     age_max=age_max,
+                    audience_segment=_infer_dia_audience(
+                        title=title,
+                        description=combined_description,
+                        event_type=event_type,
+                        age_min=age_min,
+                        age_max=age_max,
+                    ),
                     drop_in=_contains_any(_normalize_for_match(f"{event_type} {title}"), (" drop in ", " drop in workshop ")),
-                    registration_required=False,
+                    registration_required=_contains_any(
+                        _normalize_for_match(card_text),
+                        (" register ", " rsvp ", " reserve "),
+                    ),
                     start_at=start_at,
                     end_at=end_at,
                     timezone=MI_TIMEZONE,
@@ -1088,9 +1100,66 @@ def _should_keep_kalamazoo_event(*, title: str, description: str | None, categor
 
 def _should_keep_dia_event(*, title: str, description: str | None, event_type: str | None) -> bool:
     blob = _normalize_for_match(" ".join(part for part in (event_type or "", title, description or "") if part))
-    if _contains_any(blob, (" detroit film theatre ", " film ", " movie ", " guided tour ", " tour ")):
+    if _contains_any(blob, (" annual meeting ", " auxiliary groups ", " member scavenger hunt ", " guided tour ", " tour ")):
         return False
-    return _contains_any(blob, (" drawing in the galleries ", " drop in workshop ", " guest demo "))
+    if " detroit film theatre " in blob:
+        return False
+    if _contains_any(blob, (" drop in workshop ", " drawing in the galleries ", " dia studio session ", " guest demo ")):
+        return True
+    if _contains_any(blob, (" lecture ", " lectures ", " panel ", " artist talk ", " art making ", " artmaking ", " workshop ")):
+        return True
+    return False
+
+
+def _infer_dia_price(text: str | None) -> tuple[bool | None, str]:
+    blob = _normalize_for_match(text or "")
+    if _contains_any(
+        blob,
+        (
+            " free for members ",
+            " free with admission ",
+            " free with museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " members free ",
+        ),
+    ):
+        return False, "confirmed"
+    is_free, status = infer_price_classification(text, default_is_free=False)
+    if is_free is None:
+        return False, "inferred"
+    return is_free, status
+
+
+def _infer_dia_audience(
+    *,
+    title: str,
+    description: str | None,
+    event_type: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _normalize_for_match(" ".join(part for part in (event_type or "", title, description or "") if part))
+    if age_min is not None and age_min <= 12 and (
+        age_max is None
+        or _contains_any(blob, (" adult ", " adults ", " families ", " family "))
+    ):
+        return "all_ages"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=event_type,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if _contains_any(blob, (" families ", " family ", " kids ", " children ")):
+        return "kids"
+    if _contains_any(blob, (" lecture ", " lectures ", " panel ", " adults ", " workshop ", " studio session ")):
+        return "adults"
+    return "unknown"
 
 
 def _should_keep_grand_rapids_event(*, title: str, description: str | None, category_text: str | None) -> bool:
@@ -1443,6 +1512,10 @@ def _parse_age_range(description: str | None) -> tuple[int | None, int | None]:
     range_match = AGE_RANGE_RE.search(text)
     if range_match:
         return int(range_match.group(1)), int(range_match.group(2))
+
+    to_adult_match = AGE_TO_ADULT_RE.search(text)
+    if to_adult_match:
+        return int(to_adult_match.group(1)), None
 
     plus_match = AGE_PLUS_RE.search(text)
     if plus_match:

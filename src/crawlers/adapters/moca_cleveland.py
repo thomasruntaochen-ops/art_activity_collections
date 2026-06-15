@@ -12,6 +12,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.adapters.oh_common import should_include_event
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -110,6 +111,11 @@ def _build_row(item: dict) -> ExtractedActivity | None:
         activity_type=infer_activity_type(title, full_description, category),
         age_min=None,
         age_max=None,
+        audience_segment=_infer_moca_cleveland_audience(
+            title=title,
+            description=full_description,
+            category=category,
+        ),
         drop_in=False,
         registration_required=bool(normalize_space(item.get("registrationLInk"))) or "registration" in (full_description or "").lower(),
         start_at=start_at,
@@ -117,6 +123,20 @@ def _build_row(item: dict) -> ExtractedActivity | None:
         timezone=NY_TIMEZONE,
         **price_classification_kwargs(price_text),
     )
+
+
+def _infer_moca_cleveland_audience(*, title: str, description: str | None, category: str | None) -> str:
+    blob = " ".join(part.lower() for part in (title, description or "", category or "") if part)
+    if "family-friendly" in blob or "family fun" in blob or title.lower().startswith("family canvas"):
+        return "all_ages"
+    if any(marker in blob for marker in ("family", "kids", "children")):
+        return "kids"
+    inferred = infer_audience_segment(title=title, description=description, category=category)
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in ("artist talk", "art therapy", "group discussion", "workshop", "art-making")):
+        return "adults"
+    return "unknown"
 
 
 def _rich_text_to_text(value) -> str:

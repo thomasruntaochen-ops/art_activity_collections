@@ -432,12 +432,15 @@ def _infer_mcnay_audience(
     age_max: int | None,
 ) -> str:
     blob = f" {' '.join(' '.join([title, description or '']).lower().split())} "
+    title_blob = f" {' '.join(title.lower().split())} "
     if any(marker in blob for marker in (" educator ", " educators ", " teacher ", " teachers ", " continuing education ")):
         return "adults"
     if any(marker in blob for marker in (" children ", " child ", " family ", " families ", " school-aged ", " storytime ")):
         return "kids"
-    if any(marker in blob for marker in (" teen ", " teens ")):
+    if any(marker in title_blob for marker in (" teen ", " teens ")):
         return "teens"
+    if any(marker in blob for marker in (" teen ", " teens ")):
+        return "teens_adults"
     inferred = infer_audience_segment(
         title=title,
         description=description,

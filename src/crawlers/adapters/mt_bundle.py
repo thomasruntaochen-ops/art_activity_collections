@@ -389,7 +389,16 @@ async def load_mt_bundle_payload(
         for venue in selected:
             try:
                 if venue.mode == "squarespace_events":
-                    payload_by_slug[venue.slug] = {"list_html": await fetch_html(venue.list_url, client=client)}
+                    list_html = await fetch_html(venue.list_url, client=client)
+                    detail_urls = _extract_squarespace_detail_urls(list_html, venue.list_url)
+                    payload_by_slug[venue.slug] = {
+                        "list_html": list_html,
+                        "detail_pages": await _fetch_detail_pages(
+                            urls=detail_urls,
+                            client=client,
+                            label=venue.slug,
+                        ),
+                    }
                 elif venue.mode == "yellowstone_schema":
                     payload_by_slug[venue.slug] = {"list_html": await fetch_html(venue.list_url, client=client)}
                 elif venue.mode == "holter_programs":
@@ -462,6 +471,7 @@ async def _load_holter_payload(*, client: httpx.AsyncClient) -> dict:
 
 def _parse_squarespace_events(payload: dict, *, venue: MtVenueConfig) -> list[ExtractedActivity]:
     html = payload.get("list_html") or ""
+    detail_pages = payload.get("detail_pages") or {}
     soup = BeautifulSoup(html, "html.parser")
     rows: list[ExtractedActivity] = []
 
@@ -471,7 +481,12 @@ def _parse_squarespace_events(payload: dict, *, venue: MtVenueConfig) -> list[Ex
             continue
 
         detail_url = urljoin(venue.list_url, item.select_one(".eventlist-title-link").get("href", ""))
-        description = clean_html_fragment(_html_from_node(item.select_one(".eventlist-description, .eventlist-excerpt")))
+        list_description = clean_html_fragment(_html_from_node(item.select_one(".eventlist-description, .eventlist-excerpt")))
+        detail_description = _extract_squarespace_detail_description(detail_pages.get(detail_url) or "")
+        description = _best_squarespace_description(
+            list_description=list_description,
+            detail_description=detail_description,
+        )
         categories = [
             normalize_space(link.get_text(" ", strip=True))
             for link in item.select(".eventlist-cats a")
@@ -486,6 +501,8 @@ def _parse_squarespace_events(payload: dict, *, venue: MtVenueConfig) -> list[Ex
 
         text_blob = join_non_empty([title, description, " | ".join(categories)])
         age_min, age_max = parse_age_range(text_blob)
+        if _blob_contains(text_blob, "all ages", "multiage", "multi-age"):
+            age_min, age_max = None, None
         price_kwargs = price_classification_kwargs(text_blob)
         location_text = normalize_space(_text_from_node(item.select_one(".eventlist-meta-address"))) or venue.default_location
         location_text = re.sub(r"\s*\(map\)$", "", location_text, flags=re.IGNORECASE)
@@ -524,6 +541,35 @@ def _parse_squarespace_events(payload: dict, *, venue: MtVenueConfig) -> list[Ex
         )
 
     return rows
+
+
+def _extract_squarespace_detail_urls(list_html: str, list_url: str) -> set[str]:
+    soup = BeautifulSoup(list_html or "", "html.parser")
+    urls: set[str] = set()
+    for link in soup.select(".eventlist-title-link[href]"):
+        url = urljoin(list_url, link.get("href", ""))
+        if url:
+            urls.add(url)
+    return urls
+
+
+def _extract_squarespace_detail_description(detail_html: str) -> str | None:
+    if not detail_html:
+        return None
+    soup = BeautifulSoup(detail_html, "html.parser")
+    node = soup.select_one(".eventitem-column-content") or soup.select_one(".sqs-layout") or soup.select_one(".eventitem")
+    if node is None:
+        return None
+    text = normalize_space(node.get_text(" ", strip=True))
+    return text or None
+
+
+def _best_squarespace_description(*, list_description: str | None, detail_description: str | None) -> str | None:
+    list_text = normalize_space(list_description)
+    detail_text = normalize_space(detail_description)
+    if detail_text and (not list_text or list_text == "." or len(detail_text) > len(list_text) * 2):
+        return detail_text
+    return list_text or detail_text
 
 
 def _parse_yellowstone_events(payload: dict, *, venue: MtVenueConfig) -> list[ExtractedActivity]:
@@ -949,6 +995,18 @@ def _infer_mt_audience(
     age_min: int | None,
     age_max: int | None,
 ) -> str:
+    category_blob = f" {' '.join(normalize_space(value).lower() for value in categories)} "
+    blob = f" {normalize_space(title).lower()} {normalize_space(description).lower()} {category_blob} "
+    if " all ages " in blob or " multi age " in blob or " multiage " in blob:
+        return "all_ages"
+    has_adult = any(marker in category_blob for marker in (" adult ", " adults "))
+    has_teen = any(marker in category_blob for marker in (" teen ", " teens "))
+    has_kids = any(marker in category_blob for marker in (" kids ", " family ", " families ", " children "))
+    if has_kids and (has_teen or has_adult):
+        return "all_ages"
+    if has_teen and has_adult:
+        return "teens_adults"
+
     if age_min is not None and age_max is not None and age_max < 18:
         if age_min >= 13:
             return "teens"
@@ -964,7 +1022,6 @@ def _infer_mt_audience(
     if segment != "unknown":
         return segment
 
-    blob = f" {normalize_space(title).lower()} {normalize_space(description).lower()} "
     if " teen council " in blob:
         return "teens"
     return "adults"

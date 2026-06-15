@@ -20,6 +20,7 @@ except ImportError:  # pragma: no cover
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -386,9 +387,10 @@ def parse_de_events(payload: dict, *, venue: DeVenueConfig) -> list[ExtractedAct
     return out
 
 
-def get_de_source_prefixes() -> tuple[str, ...]:
+def get_de_source_prefixes(venues: list[DeVenueConfig] | tuple[DeVenueConfig, ...] | None = None) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in DE_VENUES:
+    selected = list(venues) if venues is not None else list(DE_VENUES)
+    for venue in selected:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
         if venue.api_url:
@@ -435,6 +437,9 @@ def _build_delart_row(event_obj: dict, *, venue: DeVenueConfig) -> ExtractedActi
         return None
 
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
+    if " family 2nd sunday " in title_blob:
+        age_min, age_max = None, None
+    activity_type = _infer_activity_type(token_blob)
     return ExtractedActivity(
         source_url=source_url,
         title=title,
@@ -443,15 +448,24 @@ def _build_delart_row(event_obj: dict, *, venue: DeVenueConfig) -> ExtractedActi
         location_text=location_text,
         city=venue.city,
         state=venue.state,
-        activity_type=_infer_activity_type(token_blob),
+        activity_type=activity_type,
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_de_audience(
+            venue=venue,
+            title=title,
+            description=description,
+            category_text=", ".join(category_names),
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+        ),
         drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
         registration_required=_registration_required(token_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=DE_TIMEZONE,
-        **price_classification_kwargs(" ".join(part for part in [description or "", price_text] if part)),
+        **_price_kwargs_for_de_venue(venue, " ".join(part for part in [description or "", price_text] if part)),
     )
 
 
@@ -611,6 +625,57 @@ def _infer_activity_type(token_blob: str) -> str:
     ):
         return "lecture"
     return "workshop"
+
+
+def _infer_de_audience(
+    *,
+    venue: DeVenueConfig,
+    title: str,
+    description: str | None,
+    category_text: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str | None,
+) -> str:
+    blob = _searchable_blob(" ".join(part for part in [title, description or "", category_text or ""] if part))
+    if venue.slug == "delaware_art_museum":
+        if " family 2nd sunday " in blob or " all ages " in blob:
+            return "all_ages"
+        if any(marker in blob for marker in (" kids ", " children ", " child ", " family ", " families ", " preschool ")):
+            return "kids"
+        if activity_type == "lecture" or any(marker in blob for marker in (" guided discussion ", " slow art ", " curator talk ", " talk ")):
+            return "adults"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category_text,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if activity_type in {"lecture", "workshop"}:
+        return "adults"
+    return "unknown"
+
+
+def _price_kwargs_for_de_venue(venue: DeVenueConfig, text: str | None) -> dict[str, bool | None | str]:
+    blob = _searchable_blob(text or "")
+    if venue.slug == "delaware_art_museum":
+        if any(
+            marker in blob
+            for marker in (
+                " included with museum admission ",
+                " included with admission ",
+                " free for members ",
+                " free for members only ",
+                " member admission is free ",
+                " members still need to book ",
+            )
+        ):
+            return {"is_free": False, "free_verification_status": "confirmed"}
+        return price_classification_kwargs(text, default_is_free=False)
+    return price_classification_kwargs(text)
 
 
 def _registration_required(text: str) -> bool | None:

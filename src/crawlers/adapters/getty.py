@@ -7,6 +7,8 @@ from urllib.parse import urljoin
 import httpx
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 GETTY_CALENDAR_URL = (
@@ -251,7 +253,13 @@ def _rows_from_item(*, item: dict, list_url: str, current_date) -> list[Extracte
                 start_at=start_at,
                 end_at=None,
                 timezone=LA_TIMEZONE,
-                free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+                audience_segment=_infer_getty_audience(
+                    title=title,
+                    subtitle=subtitle,
+                    categories=categories,
+                    audience=audience,
+                ),
+                **price_classification_kwargs(text_blob, default_is_free=True),
             )
         )
 
@@ -271,6 +279,33 @@ def _infer_activity_type(*, title: str, subtitle: str | None, categories: list[s
     if any(keyword in blob for keyword in ("workshop", "family", "art making", "art-making", "drawing")):
         return "workshop"
     return "activity"
+
+
+def _infer_getty_audience(
+    *,
+    title: str,
+    subtitle: str | None,
+    categories: list[str],
+    audience: list[str],
+) -> str:
+    blob = " ".join([title, subtitle or "", *categories, *audience]).lower()
+    if "general-public" in blob and "family" in blob and "celebration" in blob:
+        return "all_ages"
+    if "family" in blob:
+        return "kids"
+    if any(marker in blob for marker in ("teen", "teens")):
+        return "teens"
+    inferred = infer_audience_segment(
+        title=title,
+        description=subtitle,
+        category=", ".join(categories),
+        tags=audience,
+    )
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in ("talk", "lecture", "conversation", "panel", "art-enthusiast", "general-public")):
+        return "adults"
+    return "unknown"
 
 
 def _parse_datetime(value: str) -> datetime | None:

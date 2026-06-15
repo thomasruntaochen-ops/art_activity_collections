@@ -240,7 +240,7 @@ def _build_row(event_obj: dict, *, venue: DcTribeVenueConfig) -> ExtractedActivi
     age_min, age_max = _parse_age_range(title=title, description=full_description)
     is_free, free_verification_status = infer_price_classification(
         " ".join(part for part in [cost_text, full_description] if part),
-        default_is_free=None,
+        default_is_free=True,
     )
 
     return ExtractedActivity(

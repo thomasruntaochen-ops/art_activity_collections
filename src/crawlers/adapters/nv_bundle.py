@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -235,11 +236,12 @@ class NvBundleAdapter(BaseSourceAdapter):
         raise NotImplementedError("Use load_nv_bundle_payload/parse_nv_events from the script runner.")
 
 
-def get_nv_source_prefixes() -> tuple[str, ...]:
+def get_nv_source_prefixes(venues: list[NvVenueConfig] | tuple[NvVenueConfig, ...] | None = None) -> tuple[str, ...]:
+    selected_venues = list(venues) if venues is not None else list(NV_VENUES)
     prefixes: list[str] = []
-    for venue in NV_VENUES:
+    for venue in selected_venues:
         prefixes.extend(venue.source_prefixes)
-    return tuple(prefixes)
+    return tuple(dict.fromkeys(prefixes))
 
 
 async def fetch_html(
@@ -508,7 +510,7 @@ def _parse_nevada_art_events(payload: dict, *, venue: NvVenueConfig) -> list[Ext
             if _normalize_space(button.get_text(" ", strip=True))
         ]
         text_blob = " ".join(part for part in (category, title, description, " ".join(button_texts)) if part)
-        row_kwargs = price_classification_kwargs(text_blob, default_is_free=None)
+        row_kwargs = price_classification_kwargs(text_blob, default_is_free=False)
 
         row = ExtractedActivity(
             source_url=source_url,
@@ -526,6 +528,7 @@ def _parse_nevada_art_events(payload: dict, *, venue: NvVenueConfig) -> list[Ext
             start_at=start_at,
             end_at=end_at,
             timezone=venue.timezone,
+            audience_segment=_infer_nevada_art_audience(title=title, description=description, category=category),
             **row_kwargs,
         )
 
@@ -545,6 +548,18 @@ def _build_nevada_art_description(*, description: str | None, category: str | No
     if category:
         parts.append(f"Category: {category}")
     return " | ".join(parts) if parts else None
+
+
+def _infer_nevada_art_audience(*, title: str, description: str | None, category: str | None) -> str:
+    text = _normalized_blob(category, title, description)
+    if _has_any_pattern(text, (" hands on second saturday ", " hands on art activities ", " hands-on art activities ")):
+        return "all_ages"
+    inferred = infer_audience_segment(title=title, description=description, category=category)
+    if inferred != "unknown":
+        return inferred
+    if _has_any_pattern(text, (" talks ", " talk ", " lecture ", " lectures ", " olli ")):
+        return "adults"
+    return "unknown"
 
 
 def _is_barrick_candidate(*, title: str, description: str | None) -> bool:

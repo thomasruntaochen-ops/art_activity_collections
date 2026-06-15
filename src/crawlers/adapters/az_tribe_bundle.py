@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -279,9 +280,10 @@ def parse_az_tribe_events(payload: dict, *, venue: AzTribeVenueConfig) -> list[E
     return rows
 
 
-def get_az_tribe_source_prefixes() -> tuple[str, ...]:
+def get_az_tribe_source_prefixes(venues: list[AzTribeVenueConfig] | tuple[AzTribeVenueConfig, ...] | None = None) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in AZ_TRIBE_VENUES:
+    selected = list(venues) if venues is not None else list(AZ_TRIBE_VENUES)
+    for venue in selected:
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
     return tuple(prefixes)
@@ -316,6 +318,7 @@ def _build_tribe_row(event_obj: dict, *, venue: AzTribeVenueConfig) -> Extracted
 
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
     amount = _extract_amount(event_obj.get("cost_details"))
+    activity_type = _infer_activity_type(token_blob)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -325,9 +328,18 @@ def _build_tribe_row(event_obj: dict, *, venue: AzTribeVenueConfig) -> Extracted
         location_text=location_text,
         city=venue.city,
         state=venue.state,
-        activity_type=_infer_activity_type(token_blob),
+        activity_type=activity_type,
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_az_tribe_audience(
+            venue=venue,
+            title=title,
+            description=description,
+            category_text=", ".join(category_names),
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+        ),
         drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
         registration_required=_registration_required(token_blob),
         start_at=start_at,
@@ -372,6 +384,36 @@ def _infer_activity_type(token_blob: str) -> str:
     ):
         return "lecture"
     return "workshop"
+
+
+def _infer_az_tribe_audience(
+    *,
+    venue: AzTribeVenueConfig,
+    title: str,
+    description: str | None,
+    category_text: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str | None,
+) -> str:
+    blob = _searchable_blob(" ".join(part for part in [title, description or "", category_text or ""] if part))
+    if venue.slug == "center_for_creative_photography":
+        if " open to the public " in blob:
+            return "all_ages"
+        if any(marker in blob for marker in (" lecture ", " talk ", " discussion ", " curator ")):
+            return "adults"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category_text,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if activity_type in {"lecture", "workshop"}:
+        return "adults"
+    return "unknown"
 
 
 def _registration_required(token_blob: str) -> bool | None:

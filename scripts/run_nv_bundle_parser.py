@@ -26,28 +26,27 @@ from src.models.activity import Activity, Source  # noqa: E402
 NV_SOURCE_URL_PREFIXES = get_nv_source_prefixes()
 
 
-def clear_nv_entries() -> dict[str, int]:
+def clear_nv_entries(*, venues=None) -> dict[str, int]:
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
+    selected_venues = list(venues) if venues is not None else list(NV_VENUES)
+    source_prefixes = get_nv_source_prefixes(selected_venues) or NV_SOURCE_URL_PREFIXES
 
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in NV_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in selected_venues],
         )
 
-        source_ids = db.scalars(
-            select(Source.id).where(
-                or_(
-                    Source.name.like("nv_%_events"),
-                    Source.name.in_([venue.source_name for venue in NV_VENUES]),
-                )
-            )
-        ).all()
+        source_conditions = [Source.name.in_([venue.source_name for venue in selected_venues])]
+        if len(selected_venues) == len(NV_VENUES):
+            source_conditions.append(Source.name.like("nv_%_events"))
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in NV_SOURCE_URL_PREFIXES]
+        source_ids = db.scalars(select(Source.id).where(or_(*source_conditions))).all()
+
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in source_prefixes]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -110,7 +109,7 @@ async def main() -> None:
     selected_venues = list(NV_VENUES) if args.venue == "all" else [NV_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_nv_entries()
+        deleted = clear_nv_entries(venues=selected_venues)
         print(
             "Deleted NV rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -130,7 +129,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_nv_entries()
+        deleted = clear_nv_entries(venues=selected_venues)
         print(
             "Deleted NV rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

@@ -125,6 +125,7 @@ STRICT_EXCLUDE_PATTERNS = (
     " orchestra ",
     " performance ",
     " reception ",
+    " sold out ",
     " storytime ",
     " tour ",
     " tours ",
@@ -133,6 +134,8 @@ STRICT_EXCLUDE_PATTERNS = (
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to|&#8211;)\s*(\d{1,2})\b", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|\band up\b)", re.IGNORECASE)
 AGE_AND_UNDER_RE = re.compile(r"\bages?\s*(\d{1,2})\s*and under\b", re.IGNORECASE)
+AGE_AND_OLDER_RE = re.compile(r"\bages?\s*(\d{1,2})\s*and older\b", re.IGNORECASE)
+AGE_YEARS_AND_OLDER_RE = re.compile(r"\b(\d{1,2})\s+years?\s+and\s+older\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -695,6 +698,25 @@ def _infer_va_tribe_audience(
         )
         return generic if generic != "unknown" else "adults"
 
+    if venue.slug == "taubman":
+        if age_min is not None and age_min <= 12 and age_max is None and any(
+            marker in token_blob for marker in (" families ", " caretakers ", " caregivers ", " adult attending ")
+        ):
+            return "all_ages"
+        if any(marker in token_blob for marker in (" father s day apron ", " families will decorate ", " family group ")):
+            return "all_ages"
+        if any(marker in token_blob for marker in (" children family ", " 5th grade and younger ", " ages 10 and under ")):
+            return "kids"
+        generic = infer_audience_segment(
+            title=title,
+            description=description,
+            category=category,
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        return generic if generic != "unknown" else "adults"
+
     return infer_audience_segment(
         title=title,
         description=description,
@@ -711,7 +733,7 @@ def _infer_va_tribe_price(
     amount: Decimal | None,
     price_context: str,
 ) -> tuple[bool | None, str]:
-    default_is_free = True if venue.slug == "william_king" else None
+    default_is_free = True if venue.slug in {"taubman", "william_king"} else None
     return infer_price_classification_from_amount(
         amount,
         text=price_context,
@@ -787,6 +809,12 @@ def _parse_age_range(text: str) -> tuple[int | None, int | None]:
     plus_match = AGE_PLUS_RE.search(text)
     if plus_match:
         return int(plus_match.group(1)), None
+    older_match = AGE_AND_OLDER_RE.search(text)
+    if older_match:
+        return int(older_match.group(1)), None
+    years_older_match = AGE_YEARS_AND_OLDER_RE.search(text)
+    if years_older_match:
+        return int(years_older_match.group(1)), None
     return None, None
 
 

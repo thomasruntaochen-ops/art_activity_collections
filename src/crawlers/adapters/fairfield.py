@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -249,7 +250,7 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
     price_text = " | ".join(
         part for part in [_extract_offer_price_text(event_obj.get("offers")), description] if part
     )
-    is_free, free_status = infer_price_classification(price_text)
+    is_free, free_status = infer_price_classification(price_text, default_is_free=True)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -262,6 +263,12 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
         activity_type=_infer_activity_type(title=title, description=description),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_fairfield_audience(
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         drop_in=("drop-in" in text_blob or "drop in" in text_blob),
         registration_required=_has_registration_offer(event_obj.get("offers"), text_blob=text_blob),
         start_at=start_at,
@@ -275,9 +282,6 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
 def _should_include_event(*, title: str, description: str) -> bool:
     blob = _normalize_space(f"{title} {description}").lower()
     if not blob:
-        return False
-
-    if "for adults" in blob or "adults," in blob or "adults " in blob:
         return False
 
     if ("family-friendly" in blob or "family friendly" in blob) and (" art " in f" {blob} " or " arts " in f" {blob} "):
@@ -300,6 +304,29 @@ def _infer_activity_type(*, title: str, description: str) -> str:
     if any(keyword in blob for keyword in ("lecture", "talk", "conversation", "art in focus", "gallery talk")):
         return "talk"
     return "workshop"
+
+
+def _infer_fairfield_audience(
+    *,
+    title: str,
+    description: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _normalize_space(f"{title} {description}").lower()
+    if any(marker in blob for marker in (" all ages ", " open to all ", " family-friendly ", " family friendly ")):
+        return "all_ages"
+    if any(marker in blob for marker in (" family ", " kids ", " children ", " youth ")):
+        return "kids"
+    if any(marker in blob for marker in (" teen ", " teens ", " high school ")):
+        inferred = infer_audience_segment(title=title, description=description, age_min=age_min, age_max=age_max)
+        return inferred if inferred != "unknown" else "teens"
+    inferred = infer_audience_segment(title=title, description=description, age_min=age_min, age_max=age_max)
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in (" talk ", " lecture ", " conversation ", " workshop ", " class ")):
+        return "adults"
+    return "unknown"
 
 
 def _parse_datetime(value: object) -> datetime | None:

@@ -489,6 +489,13 @@ def _infer_nc_tribe_price(
         if is_free is None and status == "uncertain":
             return False, "inferred"
         return is_free, status
+    if venue.slug == "nasher":
+        if any(marker in blob for marker in (" free admission ", " free admission for all ", " always free ")):
+            return True, "confirmed"
+        is_free, status = infer_price_classification_from_amount(amount, text=text, default_is_free=True)
+        if is_free is None and status == "uncertain":
+            return True, "inferred"
+        return is_free, status
     return infer_price_classification_from_amount(amount, text=text, default_is_free=None)
 
 
@@ -545,6 +552,8 @@ def _infer_nc_tribe_audience(
         if any(marker in blob for marker in (" family ", " children ", " kids ", " youth ")):
             return "kids"
     if venue.slug == "cameron":
+        if any(marker in blob for marker in (" educator ", " educators ", " professional development ", " curriculum ")):
+            return "adults"
         if any(
             marker in blob
             for marker in (
@@ -559,10 +568,17 @@ def _infer_nc_tribe_audience(
             )
         ):
             return "kids"
-        if any(marker in blob for marker in (" educator ", " educators ", " professional development ", " curriculum ")):
-            return "adults"
         if " community day " in blob or " all ages " in blob:
             return "all_ages"
+        if any(marker in blob for marker in (" artist talk ", " gallery talk ", " lecture ", " conversation ", " class ", " workshop ")):
+            return "adults"
+    if venue.slug == "nasher":
+        if any(marker in blob for marker in (" educator ", " educators ", " teacher ", " teachers ", " professional development ")):
+            return "adults"
+        if any(marker in blob for marker in (" all ages ", " second sunday ", " open studio ", " family day ")):
+            return "all_ages"
+        if any(marker in blob for marker in (" family ", " children ", " kids ", " youth ")):
+            return "kids"
         if any(marker in blob for marker in (" artist talk ", " gallery talk ", " lecture ", " conversation ", " class ", " workshop ")):
             return "adults"
     return infer_audience_segment(

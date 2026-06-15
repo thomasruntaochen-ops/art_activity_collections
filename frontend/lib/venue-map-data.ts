@@ -94,6 +94,19 @@ function hashString(value: string): number {
   return hash;
 }
 
+// Great-circle distance in miles between two lat/lng points. Used by the mobile
+// "near me" filter to rank/limit venues by distance from the user.
+export function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusMiles = 3958.7613;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * sinLng * sinLng;
+  return 2 * earthRadiusMiles * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
 function applyJitter(base: Coordinates, seed: string, magnitude: number): Coordinates {
   const hash = hashString(seed);
   const latOffset = (((hash % 1000) / 1000) - 0.5) * magnitude;

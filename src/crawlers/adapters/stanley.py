@@ -14,6 +14,7 @@ from src.crawlers.adapters.oh_common import fetch_html
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -135,6 +136,13 @@ def _build_row(card: BeautifulSoup) -> ExtractedActivity | None:
         activity_type=_infer_activity_type(title, description),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_stanley_audience(
+            title=title,
+            description=description,
+            meta=meta,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         drop_in=(
             "drop by" in blob
             or "drop-in" in blob
@@ -146,7 +154,7 @@ def _build_row(card: BeautifulSoup) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=STANLEY_TIMEZONE,
-        **price_classification_kwargs(description),
+        **price_classification_kwargs(description, default_is_free=True),
     )
 
 
@@ -178,6 +186,43 @@ def _infer_activity_type(title: str, description: str) -> str:
     if "class" in blob:
         return "class"
     return "workshop"
+
+
+def _infer_stanley_audience(
+    *,
+    title: str,
+    description: str,
+    meta: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {title.lower()} {description.lower()} {meta.lower()} "
+    if any(marker in blob for marker in (" all ages ", " public program ")):
+        return "all_ages"
+    if any(marker in blob for marker in (" family ", " families ", " kids ", " children's ", " school s out ", " school's out ")):
+        return "kids"
+    if any(marker in blob for marker in (" teen ", " teens ", " high school ")):
+        inferred = infer_audience_segment(
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        return inferred if inferred != "unknown" else "teens"
+
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in (" night at the museum", " university of iowa students ", " student audiences ")):
+        return "adults"
+    if any(marker in blob for marker in (" workshop ", " crafternoons ", " craft ", " calligraphy ", " embroidery ")):
+        return "adults"
+    return "unknown"
 
 
 def _parse_age_range(*parts: str | None) -> tuple[int | None, int | None]:

@@ -728,7 +728,8 @@ def _parse_hood_events(payload: dict, *, venue: NhHtmlVenueConfig) -> list[Extra
             start_at=start_at,
             end_at=end_at,
             timezone=NY_TIMEZONE,
-            **price_classification_kwargs(text_blob, default_is_free=None),
+            audience_segment=_infer_hood_audience(title=card["title"], description=description),
+            **price_classification_kwargs(text_blob, default_is_free=True),
         )
         key = (row.source_url, row.title, row.start_at)
         if key in seen:
@@ -907,6 +908,16 @@ def _infer_currier_audience(
     if inferred != "unknown":
         return inferred
     if " workshop " in blob or " class " in blob:
+        return "adults"
+    return "unknown"
+
+
+def _infer_hood_audience(*, title: str | None, description: str | None) -> str:
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    blob = f" {normalize_space(join_non_empty([title, description]) or '').lower()} "
+    if any(marker in blob for marker in (" gallery talk ", " lecture ", " seminar ", " talk ")):
         return "adults"
     return "unknown"
 

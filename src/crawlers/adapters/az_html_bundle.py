@@ -485,6 +485,7 @@ def _parse_heard_events(payload: dict, *, venue: AzHtmlVenueConfig) -> list[Extr
 
         location = _extract_heard_location(full_text)
         description = full_text
+        age_min, age_max = _parse_age_range(description)
         rows.append(
             ExtractedActivity(
                 source_url=source_url,
@@ -495,14 +496,20 @@ def _parse_heard_events(payload: dict, *, venue: AzHtmlVenueConfig) -> list[Extr
                 city=venue.city,
                 state=venue.state,
                 activity_type=_infer_activity_type(f"{title} {description}"),
-                age_min=_parse_age_range(description)[0],
-                age_max=_parse_age_range(description)[1],
+                age_min=age_min,
+                age_max=age_max,
+                audience_segment=_infer_heard_audience(
+                    title=title,
+                    description=description,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=_contains_any(description, DROP_IN_PATTERNS),
                 registration_required=_registration_required(description),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=AZ_TIMEZONE,
-                **price_classification_kwargs(description),
+                **_heard_price_kwargs(description),
             )
         )
     return rows
@@ -1062,6 +1069,69 @@ def _should_keep_event(*, title: str, description: str, page_label: str = "") ->
         return not any(pattern in token_blob for pattern in ALWAYS_REJECT_PATTERNS)
 
     return any(pattern in token_blob for pattern in WEAK_INCLUDE_PATTERNS) and " art " in token_blob
+
+
+def _heard_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    blob = _searchable_blob(text or "")
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free with admission ",
+            " free with museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " member free ",
+            " members free ",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    kwargs = price_classification_kwargs(text, default_is_free=False)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
+
+
+def _infer_heard_audience(
+    *,
+    title: str,
+    description: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _searchable_blob(" ".join([title, description]))
+    title_blob = _searchable_blob(title)
+    if " all ages " in blob:
+        return "all_ages"
+    if any(marker in title_blob for marker in (" family ", " families ", " children ", " kids ", " youth ")):
+        return "kids"
+    if any(marker in title_blob for marker in (" curator talk ", " lecture ", " talk ", " artist talk ")):
+        return "adults"
+    if " teen " in title_blob or " teens " in title_blob:
+        generic = infer_audience_segment(
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        return generic if generic != "unknown" else "teens"
+
+    if any(marker in blob for marker in (" curator talk ", " lecture ", " talk ", " artist talk ")):
+        return "adults"
+    if any(marker in blob for marker in (" family program ", " family workshop ", " children s ", " kids ")):
+        return "kids"
+
+    generic = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if generic != "unknown":
+        return generic
+    if any(marker in blob for marker in (" lecture ", " talk ", " class ", " workshop ", " artist ")):
+        return "adults"
+    return "unknown"
 
 
 def _phoenix_price_kwargs(text: str | None) -> dict[str, bool | None | str]:

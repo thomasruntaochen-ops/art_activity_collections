@@ -10,6 +10,8 @@ from urllib.request import Request
 from urllib.request import urlopen
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 AMON_CARTER_EVENTS_URL = (
@@ -78,6 +80,16 @@ FAMILY_KEYWORDS = (
     "playdate",
     "itty-bitty",
 )
+STRONG_INCLUDE_KEYWORDS = (
+    "adult workshop",
+    "carter playdate",
+    "classes & workshops",
+    "drink & draw",
+    "hands-on",
+    "itty-bitty art",
+    "make art",
+    "workshop",
+)
 EXCLUDED_KEYWORDS = (
     "guided tour",
     "tea & tours",
@@ -94,6 +106,10 @@ EXCLUDED_KEYWORDS = (
     "paper forum",
     "admission",
     "tickets",
+)
+EXCLUDED_TITLE_KEYWORDS = (
+    "midsummer mingle",
+    "quiet hours",
 )
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -228,12 +244,15 @@ def parse_amon_carter_payload(
                     card["title"],
                     card["kicker"],
                     detail_metadata["description"] or "",
+                    detail_metadata["registration_text"] or "",
                     " ".join(detail_metadata["categories"]),
                 ]
             ).lower()
-            if not _is_family_or_youth_activity(combined_text, detail_metadata["categories"]):
-                continue
-            if any(keyword in combined_text for keyword in EXCLUDED_KEYWORDS):
+            if not _should_keep_amon_carter_event(
+                title=card["title"],
+                text=combined_text,
+                categories=detail_metadata["categories"],
+            ):
                 continue
 
             start_at, end_at = _parse_listing_datetime(card["kicker"], now=reference_now)
@@ -247,6 +266,8 @@ def parse_amon_carter_payload(
             description_parts = []
             if detail_metadata["description"]:
                 description_parts.append(detail_metadata["description"])
+            if detail_metadata["registration_text"]:
+                description_parts.append(detail_metadata["registration_text"])
             if detail_metadata["categories"]:
                 description_parts.append(
                     "Categories: " + ", ".join(detail_metadata["categories"])
@@ -264,17 +285,22 @@ def parse_amon_carter_payload(
                 activity_type="workshop",
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_amon_carter_audience(
+                    title=card["title"],
+                    description=description,
+                    categories=detail_metadata["categories"],
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=("drop in" in combined_text or "drop-in" in combined_text),
                 registration_required=(
-                    ("registration" in combined_text or "register" in combined_text)
+                    ("registration" in combined_text or "register" in combined_text or "rsvp" in combined_text)
                     and "not required" not in combined_text
                 ),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=AMON_CARTER_TIMEZONE,
-                free_verification_status=(
-                    "confirmed" if "free" in combined_text else "inferred"
-                ),
+                **price_classification_kwargs(combined_text, default_is_free=True),
             )
             key = (item.source_url, item.title, item.start_at)
             if key in seen:
@@ -322,7 +348,7 @@ def _parse_listing_cards(html: str, *, list_url: str) -> list[dict[str, str]]:
 
 def _parse_detail_metadata(html: str | None) -> dict[str, object]:
     if not html:
-        return {"description": None, "categories": []}
+        return {"description": None, "registration_text": None, "categories": []}
 
     description_match = META_DESCRIPTION_RE.search(html)
     description = (
@@ -349,7 +375,13 @@ def _parse_detail_metadata(html: str | None) -> dict[str, object]:
                         if _normalize_html_text(value)
                     ]
 
-    return {"description": description, "categories": categories}
+    registration_text = _extract_event_registration_text(html)
+
+    return {
+        "description": description,
+        "registration_text": registration_text,
+        "categories": categories,
+    }
 
 
 def _normalize_html_text(value: str | None) -> str:
@@ -364,6 +396,69 @@ def _is_family_or_youth_activity(text: str, categories: list[str]) -> bool:
     if "for families" in category_blob:
         return True
     return any(keyword in text for keyword in FAMILY_KEYWORDS)
+
+
+def _should_keep_amon_carter_event(
+    *,
+    title: str,
+    text: str,
+    categories: list[str],
+) -> bool:
+    title_blob = title.lower()
+    if any(keyword in title_blob for keyword in EXCLUDED_TITLE_KEYWORDS):
+        return False
+
+    strong_include = any(keyword in text for keyword in STRONG_INCLUDE_KEYWORDS)
+    family_include = _is_family_or_youth_activity(text, categories)
+    if not strong_include and not family_include:
+        return False
+
+    if any(keyword in text for keyword in EXCLUDED_KEYWORDS) and not strong_include:
+        return False
+    return True
+
+
+def _infer_amon_carter_audience(
+    *,
+    title: str,
+    description: str | None,
+    categories: list[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    category_blob = " ".join(categories).lower()
+    if "for adults" in category_blob and "for families" in category_blob:
+        return "all_ages"
+    if "for adults" in category_blob:
+        return "adults"
+    if "for families" in category_blob:
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category_blob,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "adults" if "workshop" in f" {title.lower()} " else "unknown"
+
+
+def _extract_event_registration_text(html: str) -> str | None:
+    text = _normalize_html_text(html)
+    marker = "Event Registration"
+    if marker not in text:
+        return None
+    after_marker = text.split(marker, 1)[1].strip()
+    for stop in ("Event Description", "Event Location", "Share This"):
+        if stop in after_marker:
+            after_marker = after_marker.split(stop, 1)[0].strip()
+            break
+    for script_marker in (" var clientId ", " window.EBWidgets", " if (typeof ga"):
+        if script_marker in after_marker:
+            after_marker = after_marker.split(script_marker, 1)[0].strip()
+    return after_marker or None
 
 
 def _parse_listing_datetime(

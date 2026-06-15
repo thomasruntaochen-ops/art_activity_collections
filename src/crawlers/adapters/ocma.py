@@ -8,9 +8,11 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
-OCMA_CALENDAR_URL = "https://ocma.art/calendar/"
+OCMA_CALENDAR_URL = "https://langson.uci.edu/calendar/"
 
 LA_TIMEZONE = "America/Los_Angeles"
 OCMA_VENUE_NAME = "Orange County Museum of Art"
@@ -20,11 +22,16 @@ OCMA_DEFAULT_LOCATION = "Costa Mesa, CA"
 
 DATE_PREFIX_RE = re.compile(r"^(?P<date>[A-Za-z]+\s+\d{1,2},\s+\d{4}),\s*(?P<time>.+)$")
 TIME_RANGE_RE = re.compile(
-    r"(?P<start_hour>\d{1,2}):(?P<start_minute>\d{2})\s*(?P<start_meridiem>AM|PM)?\s*(?:-|–|—|to)\s*"
-    r"(?P<end_hour>\d{1,2}):(?P<end_minute>\d{2})\s*(?P<end_meridiem>AM|PM)",
+    r"(?P<start_hour>\d{1,2})(?::(?P<start_minute>\d{2}))?\s*"
+    r"(?P<start_meridiem>a\.?m\.?|p\.?m\.?|AM|PM)?\s*(?:-|–|—|to)\s*"
+    r"(?P<end_hour>\d{1,2})(?::(?P<end_minute>\d{2}))?\s*"
+    r"(?P<end_meridiem>a\.?m\.?|p\.?m\.?|AM|PM)",
     re.IGNORECASE,
 )
-TIME_SINGLE_RE = re.compile(r"(?P<hour>\d{1,2}):(?P<minute>\d{2})\s*(?P<meridiem>AM|PM)", re.IGNORECASE)
+TIME_SINGLE_RE = re.compile(
+    r"(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<meridiem>a\.?m\.?|p\.?m\.?|AM|PM)",
+    re.IGNORECASE,
+)
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
 AGE_PAREN_RANGE_RE = re.compile(r"\((?:ages?\s*)?(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\)", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE)
@@ -37,7 +44,7 @@ DEFAULT_HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://ocma.art/",
+    "Referer": "https://langson.uci.edu/",
 }
 
 EXCLUDED_KEYWORDS = (
@@ -51,6 +58,9 @@ EXCLUDED_KEYWORDS = (
     "admission",
     "exhibition",
     "film",
+    "happy hour",
+    "member",
+    "opening",
     "tv",
     "reading",
     "writing",
@@ -197,12 +207,102 @@ def parse_ocma_events_html(
                 activity_type=_infer_activity_type(title=title, category=category),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_ocma_audience(
+                    title=title,
+                    category=category,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=("drop-in" in text_blob or "drop in" in text_blob),
                 registration_required=("registration" in text_blob and "not required" not in text_blob),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=LA_TIMEZONE,
-                free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+                **_ocma_price_kwargs(text_blob),
+            )
+        )
+
+    if rows:
+        return rows
+
+    return _parse_langson_calendar_events(soup=soup, list_url=list_url, current_date=current_date)
+
+
+def _parse_langson_calendar_events(
+    *,
+    soup: BeautifulSoup,
+    list_url: str,
+    current_date,
+) -> list[ExtractedActivity]:
+    rows: list[ExtractedActivity] = []
+    seen: set[tuple[str, str, datetime]] = set()
+
+    for card in soup.select(".uabb-blog-posts-shadow"):
+        title_link = card.select_one("h3.uabb-post-heading a[href]")
+        if title_link is None:
+            continue
+        title = _normalize_text(title_link.get_text(" ", strip=True))
+        source_url = urljoin(list_url, title_link.get("href", ""))
+        lines = [_normalize_space(text) for text in card.get_text("\n").splitlines() if _normalize_space(text)]
+        if not title or not source_url or title not in lines:
+            continue
+        title_index = lines.index(title)
+        category = _normalize_text(lines[title_index - 1] if title_index > 0 else "")
+        datetime_text = _normalize_text(lines[title_index + 1] if title_index + 1 < len(lines) else "")
+        if not datetime_text:
+            continue
+        if is_irrelevant_item_text(title):
+            continue
+        if _should_exclude_event(title=title, category=category):
+            continue
+        if not _should_include_event(title=title, category=category):
+            continue
+
+        start_at, end_at = _parse_langson_datetimes(datetime_text)
+        if start_at is None:
+            continue
+        last_date = end_at.date() if end_at is not None else start_at.date()
+        if last_date < current_date:
+            continue
+
+        age_min, age_max = _parse_age_range(title=title, category=category)
+        text_blob = " ".join([title, category or "", datetime_text]).lower()
+        key = (source_url, title, start_at)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        rows.append(
+            ExtractedActivity(
+                source_url=source_url,
+                title=title,
+                description=" | ".join(
+                    part
+                    for part in [
+                        f"Category: {category}" if category else "",
+                        f"Schedule: {datetime_text}",
+                    ]
+                    if part
+                ),
+                venue_name=OCMA_VENUE_NAME,
+                location_text=OCMA_DEFAULT_LOCATION,
+                city=OCMA_CITY,
+                state=OCMA_STATE,
+                activity_type=_infer_activity_type(title=title, category=category),
+                age_min=age_min,
+                age_max=age_max,
+                audience_segment=_infer_ocma_audience(
+                    title=title,
+                    category=category,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
+                drop_in=("drop-in" in text_blob or "drop in" in text_blob or "make" in text_blob),
+                registration_required=("registration" in text_blob and "not required" not in text_blob),
+                start_at=start_at,
+                end_at=end_at,
+                timezone=LA_TIMEZONE,
+                **_ocma_price_kwargs(text_blob),
             )
         )
 
@@ -248,12 +348,12 @@ def _parse_card_datetimes(value: str) -> tuple[datetime | None, datetime | None]
         start_meridiem = range_match.group("start_meridiem") or range_match.group("end_meridiem")
         start_hour, start_minute = _to_24h(
             int(range_match.group("start_hour")),
-            int(range_match.group("start_minute")),
+            int(range_match.group("start_minute") or 0),
             start_meridiem,
         )
         end_hour, end_minute = _to_24h(
             int(range_match.group("end_hour")),
-            int(range_match.group("end_minute")),
+            int(range_match.group("end_minute") or 0),
             range_match.group("end_meridiem"),
         )
         return (
@@ -265,7 +365,7 @@ def _parse_card_datetimes(value: str) -> tuple[datetime | None, datetime | None]
     if single_match:
         hour, minute = _to_24h(
             int(single_match.group("hour")),
-            int(single_match.group("minute")),
+            int(single_match.group("minute") or 0),
             single_match.group("meridiem"),
         )
         return day.replace(hour=hour, minute=minute, second=0, microsecond=0), None
@@ -273,10 +373,45 @@ def _parse_card_datetimes(value: str) -> tuple[datetime | None, datetime | None]
     return day, None
 
 
-def _to_24h(hour: int, minute: int, meridiem: str | None) -> tuple[int, int]:
+def _parse_langson_datetimes(value: str) -> tuple[datetime | None, datetime | None]:
+    text = _normalize_space(value).replace("–", "-").replace("—", "-")
+    match = re.match(
+        r"^(?P<month>[A-Za-z]+)\s+(?P<start_day>\d{1,2})"
+        r"(?:\s*-\s*(?P<end_day>\d{1,2}))?,\s*(?P<year>\d{4}),\s*(?P<time>.+)$",
+        text,
+    )
+    if not match:
+        return _parse_card_datetimes(value)
+
+    start_date_text = f"{match.group('month')} {match.group('start_day')}, {match.group('year')}"
+    try:
+        start_day = datetime.strptime(start_date_text, "%B %d, %Y")
+    except ValueError:
+        return None, None
+
+    start_at, end_at = _parse_card_datetimes(f"{start_date_text}, {match.group('time')}")
+    if start_at is None:
+        return None, None
+
+    end_day_text = match.group("end_day")
+    if end_day_text and end_at is not None:
+        try:
+            end_day = datetime.strptime(
+                f"{match.group('month')} {end_day_text}, {match.group('year')}",
+                "%B %d, %Y",
+            )
+        except ValueError:
+            return start_at, end_at
+        end_at = end_day.replace(hour=end_at.hour, minute=end_at.minute, second=0, microsecond=0)
+
+    return start_at, end_at
+
+
+def _to_24h(hour: int, minute: int | None, meridiem: str | None) -> tuple[int, int]:
+    minute = minute or 0
     if not meridiem:
         return hour, minute
-    suffix = meridiem.lower()
+    suffix = meridiem.lower().replace(".", "")
     if suffix == "pm" and hour != 12:
         hour += 12
     if suffix == "am" and hour == 12:
@@ -296,6 +431,33 @@ def _parse_age_range(*, title: str, category: str | None) -> tuple[int | None, i
         return int(plus_match.group(1)), None
 
     return None, None
+
+
+def _infer_ocma_audience(
+    *,
+    title: str,
+    category: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {title.lower()} {category.lower() if category else ''} "
+    if title.lower().startswith("make:") or " make " in blob or " all ages " in blob:
+        return "all_ages"
+    if any(marker in blob for marker in (" family ", " youth ", " kids ", " children ")):
+        return "kids"
+    if any(marker in blob for marker in (" teen ", " teens ")):
+        inferred = infer_audience_segment(title=title, category=category, age_min=age_min, age_max=age_max)
+        return inferred if inferred != "unknown" else "teens"
+    inferred = infer_audience_segment(title=title, category=category, age_min=age_min, age_max=age_max)
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in (" public program ", " talk ", " lecture ", " conversation ", " workshop ")):
+        return "adults"
+    return "unknown"
+
+
+def _ocma_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    return price_classification_kwargs(text, default_is_free=True)
 
 
 def _normalize_space(text: str) -> str:

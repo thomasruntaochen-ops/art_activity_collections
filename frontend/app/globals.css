@@ -802,6 +802,143 @@ a {
   transform: translateY(-1px);
 }
 
+/* Mobile-only controls: hidden on desktop, revealed in the <=980px media query. */
+.explorer-locate,
+.detail-directions {
+  display: none;
+}
+
+.detail-directions {
+  position: relative;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-directions__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(118, 138, 168, 0.22);
+  border-radius: 999px;
+  background: rgba(26, 115, 232, 0.1);
+  color: #175ec2;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.detail-directions__menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* "View activities" link inside a venue map popup. */
+.venue-map__summary-body {
+  display: grid;
+  gap: 4px;
+}
+
+.venue-map__summary-link {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #1a73e8;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+
+.venue-map__summary-link:hover {
+  background: #155ec2;
+}
+
+/* "Near me" range dialog (opened from the mobile locate button). */
+.location-dialog {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 1200;
+  display: grid;
+  gap: 12px;
+  width: min(360px, calc(100vw - 36px));
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--paper-strong);
+  box-shadow: 0 28px 60px rgba(58, 42, 24, 0.28);
+  transform: translate(-50%, -50%);
+}
+
+.location-dialog__title {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: 1.25rem;
+}
+
+.location-dialog__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.location-dialog__options {
+  display: grid;
+  gap: 10px;
+}
+
+.location-range {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 50px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.location-range.is-active {
+  border-color: rgba(26, 115, 232, 0.5);
+  background: rgba(26, 115, 232, 0.12);
+  color: #175ec2;
+}
+
+.location-dialog__clear {
+  justify-self: start;
+  padding: 8px 4px;
+  background: transparent;
+  color: var(--gold-deep);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.explorer-sidebar__nearby {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #175ec2;
+}
+
+.explorer-sidebar__nearby button {
+  padding: 2px 4px;
+  background: transparent;
+  color: var(--gold-deep);
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .explorer-detail__section h3 {
   margin: 0;
   font-size: 1.1rem;
@@ -1075,6 +1212,44 @@ a {
   .explorer-brand {
     font-size: 1.35rem;
     line-height: 1.1;
+  }
+
+  /* Search box flexes; the locate button sits beside it on the same row. */
+  .explorer-headersearch {
+    gap: 8px;
+  }
+
+  .explorer-headersearch .explorer-search {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .explorer-locate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.62);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    color: var(--ink);
+    font-size: 1.3rem;
+    cursor: pointer;
+  }
+
+  .explorer-locate.is-active {
+    border-color: rgba(26, 115, 232, 0.4);
+    background: rgba(26, 115, 232, 0.12);
+    color: #175ec2;
+  }
+
+  /* Directions button + map-app links under the venue name. */
+  .detail-directions {
+    display: flex;
   }
 
   .explorer-content {

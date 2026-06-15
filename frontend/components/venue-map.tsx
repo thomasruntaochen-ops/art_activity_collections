@@ -14,6 +14,10 @@ type Props = {
   // True while the mobile full-screen overlay shows the map. Used to force a
   // Leaflet resize when the container goes from hidden to full-screen.
   active?: boolean;
+  // The user's resolved geolocation, drawn as a distinct "you are here" marker.
+  userLocation?: { lat: number; lng: number } | null;
+  // Invoked from a venue popup link to jump back to that venue's activities.
+  onViewVenueActivities?: (venueName: string) => void;
 };
 
 // When a venue is selected we nudge in to this zoom instead of diving all the way
@@ -58,7 +62,36 @@ function buildVenueSummaryHtml(venue: ResolvedVenueCoordinates): string {
     .join("");
 }
 
-export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenue, onResetView, active }: Props) {
+// Build the selected venue's popup as a real DOM node (not an HTML string) so we
+// can wire a click handler onto the "view activities" link.
+function buildVenueSummaryPopup(
+  venue: ResolvedVenueCoordinates,
+  onViewVenueActivities?: (venueName: string) => void,
+): HTMLElement {
+  const container = document.createElement("div");
+  container.className = "venue-map__summary-body";
+  container.innerHTML = buildVenueSummaryHtml(venue);
+  if (onViewVenueActivities) {
+    const link = document.createElement("button");
+    link.type = "button";
+    link.className = "venue-map__summary-link";
+    link.textContent = "View activities →";
+    link.addEventListener("click", () => onViewVenueActivities(venue.venue_name));
+    container.appendChild(link);
+  }
+  return container;
+}
+
+export function VenueMap({
+  venues,
+  selectedVenueName,
+  viewportMode,
+  onSelectVenue,
+  onResetView,
+  active,
+  userLocation,
+  onViewVenueActivities,
+}: Props) {
   const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<LayerGroup | null>(null);
@@ -242,7 +275,7 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
       });
 
       if (isSelected) {
-        marker.bindPopup(buildVenueSummaryHtml(venue), {
+        marker.bindPopup(buildVenueSummaryPopup(venue, onViewVenueActivities), {
           className: "venue-map__summary",
           offset: [0, -8],
           autoPan: false,
@@ -276,8 +309,35 @@ export function VenueMap({ venues, selectedVenueName, viewportMode, onSelectVenu
       }
     });
 
+    // "You are here" marker: a translucent accuracy ring under a solid blue dot.
+    if (userLocation) {
+      const ring = L.circleMarker([userLocation.lat, userLocation.lng], {
+        radius: 16,
+        color: "rgba(26, 115, 232, 0.18)",
+        fillColor: "rgba(26, 115, 232, 0.18)",
+        fillOpacity: 0.4,
+        weight: 0,
+        interactive: false,
+      });
+      const dot = L.circleMarker([userLocation.lat, userLocation.lng], {
+        radius: 7,
+        color: "#ffffff",
+        fillColor: SELECTED_ACCENT,
+        fillOpacity: 1,
+        weight: 3,
+      });
+      dot.bindTooltip("Your location", {
+        direction: "top",
+        offset: [0, -10],
+        opacity: 0.98,
+        className: "venue-map__tooltip",
+      });
+      ring.addTo(layerGroup);
+      dot.addTo(layerGroup);
+    }
+
     applyView();
-  }, [applyView, onSelectVenue, resolvedVenues, selectedVenueName, viewportMode]);
+  }, [applyView, onSelectVenue, onViewVenueActivities, resolvedVenues, selectedVenueName, userLocation, viewportMode]);
 
   // The mobile overlay reveals the map by switching its container from
   // `display: none` to full-screen. Recompute size and re-run the view math we

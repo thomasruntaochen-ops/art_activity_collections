@@ -2,14 +2,19 @@
 
 import type { CSSProperties } from "react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityTable } from "../components/activity-table";
 import { fetchActivities, fetchFilterOptions, fetchVenueSummaries } from "../lib/api";
 import { getVenueMedia } from "../lib/venue-media";
+import { haversineMiles, resolveVenueCoordinates } from "../lib/venue-map-data";
 import type { Activity, AudienceSegment, VenueSummary } from "../lib/types";
 
 type MapViewportMode = "fit" | "focus" | "usa";
 type ViewMode = "map" | "table";
+type UserLocation = { lat: number; lng: number };
+
+// "Near me" distance choices (miles) offered in the mobile location dialog.
+const LOCATION_RANGES = [10, 25, 50];
 
 const AUDIENCE_OPTIONS: { value: "" | AudienceSegment; label: string }[] = [
   { value: "", label: "All audiences" },
@@ -87,6 +92,21 @@ function formatVenueLine(venue: VenueSummary | null): string {
   return parts.join(", ") || "Location pending";
 }
 
+// Build Google/Apple Maps directions URLs for a venue. Prefer stored
+// coordinates for accuracy; otherwise fall back to a human-readable address
+// query so the maps app can geocode it.
+function buildDirectionsTargets(venue: VenueSummary): { google: string; apple: string } {
+  const hasCoords = venue.venue_lat != null && venue.venue_lng != null;
+  const cityStateZip = [venue.venue_city, venue.venue_state, venue.venue_zip].filter(Boolean).join(" ");
+  const addressQuery = [venue.venue_name, venue.venue_address, cityStateZip].filter(Boolean).join(", ");
+  const destination = hasCoords ? `${venue.venue_lat},${venue.venue_lng}` : addressQuery;
+  const encoded = encodeURIComponent(destination);
+  return {
+    google: `https://www.google.com/maps/dir/?api=1&destination=${encoded}`,
+    apple: `https://maps.apple.com/?daddr=${encoded}`,
+  };
+}
+
 function buildVenueCardStyle(seed: string, imageUrl?: string | null): CSSProperties {
   const hue = hashString(seed) % 360;
   const secondaryHue = (hue + 42) % 360;
@@ -142,6 +162,13 @@ export default function HomePage() {
   const [mapViewportMode, setMapViewportMode] = useState<MapViewportMode>("fit");
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [directionsOpen, setDirectionsOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [locationRange, setLocationRange] = useState<number | null>(null);
+  const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const detailRef = useRef<HTMLElement | null>(null);
   const dateFromIso = useMemo(() => toStartOfDayIso(dateFrom), [dateFrom]);
   const dateToIso = useMemo(() => toEndOfDayIso(dateTo), [dateTo]);
 
@@ -164,14 +191,15 @@ export default function HomePage() {
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }, [viewMode]);
 
-  // Lock background scroll while a mobile overlay (map or filters) is open.
+  // Lock background scroll while a mobile overlay (map, filters, or the
+  // location dialog) is open.
   useEffect(() => {
     if (typeof document === "undefined") return;
-    document.body.style.overflow = isMapOpen || isFiltersOpen ? "hidden" : "";
+    document.body.style.overflow = isMapOpen || isFiltersOpen || isLocationDialogOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isMapOpen, isFiltersOpen]);
+  }, [isMapOpen, isFiltersOpen, isLocationDialogOpen]);
 
   // Let Esc and the device Back gesture close the full-screen mobile map overlay
   // instead of navigating away from the page.
@@ -307,7 +335,7 @@ export default function HomePage() {
 
   const filteredVenues = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
-    return dedupedVenues.filter((venue) => {
+    const matches = dedupedVenues.filter((venue) => {
       const searchText = [venue.venue_name, venue.venue_city, venue.venue_state]
         .filter(Boolean)
         .join(" ")
@@ -315,11 +343,33 @@ export default function HomePage() {
       const matchesSearch = query ? searchText.includes(query) : true;
       return matchesSearch;
     });
-  }, [searchValue, dedupedVenues]);
+
+    // "Near me": keep venues within the chosen radius of the user and order them
+    // closest-first. Venues without stored coordinates fall back to their
+    // city/state centroid via resolveVenueCoordinates.
+    if (userLocation && locationRange) {
+      return matches
+        .map((venue) => {
+          const resolved = resolveVenueCoordinates(venue);
+          const distance = haversineMiles(
+            userLocation.lat,
+            userLocation.lng,
+            resolved.resolvedLat,
+            resolved.resolvedLng,
+          );
+          return { venue, distance };
+        })
+        .filter((entry) => entry.distance <= locationRange)
+        .sort((a, b) => a.distance - b.distance)
+        .map((entry) => entry.venue);
+    }
+
+    return matches;
+  }, [searchValue, dedupedVenues, userLocation, locationRange]);
 
   useEffect(() => {
     setMapViewportMode("fit");
-  }, [selectedState, selectedCity, searchValue, dateFromIso, dateToIso, freeOnly, audienceFilter]);
+  }, [selectedState, selectedCity, searchValue, dateFromIso, dateToIso, freeOnly, audienceFilter, locationRange]);
 
   useEffect(() => {
     if (filteredVenues.length === 0) {
@@ -341,6 +391,70 @@ export default function HomePage() {
   const handleResetMapView = useCallback(() => {
     setMapViewportMode("usa");
   }, []);
+
+  const requestLocation = useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationError("Location isn't available on this device.");
+      return;
+    }
+    setLocationLoading(true);
+    setLocationError("");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setLocationLoading(false);
+      },
+      () => {
+        setLocationError("We couldn't access your location. Check permissions and try again.");
+        setLocationLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  }, []);
+
+  const handleLocateClick = useCallback(() => {
+    setIsLocationDialogOpen(true);
+    if (!userLocation) {
+      requestLocation();
+    }
+  }, [requestLocation, userLocation]);
+
+  const handlePickRange = useCallback(
+    (range: number) => {
+      setLocationRange(range);
+      setIsLocationDialogOpen(false);
+      if (!userLocation && !locationLoading) {
+        requestLocation();
+      }
+    },
+    [locationLoading, requestLocation, userLocation],
+  );
+
+  const clearLocationFilter = useCallback(() => {
+    setLocationRange(null);
+    setIsLocationDialogOpen(false);
+  }, []);
+
+  // From a map popup: close the map, select the venue, and bring its card +
+  // activities into view in the explorer below.
+  const handleViewVenueActivities = useCallback((venueName: string) => {
+    setSelectedVenueName(venueName);
+    setMapViewportMode("focus");
+    setIsMapOpen(false);
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        document
+          .querySelector(".venue-card.is-active")
+          ?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+        detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+    }
+  }, []);
+
+  // Collapse the directions menu whenever the selected venue changes.
+  useEffect(() => {
+    setDirectionsOpen(false);
+  }, [selectedVenueName]);
 
   const selectedVenue = useMemo(
     () => filteredVenues.find((venue) => venue.venue_name === selectedVenueName) ?? null,
@@ -448,6 +562,10 @@ export default function HomePage() {
   }
 
   const selectedLocation = formatVenueLine(selectedVenue);
+  const directionsTargets = useMemo(
+    () => (selectedVenue ? buildDirectionsTargets(selectedVenue) : null),
+    [selectedVenue],
+  );
   const advancedFilterCount =
     (selectedState ? 1 : 0) + (selectedCity ? 1 : 0) + (audienceFilter ? 1 : 0) + (freeOnly ? 1 : 0);
   const activitySummary = useMemo(() => {
@@ -494,15 +612,26 @@ export default function HomePage() {
         <div className="explorer-brand">Art Museum Activities Explorer</div>
         <div className="explorer-headersearch">
           {viewMode === "map" ? (
-            <label className="explorer-search">
-              <span className="sr-only">Search venues</span>
-              <input
-                type="search"
-                value={searchValue}
-                onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Search museums or cities..."
-              />
-            </label>
+            <>
+              <label className="explorer-search">
+                <span className="sr-only">Search venues</span>
+                <input
+                  type="search"
+                  value={searchValue}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  placeholder="Search museums or cities..."
+                />
+              </label>
+              <button
+                type="button"
+                className={`explorer-locate${locationRange ? " is-active" : ""}`}
+                onClick={handleLocateClick}
+                aria-label="Find museums near me"
+                title="Find museums near me"
+              >
+                <span aria-hidden="true">◎</span>
+              </button>
+            </>
           ) : (
             <div className="explorer-toolbar__note">
               Switch between the live venue map and a detailed activity table without leaving the page.
@@ -610,12 +739,54 @@ export default function HomePage() {
         <div className="sheet-backdrop" onClick={() => setIsFiltersOpen(false)} aria-hidden="true" />
       ) : null}
 
+      {isLocationDialogOpen ? (
+        <>
+          <div className="sheet-backdrop" onClick={() => setIsLocationDialogOpen(false)} aria-hidden="true" />
+          <div className="location-dialog" role="dialog" aria-modal="true" aria-label="Museums near me">
+            <p className="location-dialog__title">Museums near me</p>
+            <p className="location-dialog__hint">Show museums within this distance, closest first.</p>
+            {locationError ? <p className="status-note is-error">{locationError}</p> : null}
+            {locationLoading ? <p className="status-note">Finding your location…</p> : null}
+            <div className="location-dialog__options">
+              {LOCATION_RANGES.map((range) => (
+                <button
+                  key={range}
+                  type="button"
+                  className={`location-range${locationRange === range ? " is-active" : ""}`}
+                  onClick={() => handlePickRange(range)}
+                >
+                  <span>Within {range} mi</span>
+                  <span aria-hidden="true">›</span>
+                </button>
+              ))}
+            </div>
+            {locationRange ? (
+              <button type="button" className="location-dialog__clear" onClick={clearLocationFilter}>
+                Clear distance filter
+              </button>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+
       {viewMode === "map" ? (
       <section className="explorer-content">
         <aside className="explorer-sidebar">
           <div className="explorer-sidebar__heading">
             <h1>Venue Explorer</h1>
             <p>Museums with active art programs</p>
+            {locationRange ? (
+              <span className="explorer-sidebar__nearby">
+                {userLocation
+                  ? `Nearest first · within ${locationRange} mi`
+                  : locationError
+                    ? "Location unavailable"
+                    : `Locating you · within ${locationRange} mi`}
+                <button type="button" onClick={clearLocationFilter}>
+                  Clear
+                </button>
+              </span>
+            ) : null}
           </div>
 
           <div className="explorer-sidebar__list">
@@ -651,10 +822,42 @@ export default function HomePage() {
           </div>
         </aside>
 
-        <aside className="explorer-detail">
+        <aside className="explorer-detail" ref={detailRef}>
           <p className="eyebrow">Venue Activities</p>
           <h2>{selectedVenue?.venue_name ?? "Select a museum"}</h2>
           <p className="explorer-detail__location">{selectedLocation}</p>
+          {selectedVenue && directionsTargets ? (
+            <div className="detail-directions">
+              <button
+                type="button"
+                className="detail-directions__trigger"
+                onClick={() => setDirectionsOpen((open) => !open)}
+                aria-expanded={directionsOpen}
+              >
+                <span aria-hidden="true">🧭</span> Directions
+              </button>
+              {directionsOpen ? (
+                <div className="detail-directions__menu">
+                  <a
+                    className="directions-link"
+                    href={directionsTargets.google}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Google Maps
+                  </a>
+                  <a
+                    className="directions-link"
+                    href={directionsTargets.apple}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Apple Maps
+                  </a>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {selectedVenue ? (
             <p className="explorer-detail__summary">
               <span>{activitySummary.total} total</span>
@@ -725,6 +928,8 @@ export default function HomePage() {
                 onSelectVenue={handleSelectVenue}
                 onResetView={handleResetMapView}
                 active={isMapOpen}
+                userLocation={userLocation}
+                onViewVenueActivities={handleViewVenueActivities}
               />
             </div>
           </div>
