@@ -394,7 +394,14 @@ export default function HomePage() {
 
   const requestLocation = useCallback(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocationError("Location isn't available on this device.");
+      setLocationError("Location isn't supported by this browser.");
+      return;
+    }
+    // Browsers only expose geolocation in a secure context (HTTPS or localhost).
+    // Over a plain-HTTP LAN address (e.g. http://192.168.x.x:3000 on a phone) the
+    // call just fails, so flag that up front instead of showing a vague error.
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      setLocationError("Location needs a secure connection — open this site over HTTPS (or on localhost).");
       return;
     }
     setLocationLoading(true);
@@ -404,8 +411,16 @@ export default function HomePage() {
         setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
         setLocationLoading(false);
       },
-      () => {
-        setLocationError("We couldn't access your location. Check permissions and try again.");
+      (error) => {
+        const message =
+          error.code === error.PERMISSION_DENIED
+            ? "Location permission was denied. Enable it for this site in your browser settings, then try again."
+            : error.code === error.POSITION_UNAVAILABLE
+              ? "Your location is unavailable right now. Try again in a moment."
+              : error.code === error.TIMEOUT
+                ? "Finding your location timed out. Try again."
+                : "We couldn't access your location. Check permissions and try again.";
+        setLocationError(message);
         setLocationLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
@@ -455,6 +470,15 @@ export default function HomePage() {
   useEffect(() => {
     setDirectionsOpen(false);
   }, [selectedVenueName]);
+
+  // Try to locate the user when the map opens so the "you are here" marker can
+  // appear without an explicit tap on the locate button. Guards prevent
+  // re-prompting once we have a fix, are mid-request, or already errored.
+  useEffect(() => {
+    if (isMapOpen && !userLocation && !locationLoading && !locationError) {
+      requestLocation();
+    }
+  }, [isMapOpen, userLocation, locationLoading, locationError, requestLocation]);
 
   const selectedVenue = useMemo(
     () => filteredVenues.find((venue) => venue.venue_name === selectedVenueName) ?? null,

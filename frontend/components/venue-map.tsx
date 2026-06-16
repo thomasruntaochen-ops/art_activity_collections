@@ -274,21 +274,21 @@ export function VenueMap({
         weight: isSelected ? 2.5 : 1.25,
       });
 
-      if (isSelected) {
-        marker.bindPopup(buildVenueSummaryPopup(venue, onViewVenueActivities), {
-          className: "venue-map__summary",
-          offset: [0, -8],
-          autoPan: false,
-          closeButton: true,
-        });
-      } else {
-        marker.bindTooltip(escapeHtml(venue.venue_name), {
-          direction: "top",
-          offset: [0, -10],
-          opacity: 0.98,
-          className: "venue-map__tooltip",
-        });
-      }
+      // Every marker carries its own summary popup (with a "View activities"
+      // link) plus a name tooltip, so tapping a dot always shows that venue's
+      // info — never a stale/previously-selected one.
+      marker.bindPopup(buildVenueSummaryPopup(venue, onViewVenueActivities), {
+        className: "venue-map__summary",
+        offset: [0, -8],
+        autoPan: false,
+        closeButton: true,
+      });
+      marker.bindTooltip(escapeHtml(venue.venue_name), {
+        direction: "top",
+        offset: [0, -10],
+        opacity: 0.98,
+        className: "venue-map__tooltip",
+      });
 
       marker.on("click", () => {
         onSelectVenue(venue.venue_name);
