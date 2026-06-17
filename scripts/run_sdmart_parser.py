@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.crawlers.adapters.sdmart import SDMART_EVENTS_URL  # noqa: E402
 from src.crawlers.adapters.sdmart import fetch_sdmart_events_page  # noqa: E402
+from src.crawlers.adapters.sdmart import load_sdmart_details  # noqa: E402
 from src.crawlers.adapters.sdmart import parse_sdmart_events_html  # noqa: E402
 from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
 from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
@@ -233,8 +234,14 @@ async def main() -> None:
         )
         clear_completed = True
 
+    detail_html_by_url = await load_sdmart_details(html, list_url=args.url)
+
     def _parse_html(payload: str):
-        parsed = parse_sdmart_events_html(html=payload, list_url=args.url)
+        parsed = parse_sdmart_events_html(
+            html=payload,
+            list_url=args.url,
+            detail_html_by_url=detail_html_by_url,
+        )
         parsed.sort(key=lambda row: (row.start_at, row.title, row.source_url))
         return parsed
 

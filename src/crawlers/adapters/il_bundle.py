@@ -121,6 +121,8 @@ SOFT_REJECT_PATTERNS = (
     " member preview ",
     " members only ",
     " reception ",
+    " recorrido ",
+    " recorridos ",
     " tour ",
     " tours ",
 )
@@ -146,6 +148,7 @@ REGISTRATION_PATTERNS = (
 DEFAULT_FREE_ADMISSION_SLUGS = {
     "block_museum",
     "krannert_art_museum",
+    "national_museum_of_mexican_art",
     "smart_museum_of_art",
 }
 DEFAULT_PAID_ADMISSION_SLUGS = {
@@ -1206,12 +1209,17 @@ def _parse_nmma_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracted
         start_at, end_at = parsed_range
 
         location_text = _first_non_empty(_normalize_space(_node_text(soup.select_one(".f-body-3"))), venue.default_location)
-        description = _normalize_space(_node_text(soup.select_one("main")))
+        body_text = join_non_empty(
+            [_normalize_space(_node_text(node)) for node in soup.select(".wysiwyg.text-primary")]
+        )
+        description = body_text or _normalize_space(_node_text(soup.select_one("main")))
         free_text = _normalize_space(_node_text(soup.find(string=re.compile(r"^\s*Free\s*$", re.IGNORECASE)).parent if soup.find(string=re.compile(r"^\s*Free\s*$", re.IGNORECASE)) else None))
         full_text = join_non_empty([title, description, free_text, location_text, item.get("card_text")])
         if not _should_keep_event(full_text):
             continue
 
+        age_min, age_max = _parse_age_range(full_text)
+        activity_type = _infer_activity_type(full_text)
         rows.append(
             ExtractedActivity(
                 source_url=source_url,
@@ -1221,15 +1229,25 @@ def _parse_nmma_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracted
                 location_text=location_text,
                 city=venue.city,
                 state=venue.state,
-                activity_type=_infer_activity_type(full_text),
-                age_min=None,
-                age_max=None,
+                activity_type=activity_type,
+                age_min=age_min,
+                age_max=age_max,
                 drop_in=_contains_any(full_text, DROP_IN_PATTERNS),
                 registration_required=_registration_required(full_text),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=IL_TIMEZONE,
-                **price_classification_kwargs(join_non_empty([description, free_text]), default_is_free=None),
+                audience_segment=_infer_il_audience(
+                    venue=venue,
+                    title=title,
+                    description=description,
+                    category=None,
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                    activity_type=activity_type,
+                ),
+                **_price_kwargs_for_il_venue(venue, join_non_empty([description, free_text])),
             )
         )
 

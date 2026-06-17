@@ -1,12 +1,15 @@
 import asyncio
 import re
 from datetime import datetime
+from datetime import time
 from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.adapters.oh_common import infer_activity_type
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.types import ExtractedActivity
 
 FRESNO_WORKSHOPS_URL = "https://fresnoartmuseum.org/workshop"
@@ -18,6 +21,20 @@ FRESNO_STATE = "CA"
 FRESNO_DEFAULT_LOCATION = "Fresno, CA"
 
 DATE_RE = re.compile(r"^(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2})(?:[.,])?\s+(?P<year>\d{4})$")
+
+# The /workshop page now renders each workshop only as a flyer image plus a store
+# registration link whose slug encodes the title and date, e.g.
+# ".../The-Marvelous-Medium-of-Masking-Tape-Workshop-Saturday-June-20-2026-12pm-to-3pm-c200364272".
+_WEEKDAYS = "Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday"
+_MONTHS = (
+    "January|February|March|April|May|June|July|August|"
+    "September|October|November|December"
+)
+REGISTRATION_SLUG_RE = re.compile(
+    rf"^(?P<title>.+?)-(?:{_WEEKDAYS})-(?P<month>{_MONTHS})-(?P<day>\d{{1,2}})-(?P<year>\d{{4}})"
+    rf"(?:-(?P<start>\d{{1,2}}(?:-\d{{2}})?(?:am|pm))-to-(?P<end>\d{{1,2}}(?:-\d{{2}})?(?:am|pm)))?",
+    re.IGNORECASE,
+)
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -103,18 +120,24 @@ def parse_fresno_workshops_html(
     if main is None:
         return []
 
+    current_date = (now or datetime.now()).date()
+
+    rows = _parse_registration_links(main, current_date=current_date)
+    if rows:
+        return rows
+
+    # Legacy fallback: older layout listed a single workshop as an h3 title plus
+    # date paragraphs.
     title = _extract_workshop_title(main)
     if not title:
         return []
 
     description = _build_description(main)
-    current_date = (now or datetime.now()).date()
-    rows: list[ExtractedActivity] = []
-
+    legacy_rows: list[ExtractedActivity] = []
     for date_value in _extract_workshop_dates(main):
         if date_value.date() < current_date:
             continue
-        rows.append(
+        legacy_rows.append(
             ExtractedActivity(
                 source_url=urljoin(list_url, "#registration-dates"),
                 title=title,
@@ -131,11 +154,108 @@ def parse_fresno_workshops_html(
                 start_at=date_value,
                 end_at=None,
                 timezone=LA_TIMEZONE,
+                audience_segment=_infer_fresno_audience(title=title, description=description),
+                is_free=False,
                 free_verification_status="inferred",
             )
         )
 
+    return legacy_rows
+
+
+def _parse_registration_links(main: BeautifulSoup, *, current_date) -> list[ExtractedActivity]:
+    rows: list[ExtractedActivity] = []
+    seen: set[tuple[str, datetime]] = set()
+
+    for anchor in main.find_all("a", href=True):
+        parsed = _parse_registration_link(anchor.get("href"))
+        if parsed is None:
+            continue
+        title, start_at, end_at = parsed
+        if start_at.date() < current_date:
+            continue
+        key = (title, start_at)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            ExtractedActivity(
+                source_url=anchor.get("href"),
+                title=title,
+                description=None,
+                venue_name=FRESNO_VENUE_NAME,
+                location_text=FRESNO_DEFAULT_LOCATION,
+                city=FRESNO_CITY,
+                state=FRESNO_STATE,
+                activity_type=infer_activity_type(title) or "workshop",
+                age_min=None,
+                age_max=None,
+                drop_in=False,
+                registration_required=True,
+                start_at=start_at,
+                end_at=end_at,
+                timezone=LA_TIMEZONE,
+                # Page section is "Adult Classes & Workshops"; default to adults unless
+                # the title signals a different audience.
+                audience_segment=_infer_fresno_audience(title=title, description=None),
+                # Paid-admission museum; store-registered workshops carry a fee.
+                is_free=False,
+                free_verification_status="inferred",
+            )
+        )
+
+    rows.sort(key=lambda row: (row.start_at, row.title))
     return rows
+
+
+def _parse_registration_link(href: str | None) -> tuple[str, datetime, datetime | None] | None:
+    if not href:
+        return None
+    path = href.split("?", 1)[0].rstrip("/")
+    slug = path.rsplit("/", 1)[-1]
+    slug = re.sub(r"-c\d+$", "", slug)  # drop trailing store product code
+    match = REGISTRATION_SLUG_RE.match(slug)
+    if match is None:
+        return None
+
+    title = _normalize_space(match.group("title").replace("-", " "))
+    if not title:
+        return None
+    try:
+        base_date = datetime.strptime(
+            f"{match.group('month')} {match.group('day')}, {match.group('year')}",
+            "%B %d, %Y",
+        )
+    except ValueError:
+        return None
+
+    start_time = _parse_slug_time(match.group("start"))
+    end_time = _parse_slug_time(match.group("end"))
+    start_at = base_date.replace(
+        hour=start_time.hour if start_time else 0,
+        minute=start_time.minute if start_time else 0,
+    )
+    end_at = base_date.replace(hour=end_time.hour, minute=end_time.minute) if end_time else None
+    return title, start_at, end_at
+
+
+def _parse_slug_time(value: str | None) -> time | None:
+    if not value:
+        return None
+    normalized = value.lower().replace("-", ":")
+    for fmt in ("%I%p", "%I:%M%p"):
+        try:
+            return datetime.strptime(normalized, fmt).time()
+        except ValueError:
+            continue
+    return None
+
+
+def _infer_fresno_audience(*, title: str, description: str | None) -> str:
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _extract_workshop_title(main: BeautifulSoup) -> str | None:

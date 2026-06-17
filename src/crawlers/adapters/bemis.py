@@ -12,6 +12,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -189,6 +190,14 @@ def parse_bemis_payload(payload: dict) -> list[ExtractedActivity]:
             start_at=start_at,
             end_at=end_at,
             timezone=BEMIS_TIMEZONE,
+            audience_segment=_infer_bemis_audience(
+                title=title,
+                description=description,
+                category=category,
+                blob=blob,
+                age_min=age_min,
+                age_max=age_max,
+            ),
             **price_classification_kwargs(price_text),
         )
         key = (row.source_url, row.title, row.start_at)
@@ -407,6 +416,41 @@ def _infer_activity_type(*, category: str, blob: str) -> str:
     if any(marker in blob for marker in (" lecture ", " lectures ", " talk ", " talks ", " conversation ")):
         return "lecture"
     return "workshop"
+
+
+def _infer_bemis_audience(
+    *,
+    title: str,
+    description: str | None,
+    category: str,
+    blob: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    if any(marker in blob for marker in (" family ", " families ", " all ages ", " all-ages ")):
+        return "all_ages"
+    # Open house / open studios are free public events that welcome all ages.
+    if any(marker in blob for marker in (" open house ", " open studios ")):
+        return "all_ages"
+    if any(marker in blob for marker in (" teen ", " teens ", " high school ")):
+        return "teens"
+    if any(marker in blob for marker in (" kids ", " children ", " youth ", " storytime ", " story time ")):
+        return "kids"
+    if any(
+        marker in blob
+        for marker in (" talk ", " talks ", " artalk ", " artalks ", " lecture ", " lectures ", " conversation ", " panel ", " discussion ")
+    ):
+        return "adults"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _parse_age_range(text: str) -> tuple[int | None, int | None]:

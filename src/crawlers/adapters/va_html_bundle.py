@@ -412,6 +412,15 @@ def _infer_va_html_price(
         if is_free is None and status == "uncertain":
             return False, "inferred"
         return is_free, status
+    if venue.slug == "muscarelle":
+        # Free-admission museum ("General admission is free at the Muscarelle").
+        # Default free, but instructor-led workshops/classes are paid special programs.
+        is_free, status = infer_price_classification(description, default_is_free=True)
+        if status == "confirmed":
+            return is_free, status
+        if any(marker in token_blob for marker in (" workshop ", " workshops ", " class ", " classes ")):
+            return False, "inferred"
+        return True, "inferred"
     return infer_price_classification(description)
 
 

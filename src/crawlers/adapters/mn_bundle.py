@@ -21,6 +21,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -269,11 +270,11 @@ class MnBundleAdapter(BaseSourceAdapter):
         raise NotImplementedError("Use load_mn_bundle_payload/parse_mn_events from the script runner.")
 
 
-def get_mn_source_prefixes() -> tuple[str, ...]:
+def get_mn_source_prefixes(venues: tuple | list | None = None) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in MN_VENUES:
+    for venue in (venues if venues is not None else MN_VENUES):
         prefixes.extend(venue.source_prefixes)
-    return tuple(prefixes)
+    return tuple(dict.fromkeys(prefixes))
 
 
 async def fetch_html(
@@ -544,6 +545,48 @@ async def _load_wam_payload(
     }
 
 
+def _infer_mn_audience(
+    *,
+    title: str,
+    text: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str | None,
+) -> str:
+    combined = " ".join(part for part in [title, text or ""] if part)
+    # Educator/professional programs are for adults even when their subject matter is about
+    # teaching kids/teens, so they take precedence over audience-age markers.
+    if _has_any_pattern(combined, (" teacher workshop ", " teacher ", " teachers ", " educator ", " educators ", " professional development ")):
+        return "adults"
+    if _has_any_pattern(combined, (" family ", " families ", " all ages ", " all-ages ", " intergenerational ")):
+        return "all_ages"
+    if _has_any_pattern(combined, (" teen ", " teens ", " high school ", " teenager ", " teenagers ")):
+        return "teens"
+    if _has_any_pattern(combined, (" kids ", " children ", " youth ", " storytime ", " story time ", " toddler ", " preschool ")):
+        return "kids"
+    if _has_any_pattern(
+        combined,
+        (
+            " lecture ",
+            " artist talk ",
+            " gallery talk ",
+            " curator ",
+            " critique ",
+            " all career levels ",
+            " all skill levels ",
+            " adults ",
+            " adult ",
+        ),
+    ):
+        return "adults"
+    inferred = infer_audience_segment(title=title, description=text, age_min=age_min, age_max=age_max)
+    if inferred != "unknown":
+        return inferred
+    if activity_type in {"lecture", "talk", "workshop", "class"}:
+        return "adults"
+    return "unknown"
+
+
 def _parse_artsmia_events(payload: dict, *, venue: MnVenueConfig) -> list[ExtractedActivity]:
     detail_pages = payload.get("detail_pages") or {}
     rows: list[ExtractedActivity] = []
@@ -578,6 +621,13 @@ def _parse_artsmia_events(payload: dict, *, venue: MnVenueConfig) -> list[Extrac
                     start_at=start_at,
                     end_at=end_at,
                     timezone=MN_TIMEZONE,
+                    audience_segment=_infer_mn_audience(
+                        title=item["title"],
+                        text=detail_text,
+                        age_min=age_min,
+                        age_max=age_max,
+                        activity_type=_infer_activity_type(item["title"], detail_text),
+                    ),
                     free_verification_status=free_status,
                     is_free=is_free,
                 )
@@ -618,6 +668,13 @@ def _parse_artsmia_events(payload: dict, *, venue: MnVenueConfig) -> list[Extrac
                 start_at=start_at,
                 end_at=end_at,
                 timezone=MN_TIMEZONE,
+                audience_segment=_infer_mn_audience(
+                    title=item["title"],
+                    text=detail_text,
+                    age_min=age_min,
+                    age_max=age_max,
+                    activity_type=_infer_activity_type(item["title"], detail_text),
+                ),
                 free_verification_status=free_status,
                 is_free=is_free,
             )
@@ -793,11 +850,11 @@ def _build_rourke_row(event: dict, *, venue: MnVenueConfig) -> ExtractedActivity
     source_url = f"{ROURKE_CALENDAR_URL}&uid={uid}&tid={tid}"
     location_text = _normalize_space(" ".join(part for part in [content.get("place"), content.get("address")] if part))
     age_min, age_max = _extract_age_range(blob)
-    is_free, free_status = infer_price_classification(
-        description,
-        default_is_free=True if " free " in _token_blob(blob) else None,
-    )
+    # The Rourke Art Museum is admission-free ("admission free for all visitors"): default
+    # free unless a price/paid marker is present in the description.
+    is_free, free_status = infer_price_classification(description, default_is_free=True)
     extras = [f"Tags: {', '.join(_normalize_space(tag) for tag in tags if _normalize_space(tag))}"] if tags else []
+    activity_type = _infer_activity_type(title, blob)
 
     return ExtractedActivity(
         source_url=source_url,
@@ -807,7 +864,7 @@ def _build_rourke_row(event: dict, *, venue: MnVenueConfig) -> ExtractedActivity
         location_text=location_text or f"{venue.venue_name}, {venue.city}, {venue.state}",
         city=venue.city,
         state=venue.state,
-        activity_type=_infer_activity_type(title, blob),
+        activity_type=activity_type,
         age_min=age_min,
         age_max=age_max,
         drop_in=_has_any_pattern(blob, DROP_IN_PATTERNS),
@@ -815,6 +872,13 @@ def _build_rourke_row(event: dict, *, venue: MnVenueConfig) -> ExtractedActivity
         start_at=start_at,
         end_at=end_at,
         timezone=MN_TIMEZONE,
+        audience_segment=_infer_mn_audience(
+            title=title,
+            text=blob,
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+        ),
         free_verification_status=free_status,
         is_free=is_free,
     )

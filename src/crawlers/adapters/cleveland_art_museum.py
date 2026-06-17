@@ -14,7 +14,8 @@ from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.adapters.oh_common import should_include_event
-from src.crawlers.pipeline.pricing import price_classification_kwargs
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import POSITIVE_DOLLAR_RE
 from src.crawlers.pipeline.types import ExtractedActivity
 
 
@@ -25,6 +26,9 @@ CLEVELAND_CITY = "Cleveland"
 CLEVELAND_STATE = "OH"
 TAG_INCLUDE_MARKERS = {"class", "lecture", "talk", "workshop"}
 TAG_EXCLUDE_MARKERS = {"performance", "tour"}
+# Donor/member-only society tags and tour-like titles we never surface as public activities.
+TAG_REJECT_MARKERS = {"leadership circle"}
+TITLE_REJECT_MARKERS = ("open house",)
 WEEKDAY_INDEX = {
     "mon": 0,
     "tue": 1,
@@ -134,11 +138,37 @@ def _build_row(item: dict) -> ExtractedActivity | None:
             ("ticket required" in price_text.lower() and "no ticket required" not in price_text.lower())
             or "register" in price_text.lower()
         ),
+        audience_segment=_infer_cleveland_audience(title=title, description=description, tag_text=tag_text),
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        **price_classification_kwargs(price_text),
+        **_cleveland_price_kwargs(ticket_info=ticket_info, price_text=price_text),
     )
+
+
+def _infer_cleveland_audience(*, title: str, description: str | None, tag_text: str | None) -> str:
+    inferred = infer_audience_segment(title=title, description=description, category=tag_text)
+    if inferred != "unknown":
+        return inferred
+    blob = f" {normalize_space(join_non_empty([title, description, tag_text]) or '').lower()} "
+    if any(marker in blob for marker in (" family ", " families ", " kids ", " children ", " all ages ")):
+        return "all_ages"
+    if any(marker in blob for marker in (" lecture ", " talk ", " workshop ", " class ", " seminar ", " course ")):
+        return "adults"
+    return "unknown"
+
+
+def _cleveland_price_kwargs(*, ticket_info: str | None, price_text: str | None) -> dict[str, bool | None | str]:
+    # Cleveland Museum of Art is a free-admission museum: default free, but a ticketed
+    # program that is not explicitly marked "Free" is a special (paid) activity.
+    blob = f" {normalize_space(ticket_info or '').lower()} "
+    if POSITIVE_DOLLAR_RE.search(normalize_space(price_text or "").lower()):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    if "free" in blob:
+        return {"is_free": True, "free_verification_status": "confirmed"}
+    if "ticket required" in blob or "ticket" in blob:
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return {"is_free": True, "free_verification_status": "inferred"}
 
 
 def _parse_event_date(value: str | None) -> tuple[datetime | None, datetime | None]:
@@ -176,6 +206,11 @@ def _extract_tag_names(item: dict) -> list[str]:
 def _should_include_item(*, title: str, description: str | None, tag_names: list[str]) -> bool:
     tag_set = {tag.lower() for tag in tag_names}
     if "sold out" in tag_set:
+        return False
+    if tag_set & TAG_REJECT_MARKERS:
+        return False
+    title_blob = f" {normalize_space(title).lower()} "
+    if any(marker in title_blob for marker in TITLE_REJECT_MARKERS):
         return False
     if tag_set & TAG_INCLUDE_MARKERS:
         return True

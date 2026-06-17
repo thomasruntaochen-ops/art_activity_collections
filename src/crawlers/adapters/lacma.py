@@ -7,6 +7,8 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import POSITIVE_DOLLAR_RE
 from src.crawlers.pipeline.types import ExtractedActivity
 
 LACMA_EVENTS_URL = "https://www.lacma.org/event"
@@ -33,6 +35,11 @@ EXCLUDED_PRIMARY_KEYWORDS = (
     "reading",
     "writing",
     "tv",
+    "mindful",
+    "meditation",
+    "sound bath",
+    "yoga",
+    "wellness",
 )
 SOFT_EXCLUDED_KEYWORDS = (
     "ticket",
@@ -166,6 +173,12 @@ def _build_row_from_card(
     if not title or is_irrelevant_item_text(title):
         return None
 
+    status_text = " ".join(
+        _normalize_space(node.get_text(" ", strip=True)) for node in card.select('[class*="status"]')
+    ).lower()
+    if "sold out" in status_text:
+        return None
+
     source_url = urljoin(list_url, link.get("href", "").strip())
     category = _normalize_space(_text_or_none(card.select_one(".card-event__type")))
     description = _normalize_space(_text_or_none(card.select_one(".card-event__content")))
@@ -195,6 +208,12 @@ def _build_row_from_card(
         ]
     )
 
+    drop_in = "drop-in" in text_blob or "drop in" in text_blob
+    audience_segment = _infer_lacma_audience(title=title, category=category, description=description)
+    is_free, free_status = _infer_lacma_price(
+        text_blob=text_blob, audience=audience_segment, drop_in=drop_in
+    )
+
     return ExtractedActivity(
         source_url=source_url,
         title=title,
@@ -206,13 +225,43 @@ def _build_row_from_card(
         activity_type=_detect_activity_type(title=title, category=category, description=description),
         age_min=None,
         age_max=None,
-        drop_in=("drop-in" in text_blob or "drop in" in text_blob),
+        drop_in=drop_in,
         registration_required=("registration" in text_blob and "not required" not in text_blob),
         start_at=start_at,
         end_at=None,
         timezone=LA_TIMEZONE,
-        free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+        audience_segment=audience_segment,
+        is_free=is_free,
+        free_verification_status=free_status,
     )
+
+
+def _infer_lacma_audience(*, title: str, category: str | None, description: str | None) -> str:
+    blob = " " + " ".join(part for part in [title, category or "", description or ""]).lower() + " "
+    if any(marker in blob for marker in ("intergenerational", "all ages", "all-ages", "whole family", "family", "families")):
+        return "all_ages"
+    if any(marker in blob for marker in (" talk ", " talks ", " lecture ", " conversation ", " panel ", " keynote ")):
+        return "adults"
+    if "drop-in" in blob or "drop in" in blob:
+        # LACMA drop-in art-making programs welcome adults and kids together.
+        return "all_ages"
+    inferred = infer_audience_segment(title=title, description=description, category=category)
+    if inferred != "unknown":
+        return inferred
+    # Remaining items are open-to-the-public drop-in art-making programs.
+    return "all_ages"
+
+
+def _infer_lacma_price(*, text_blob: str, audience: str, drop_in: bool) -> tuple[bool | None, str]:
+    # LACMA is a paid-admission museum, but its drop-in / family art-making programs are
+    # free, while ticketed talks and special events carry a fee.
+    if POSITIVE_DOLLAR_RE.search(text_blob):
+        return False, "confirmed"
+    if "free" in text_blob:
+        return True, "confirmed"
+    if audience == "all_ages" or drop_in:
+        return True, "inferred"
+    return False, "inferred"
 
 
 def _should_keep_event(*, title: str, category: str | None, description: str | None) -> bool:

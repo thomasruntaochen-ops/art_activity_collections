@@ -9,7 +9,8 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
-from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import POSITIVE_DOLLAR_RE
 from src.crawlers.pipeline.types import ExtractedActivity
 
 SDMART_EVENTS_URL = "https://www.sdmart.org/events/"
@@ -126,13 +127,57 @@ class SdmartEventsAdapter(BaseSourceAdapter):
         return [html]
 
     async def parse(self, payload: str) -> list[ExtractedActivity]:
-        return parse_sdmart_events_html(payload, list_url=self.url)
+        details = await load_sdmart_details(payload, list_url=self.url)
+        return parse_sdmart_events_html(payload, list_url=self.url, detail_html_by_url=details)
+
+
+async def load_sdmart_details(
+    list_html: str,
+    *,
+    list_url: str,
+    now: datetime | None = None,
+    fetch=fetch_sdmart_events_page,
+    max_details: int = 30,
+) -> dict[str, str]:
+    """Fetch detail pages for kept listing events so descriptions/pricing/audience are complete."""
+    current_date = (now or datetime.now()).date()
+    details: dict[str, str] = {}
+    for source_url in _extract_candidate_urls(list_html, list_url=list_url, current_date=current_date)[:max_details]:
+        try:
+            details[source_url] = await fetch(source_url)
+        except Exception:
+            continue
+    return details
+
+
+def _extract_candidate_urls(list_html: str, *, list_url: str, current_date) -> list[str]:
+    soup = BeautifulSoup(list_html, "html.parser")
+    urls: list[str] = []
+    seen: set[str] = set()
+    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        data = _safe_json_loads(script.string or script.get_text() or "")
+        if data is None:
+            continue
+        for event_obj in _iter_event_objects(data):
+            title = _normalize_text(event_obj.get("name"))
+            start_at = _parse_datetime(event_obj.get("startDate"))
+            if not title or start_at is None or start_at.date() < current_date:
+                continue
+            if not _passes_keyword_filter(title=title, description=_normalize_text(event_obj.get("description"))):
+                continue
+            source_url = urljoin(list_url, _normalize_text(event_obj.get("url")) or list_url)
+            if source_url in seen:
+                continue
+            seen.add(source_url)
+            urls.append(source_url)
+    return urls
 
 
 def parse_sdmart_events_html(
     html: str,
     *,
     list_url: str,
+    detail_html_by_url: dict[str, str] | None = None,
     now: datetime | None = None,
 ) -> list[ExtractedActivity]:
     soup = BeautifulSoup(html, "html.parser")
@@ -145,7 +190,12 @@ def parse_sdmart_events_html(
         if data is None:
             continue
         for event_obj in _iter_event_objects(data):
-            row = _build_row_from_event_obj(event_obj=event_obj, list_url=list_url, current_date=current_date)
+            row = _build_row_from_event_obj(
+                event_obj=event_obj,
+                list_url=list_url,
+                current_date=current_date,
+                detail_html_by_url=detail_html_by_url or {},
+            )
             if row is None:
                 continue
             key = (row.source_url, row.title, row.start_at)
@@ -157,17 +207,29 @@ def parse_sdmart_events_html(
     return rows
 
 
+def _passes_keyword_filter(*, title: str, description: str | None) -> bool:
+    # EXCLUDE is checked on the title only (event-type keywords) so that program bodies
+    # mentioning "admission" (e.g. "free with Museum admission") are not dropped; INCLUDE
+    # may match the title or the listing-card description.
+    title_blob = title.lower()
+    if any(keyword in title_blob for keyword in EXCLUDED_PRIMARY_KEYWORDS):
+        return False
+    text_blob = " ".join(part for part in [title, description or ""] if part).lower()
+    return any(keyword in text_blob for keyword in INCLUDED_KEYWORDS)
+
+
 def _build_row_from_event_obj(
     *,
     event_obj: dict,
     list_url: str,
     current_date,
+    detail_html_by_url: dict[str, str],
 ) -> ExtractedActivity | None:
     title = _normalize_text(event_obj.get("name"))
     if not title:
         return None
 
-    description = _normalize_text(event_obj.get("description"))
+    card_description = _normalize_text(event_obj.get("description"))
     source_url = urljoin(list_url, _normalize_text(event_obj.get("url")) or list_url)
     start_at = _parse_datetime(event_obj.get("startDate"))
     if start_at is None or start_at.date() < current_date:
@@ -177,13 +239,13 @@ def _build_row_from_event_obj(
     if end_at is not None and (end_at - start_at).total_seconds() > 8 * 3600:
         end_at = None
 
-    text_blob = " ".join(part for part in [title, description or ""] if part).lower()
-    if any(keyword in text_blob for keyword in EXCLUDED_PRIMARY_KEYWORDS):
-        return None
-    if not any(keyword in text_blob for keyword in INCLUDED_KEYWORDS):
+    if not _passes_keyword_filter(title=title, description=card_description):
         return None
 
-    offer_price = _extract_offer_price(event_obj.get("offers"))
+    # Prefer the complete detail-page description (the listing card description is truncated).
+    detail_description = _extract_detail_description(detail_html_by_url.get(source_url))
+    description = detail_description or card_description
+    text_blob = " ".join(part for part in [title, description or ""] if part).lower()
 
     location_text = _extract_location_text(event_obj.get("location"))
     full_description = _join_non_empty(
@@ -193,6 +255,7 @@ def _build_row_from_event_obj(
         ]
     )
 
+    is_free, free_status = _infer_sdmart_price(description)
     return ExtractedActivity(
         source_url=source_url,
         title=title,
@@ -209,8 +272,66 @@ def _build_row_from_event_obj(
         start_at=start_at,
         end_at=end_at,
         timezone=LA_TIMEZONE,
-        **price_classification_kwargs_from_amount(offer_price, text=text_blob),
+        audience_segment=_infer_sdmart_audience(title=title, description=description),
+        is_free=is_free,
+        free_verification_status=free_status,
     )
+
+
+def _extract_detail_description(detail_html: str | None) -> str | None:
+    if not detail_html:
+        return None
+    soup = BeautifulSoup(detail_html, "html.parser")
+    node = soup.select_one(".tribe-events-single-event-description")
+    if node is None:
+        return None
+    return _normalize_text(node.get_text(" ", strip=True))
+
+
+def _infer_sdmart_audience(*, title: str, description: str | None) -> str:
+    blob = " " + " ".join(part for part in [title, description or ""] if part).lower() + " "
+    if any(marker in blob for marker in ("all ages", "all-ages", "artists of all ages")):
+        return "all_ages"
+    if any(marker in blob for marker in ("school-aged children", "ages 5 to 12", "ages 5-12", " family ", " families ")):
+        return "kids"
+    if any(marker in blob for marker in ("live model", "life drawing", "model drawing")):
+        return "teens_adults"
+    if "under the age of 18 must be accompanied" in blob:
+        return "teens_adults"
+    if any(marker in blob for marker in (" teen ", " teens ", " high school ")):
+        return "teens"
+    if any(marker in blob for marker in (" talk ", " lecture ", " conversation ", " speaker ", " curator ")):
+        return "adults"
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    return "adults"
+
+
+def _infer_sdmart_price(description: str | None) -> tuple[bool | None, str]:
+    # The San Diego Museum of Art is a paid-admission museum: default not-free, but
+    # pay-what-you-wish / donation programs are free, while "free with Museum admission"
+    # still requires paid admission and is treated as not-free.
+    blob = " " + (description or "").lower() + " "
+    if any(marker in blob for marker in ("pay what you wish", "pay-what-you-wish", "pay as you wish", " pwyw ", "suggested donation")):
+        return True, "confirmed"
+    if any(
+        marker in blob
+        for marker in (
+            "free with museum admission",
+            "free with admission",
+            "included with museum admission",
+            "included with admission",
+            "with museum admission",
+            "free for members",
+        )
+    ):
+        return False, "confirmed"
+    if POSITIVE_DOLLAR_RE.search(blob):
+        return False, "confirmed"
+    if " free " in blob:
+        return True, "confirmed"
+    return False, "inferred"
 
 
 def _iter_event_objects(data) -> list[dict]:

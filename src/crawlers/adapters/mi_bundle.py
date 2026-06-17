@@ -745,6 +745,7 @@ def _parse_muskegon_events(payload: dict, *, venue: MiVenueConfig) -> list[Extra
                 default_is_free=None,
             )
 
+            age_min, age_max = _parse_age_range(combined_description)
             rows.append(
                 ExtractedActivity(
                     source_url=source_url,
@@ -755,19 +756,49 @@ def _parse_muskegon_events(payload: dict, *, venue: MiVenueConfig) -> list[Extra
                     city=venue.city,
                     state=venue.state,
                     activity_type=_activity_type_for_text(title=title, description=combined_description),
-                    age_min=None,
-                    age_max=None,
+                    age_min=age_min,
+                    age_max=age_max,
                     drop_in=_contains_any(_normalize_for_match(f"{title} {combined_description or ''}"), (" drop in ", " drop-in ")),
                     registration_required=_registration_required_for_text(title=title, description=combined_description),
                     start_at=start_at,
                     end_at=end_at,
                     timezone=MI_TIMEZONE,
+                    audience_segment=_infer_muskegon_audience(
+                        title=title,
+                        description=combined_description,
+                        age_min=age_min,
+                        age_max=age_max,
+                    ),
                     free_verification_status=free_status,
                     is_free=is_free,
                 )
             )
 
     return rows
+
+
+def _infer_muskegon_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _normalize_for_match(" ".join(part for part in (title, description or "") if part))
+    if _contains_any(blob, (" super saturday ", " community day ", " family day ", " family ", " families ", " all ages ", " all-ages ", " open house ")):
+        return "all_ages"
+    if _contains_any(blob, (" teen ", " teens ", " high school ")):
+        return "teens"
+    if _contains_any(blob, (" kids ", " children ", " youth ", " storytime ", " story time ", " toddler ")):
+        return "kids"
+    if _contains_any(blob, (" artist talk ", " gallery talk ", " curator ", " lecture ", " talk ", " workshop ", " class ", " adult ")):
+        return "adults"
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
 
 def _parse_umma_events(payload: dict, *, venue: MiVenueConfig) -> list[ExtractedActivity]:
