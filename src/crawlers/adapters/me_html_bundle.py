@@ -21,6 +21,7 @@ from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_month_day_year
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -157,6 +158,8 @@ class MeVenueConfig:
     mode: str
     api_url: str | None = None
     source_prefixes: tuple[str, ...] = ()
+    # Free-admission museums default their programs to free; otherwise None.
+    default_is_free: bool | None = None
 
 
 ME_HTML_VENUES: tuple[MeVenueConfig, ...] = (
@@ -181,6 +184,7 @@ ME_HTML_VENUES: tuple[MeVenueConfig, ...] = (
         default_location="Bowdoin College Museum of Art, Brunswick, ME",
         mode="bowdoin",
         source_prefixes=("https://calendar.bowdoin.edu/event/",),
+        default_is_free=True,  # Bowdoin College Museum of Art: free admission.
     ),
     MeVenueConfig(
         slug="cmca",
@@ -455,9 +459,9 @@ def parse_me_html_events(payload: dict, *, venue: MeVenueConfig) -> list[Extract
     raise RuntimeError(f"Unsupported Maine venue mode: {venue.mode}")
 
 
-def get_me_source_prefixes() -> list[str]:
+def get_me_source_prefixes(venues=None) -> list[str]:
     prefixes: list[str] = []
-    for venue in ME_HTML_VENUES:
+    for venue in (venues if venues is not None else ME_HTML_VENUES):
         prefixes.extend(venue.source_prefixes)
     return prefixes
 
@@ -586,11 +590,33 @@ def _parse_bowdoin_widget(payload: dict, *, venue: MeVenueConfig, now: datetime)
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
-                **price_classification_kwargs(description, default_is_free=None),
+                audience_segment=_infer_me_audience(title=title, description=description),
+                **price_classification_kwargs(description, default_is_free=venue.default_is_free),
             )
         )
 
     return rows
+
+
+def _infer_me_audience(*, title: str | None, description: str | None) -> str:
+    # Base on the title; ME calendar descriptions are exhibition blurbs that
+    # mislead family/kids keyword matching.
+    blob = f" {re.sub(r'[^a-z0-9]+', ' ', (title or '').lower())} "
+    if " family " in blob or " families " in blob or " all ages " in blob or " all-ages " in blob:
+        return "all_ages"
+    has_teen = " teen " in blob or " teens " in blob or " high school " in blob
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(m in blob for m in (" kid ", " kids ", " child ", " children ", " youth ", " toddler ", " stroller ")):
+        return "kids"
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    # ME college-museum lineups are adult lectures/talks/conversations by default.
+    return "adults"
 
 
 def _parse_cmca_detail_pages(payload: dict, *, venue: MeVenueConfig, now: datetime) -> list[ExtractedActivity]:
@@ -644,7 +670,8 @@ def _parse_cmca_detail_pages(payload: dict, *, venue: MeVenueConfig, now: dateti
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
-                **price_classification_kwargs(description, default_is_free=None),
+                audience_segment=_infer_me_audience(title=title, description=description),
+                **price_classification_kwargs(description, default_is_free=venue.default_is_free),
             )
         )
 
@@ -712,7 +739,8 @@ def _parse_bates_detail_pages(payload: dict, *, venue: MeVenueConfig, now: datet
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
-                **price_classification_kwargs(description, default_is_free=None),
+                audience_segment=_infer_me_audience(title=title, description=description),
+                **price_classification_kwargs(description, default_is_free=venue.default_is_free),
             )
         )
 

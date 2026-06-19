@@ -7,6 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -227,6 +228,12 @@ def parse_noyes_events_html(html: str, *, list_url: str) -> list[ExtractedActivi
                 activity_type=_infer_activity_type(text_blob),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_noyes_audience(
+                    title=title,
+                    description=description,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=("drop-in" in text_blob or "drop in" in text_blob),
                 registration_required=(
                     "registration" in text_blob or "register" in text_blob or "ticket" in text_blob
@@ -241,6 +248,27 @@ def parse_noyes_events_html(html: str, *, list_url: str) -> list[ExtractedActivi
 
     rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
     return rows
+
+
+def _infer_noyes_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    blob = f" {_normalize_text(' '.join(part for part in [title, description or ''] if part)) or ''} ".lower()
+    if any(marker in blob for marker in (" talk ", " lecture ", " workshop ", " class ")):
+        return "adults"
+    return "unknown"
 
 
 def _parse_datetimes(value: str | None) -> tuple[datetime | None, datetime | None]:

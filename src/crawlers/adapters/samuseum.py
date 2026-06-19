@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -207,8 +208,10 @@ def parse_sama_payload(payload: dict[str, object]) -> list[ExtractedActivity]:
                     description or "",
                 ]
             ).lower()
-            is_free, free_status = infer_price_classification(
-                " | ".join(part for part in [detail["ticket_price"], description, card["title"]] if part)
+            is_free, free_status = _infer_sama_price(
+                ticket_price=detail["ticket_price"],
+                description=description,
+                title=card["title"],
             )
 
             item = ExtractedActivity(
@@ -222,6 +225,11 @@ def parse_sama_payload(payload: dict[str, object]) -> list[ExtractedActivity]:
                 activity_type=_infer_sama_activity_type(card["title"], description),
                 age_min=None,
                 age_max=None,
+                audience_segment=_infer_sama_audience(
+                    title=card["title"],
+                    description=description,
+                    tags=card["tags"],
+                ),
                 drop_in=("drop-in" in text_blob or "drop in" in text_blob),
                 registration_required=("register" in text_blob and "not required" not in text_blob),
                 start_at=start_at,
@@ -400,6 +408,43 @@ def _infer_sama_activity_type(title: str, description: str | None) -> str:
     if "draw" in text or "mask" in text or "activity" in text:
         return "activity"
     return "activity"
+
+
+def _infer_sama_price(
+    *,
+    ticket_price: str | None,
+    description: str | None,
+    title: str,
+) -> tuple[bool | None, str]:
+    price_blob = f" {_normalize_space(ticket_price or '').lower()} "
+    if " free with museum admission " in price_blob or " free with admission " in price_blob:
+        return False, "confirmed"
+    if price_blob in {" ticket price: free ", " free "}:
+        return True, "confirmed"
+    return infer_price_classification(
+        " | ".join(part for part in [ticket_price, description, title] if part)
+    )
+
+
+def _infer_sama_audience(*, title: str, description: str | None, tags: list[str]) -> str:
+    tag_blob = f" {' '.join(tag.lower() for tag in tags)} "
+    has_adults = " adults " in tag_blob or " adult " in tag_blob
+    has_teens = " teens " in tag_blob or " teen " in tag_blob
+    has_family = any(marker in tag_blob for marker in (" families ", " family ", " children ", " kids "))
+    if has_family and (has_adults or has_teens):
+        return "all_ages"
+    if has_teens and has_adults:
+        return "teens_adults"
+    if has_family:
+        return "kids"
+    if has_teens:
+        return "teens"
+    if has_adults:
+        return "adults"
+    inferred = infer_audience_segment(title=title, description=description, tags=tags)
+    if inferred != "unknown":
+        return inferred
+    return "adults" if _infer_sama_activity_type(title, description) in {"workshop", "activity"} else "unknown"
 
 
 def _combine_description(

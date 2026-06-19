@@ -762,6 +762,13 @@ def _parse_kreeger_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedAct
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description] if part))
     price_text = "Materials fee: $10"
     is_free, free_verification_status = infer_price_classification(price_text, default_is_free=None)
+    audience_segment = _infer_dc_html_audience(
+        title=title,
+        description=description,
+        token_blob=_searchable_blob(" ".join(part for part in [title, description] if part)),
+    )
+    if age_max is not None and age_max <= 12:
+        audience_segment = "kids"
 
     return ExtractedActivity(
         source_url=item["url"],
@@ -774,6 +781,7 @@ def _parse_kreeger_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedAct
         activity_type="workshop",
         age_min=age_min,
         age_max=age_max,
+        audience_segment=audience_segment,
         drop_in=None,
         registration_required=None,
         start_at=start_at,
@@ -810,8 +818,12 @@ def _parse_phillips_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedAc
     description_parts = [part for part in [description, price] if part]
     full_description = " | ".join(description_parts) if description_parts else None
     price_text = " ".join(description_parts)
-    is_free, free_verification_status = infer_price_classification(price_text, default_is_free=None)
-    token_blob = _searchable_blob(" ".join(part for part in [title, full_description] if part))
+    token_blob = _searchable_blob(" ".join(part for part in [title, full_description, "drop-in family program"] if part))
+    # The Phillips /families page lists free drop-in family art programs.
+    is_free, free_verification_status = _infer_dc_html_price(price_text, default_is_free=True)
+    audience_segment = _infer_dc_html_audience(title=title, description=full_description, token_blob=token_blob)
+    if audience_segment == "unknown":
+        audience_segment = "kids"
 
     return ExtractedActivity(
         source_url=item["url"],
@@ -829,6 +841,7 @@ def _parse_phillips_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedAc
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
+        audience_segment=audience_segment,
         is_free=is_free,
         free_verification_status=free_verification_status,
     )

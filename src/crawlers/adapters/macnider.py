@@ -45,6 +45,9 @@ AGE_PLUS_FALLBACK_RE = re.compile(r"\bages?\s*(\d{1,2})\+", re.IGNORECASE)
 SKIP_TITLE_MARKERS = (
     "donation",
     "membership",
+    # Multi-day summer/holiday camps are out of scope (single-session classes only).
+    " camp ",
+    " camps ",
 )
 
 

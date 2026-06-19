@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -180,9 +181,11 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         activity_type=_infer_activity_type(blob),
         age_min=None,
         age_max=None,
+        audience_segment=_infer_wcmfa_audience(title=title, description=description),
         drop_in=(" drop-in " in blob or " drop in " in blob),
         registration_required=(
             (" registration required " in blob)
+            or (" registration deadline " in blob)
             or (" application required " in blob)
             or (" register " in blob)
         ) and " no registration required " not in blob,
@@ -218,6 +221,16 @@ def _infer_activity_type(blob: str) -> str:
     if " lecture " in blob or " talk " in blob:
         return "lecture"
     return "workshop"
+
+
+def _infer_wcmfa_audience(*, title: str, description: str | None) -> str:
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    blob = _searchable_blob(" ".join([title, description or ""]))
+    if any(pattern in blob for pattern in (" talk ", " lecture ", " workshop ", " class ")):
+        return "adults"
+    return "unknown"
 
 
 def _parse_datetime(value: str | None) -> datetime | None:

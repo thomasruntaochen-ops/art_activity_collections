@@ -19,6 +19,7 @@ from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.adapters.oh_common import should_include_event
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -198,7 +199,13 @@ def _build_row(
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        **price_classification_kwargs(full_description),
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=full_description,
+            age_min=age_min,
+            age_max=age_max,
+        ),
+        **_dayton_price_kwargs(full_description),
     )
 
 
@@ -267,6 +274,22 @@ def _listing_title_is_candidate(title: str) -> bool:
     if any(marker in lowered for marker in ("talk", "lecture", "workshop", "class", "studio", "discussion")):
         return True
     return should_include_event(title=title_text)
+
+
+def _dayton_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    blob = f" {' '.join((text or '').lower().split())} "
+    if any(
+        marker in blob
+        for marker in (
+            " free with admission ",
+            " free with museum admission ",
+            " with museum admission ",
+            " included with admission ",
+            " free for members ",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    return price_classification_kwargs(text)
 
 
 def _parse_iso_datetime(value: str | None) -> datetime | None:

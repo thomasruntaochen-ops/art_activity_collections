@@ -526,6 +526,12 @@ def _parse_nmart_events(payload: dict, *, venue: NmVenueConfig) -> list[Extracte
                 activity_type=_infer_activity_type(title, full_text),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_nm_audience(
+                    title=title,
+                    description=full_text,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=_has_any_pattern(full_text, DROP_IN_PATTERNS),
                 registration_required=_has_registration_text(full_text),
                 start_at=start_at,
@@ -862,6 +868,26 @@ def _infer_okeeffe_audience(
     if inferred != "unknown":
         return inferred
     if activity_type in {"workshop", "talk", "activity"}:
+        return "adults"
+    return "unknown"
+
+
+def _infer_nm_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if _infer_activity_type(title, description or "") in {"talk", "workshop"}:
         return "adults"
     return "unknown"
 

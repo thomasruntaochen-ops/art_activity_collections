@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 
 import httpx
 from bs4 import BeautifulSoup
@@ -19,6 +20,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_month_day_year
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.adapters.oh_common import should_include_event
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -92,17 +94,27 @@ def parse_toledo_museum_of_art_payload(html: str) -> list[ExtractedActivity]:
         time_text = normalize_space(item.select_one(".event-details li.strong").get_text(" ", strip=True) if item.select_one(".event-details li.strong") else "")
         month_text = normalize_space(item.select_one(".cal-date-mo").get_text(" ", strip=True) if item.select_one(".cal-date-mo") else "")
         day_text = normalize_space(item.select_one(".cal-date-da").get_text(" ", strip=True) if item.select_one(".cal-date-da") else "")
-        category = ", ".join(normalize_space(li.get_text(" ", strip=True)) for li in item.select(".event-details li.min"))
-        location_bits = [
+        detail_lines = [
             normalize_space(li.get_text(" ", strip=True))
             for li in item.select(".event-details li")
-            if "Free for All" not in normalize_space(li.get_text(" ", strip=True))
-            and "AM" not in normalize_space(li.get_text(" ", strip=True))
-            and "PM" not in normalize_space(li.get_text(" ", strip=True))
-            and "Adults" not in normalize_space(li.get_text(" ", strip=True))
-            and "Families" not in normalize_space(li.get_text(" ", strip=True))
-            and "Kids" not in normalize_space(li.get_text(" ", strip=True))
-            and "Teens" not in normalize_space(li.get_text(" ", strip=True))
+            if normalize_space(li.get_text(" ", strip=True))
+        ]
+        category = ", ".join(
+            normalize_space(li.get_text(" ", strip=True))
+            for li in item.select(".event-details li.min")
+            if normalize_space(li.get_text(" ", strip=True))
+        )
+        location_bits = [
+            line
+            for line in detail_lines
+            if "Free for All" not in line
+            and "$" not in line
+            and "AM" not in line
+            and "PM" not in line
+            and "Adults" not in line
+            and "Families" not in line
+            and "Kids" not in line
+            and "Teens" not in line
         ]
         description = normalize_space(item.select_one(".notification").get_text(" ", strip=True) if item.select_one(".notification") else "")
         if not title or link is None:
@@ -121,23 +133,27 @@ def parse_toledo_museum_of_art_payload(html: str) -> list[ExtractedActivity]:
             continue
 
         full_description = join_non_empty([description, category])
+        price_blob = join_non_empty(
+            [full_description, " | ".join(detail_lines), normalize_space(link.get_text(" ", strip=True))]
+        )
         row = ExtractedActivity(
             source_url=absolute_url(TOLEDO_EVENTS_URL, link.get("href")),
             title=title,
             description=full_description,
             venue_name=TOLEDO_VENUE_NAME,
-            location_text=join_non_empty(location_bits) or TOLEDO_LOCATION,
+            location_text=(join_non_empty(location_bits) or TOLEDO_LOCATION).strip(" ,"),
             city=TOLEDO_CITY,
             state=TOLEDO_STATE,
             activity_type=infer_activity_type(title, description, category),
             age_min=None,
             age_max=None,
+            audience_segment=_infer_toledo_audience(title=title, description=description, category=category),
             drop_in=False,
             registration_required=("register" in normalize_space(link.get_text(" ", strip=True)).lower()),
             start_at=start_at,
             end_at=end_at,
             timezone=NY_TIMEZONE,
-            **price_classification_kwargs(join_non_empty([full_description, normalize_space(link.get_text(" ", strip=True))])),
+            **price_classification_kwargs(price_blob),
         )
         key = (row.source_url, row.title, row.start_at)
         if key in seen:
@@ -166,3 +182,22 @@ def _extract_year(class_names: list[str]) -> int | None:
             if len(parts) >= 4 and parts[1].isdigit():
                 return int(parts[1])
     return None
+
+
+def _infer_toledo_audience(*, title: str, description: str | None, category: str | None) -> str:
+    normalized_category = re.sub(r"[^a-z0-9+]+", " ", normalize_space(category).lower())
+    blob = f" {normalize_space(normalized_category)} "
+    has_adults = " adults " in blob or " adult " in blob
+    has_teens = " teens " in blob or " teen " in blob
+    has_kids = any(marker in blob for marker in (" families ", " family ", " kids ", " children "))
+    if has_kids and (has_adults or has_teens):
+        return "all_ages"
+    if has_teens and has_adults:
+        return "teens_adults"
+    if has_adults:
+        return "adults"
+    if has_teens:
+        return "teens"
+    if has_kids:
+        return "kids"
+    return infer_audience_segment(title=title, description=description, category=category)

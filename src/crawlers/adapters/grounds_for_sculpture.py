@@ -7,6 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -194,6 +195,10 @@ def parse_grounds_for_sculpture_events_html(html: str, *, list_url: str) -> list
             continue
 
         text_blob = " ".join(part for part in [title, category or "", price or "", location or ""] if part).lower()
+        # Tours (e.g. "Stroller Tours") are not art-making activities; the GFS
+        # "Tours & Talks" category otherwise sneaks them past via the "talk" hit.
+        if _title_is_tour(title):
+            continue
         if _should_exclude_event(text_blob) and not _should_include_event(text_blob):
             continue
         if not _should_include_event(text_blob):
@@ -203,7 +208,9 @@ def parse_grounds_for_sculpture_events_html(html: str, *, list_url: str) -> list
             part for part in [f"Category: {category}" if category else None, price, f"Location: {location}" if location else None] if part
         )
         age_min, age_max = _parse_age_range(" ".join(part for part in [title, description] if part))
-        is_free, free_status = infer_price_classification(" ".join(part for part in [price, description] if part))
+        is_free, free_status = _classify_grounds_for_sculpture_price(
+            " ".join(part for part in [price, description] if part)
+        )
         registration_required = (
             "registration" in text_blob or "register" in text_blob or "ticket" in text_blob
         ) and "no registration" not in text_blob
@@ -230,6 +237,12 @@ def parse_grounds_for_sculpture_events_html(html: str, *, list_url: str) -> list
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
+                audience_segment=_infer_grounds_for_sculpture_audience(
+                    title=title,
+                    category=category,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 is_free=is_free,
                 free_verification_status=free_status,
             )
@@ -319,6 +332,53 @@ def _parse_age_range(text: str) -> tuple[int | None, int | None]:
     if plus_match:
         return int(plus_match.group(1)), None
     return None, None
+
+
+def _title_is_tour(title: str) -> bool:
+    blob = f" {title.lower()} "
+    return " tour " in blob or " tours " in blob
+
+
+def _classify_grounds_for_sculpture_price(text: str) -> tuple[bool | None, str]:
+    # Grounds For Sculpture is a paid-admission park, so "free with admission"
+    # and "free for members" programs are not free to the general public.
+    lowered = text.lower()
+    if any(
+        marker in lowered
+        for marker in ("with admission", "free for members", "free for member", "included with admission")
+    ):
+        return False, "confirmed"
+    return infer_price_classification(text, default_is_free=False)
+
+
+def _infer_grounds_for_sculpture_audience(
+    *,
+    title: str,
+    category: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    # Use title + category only; the price text ("adults free with admission")
+    # mentions adults even for family/kids programs.
+    blob = f" {re.sub(r'[^a-z0-9]+', ' ', ' '.join(filter(None, [title, category])).lower())} "
+    if any(m in blob for m in (" tots ", " tot ", " toddler ", " toddlers ")):
+        return "kids"
+    has_teen = " teen " in blob or " teens " in blob or " high school " in blob
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if has_adult:
+        return "adults"
+    if " family " in blob or " families " in blob or " all ages " in blob:
+        return "all_ages"
+    if any(m in blob for m in (" kid ", " kids ", " child ", " children ", " youth ")):
+        return "kids"
+    inferred = infer_audience_segment(title=title, category=category, age_min=age_min, age_max=age_max)
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _should_exclude_event(text: str) -> bool:

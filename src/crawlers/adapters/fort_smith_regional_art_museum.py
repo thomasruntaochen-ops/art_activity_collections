@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -207,6 +208,13 @@ def parse_fsram_events_html(html: str, *, list_url: str) -> list[ExtractedActivi
             start_at=start_at,
             end_at=end_at,
             timezone=AR_TIMEZONE,
+            audience_segment=_infer_fsram_audience(
+                title=title,
+                description=description,
+                full_blob=full_blob,
+                age_min=age_min,
+                age_max=age_max,
+            ),
             is_free=is_free,
             free_verification_status=free_status,
         )
@@ -276,6 +284,39 @@ def _infer_activity_type(token_blob: str) -> str:
     if any(pattern in token_blob for pattern in (" lecture ", " talk ", " talks ")):
         return "lecture"
     return "workshop"
+
+
+def _infer_fsram_audience(
+    *,
+    title: str,
+    description: str,
+    full_blob: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    if " all ages " in full_blob:
+        return "all_ages"
+    has_teen = " teen " in full_blob or " teens " in full_blob or " high school " in full_blob
+    has_adult = " adult " in full_blob or " adults " in full_blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(
+        marker in full_blob
+        for marker in (" art start ", " kid ", " kids ", " child ", " children ", " youth ", " homeschool ", " family ", " families ")
+    ):
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    # FSRAM education lineup is adult lectures, classes, and workshops by default.
+    return "adults"
 
 
 def _clean_title(value: str) -> str:

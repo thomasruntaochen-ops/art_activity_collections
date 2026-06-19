@@ -113,6 +113,20 @@ STRONG_EXCLUSION_MARKERS = (
     " tours ",
     " yoga ",
 )
+# These are never art-making/learning programs, so they are excluded even when
+# an incidental activity/talk marker (e.g. "studio") appears in the text.
+HARD_EXCLUSION_MARKERS = (
+    " jazz ",
+    " concert ",
+    " concerts ",
+    " music ",
+    " musical ",
+    " band ",
+    " performance ",
+    " performances ",
+    " film ",
+    " films ",
+)
 YOUTH_CONTEXT_MARKERS = (
     " child ",
     " children ",
@@ -326,7 +340,8 @@ def parse_saam_events_payload(payload: dict) -> list[ExtractedActivity]:
                     age_min=age_min,
                     age_max=age_max,
                 ),
-                **price_classification_kwargs(pricing_text, default_is_free=None),
+                # SAAM is a free-admission Smithsonian museum: programs default free.
+                **price_classification_kwargs(pricing_text, default_is_free=True),
             )
         )
 
@@ -577,6 +592,13 @@ def _should_include_event(*, entry: SaamListingEntry, detail: SaamDetailFields) 
     categories_blob = " | ".join(detail.categories)
     series_blob = " | ".join(detail.series)
     combined = _normalized_blob(entry.title, detail.description, categories_blob, series_blob, entry.cost_text)
+
+    # Hard-exclude music/jazz/concert/performance based on the TITLE only:
+    # detail pages list unrelated events in their nav (e.g. "Take Five: Jazz…")
+    # which would otherwise drag down legitimate programs like SAAM Arcade.
+    title_blob = _normalized_blob(entry.title)
+    if any(marker in title_blob for marker in HARD_EXCLUSION_MARKERS):
+        return False
 
     has_activity = any(marker in combined for marker in ACTIVITY_MARKERS)
     has_talk = any(marker in combined for marker in TALK_MARKERS)

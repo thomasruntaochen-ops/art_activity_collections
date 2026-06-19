@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -222,6 +223,7 @@ def _build_row_from_detail_page(*, source_url: str, html: str) -> ExtractedActiv
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
+        audience_segment=_infer_danforth_audience(title=title, description=description, token_blob=token_blob),
         **price_kwargs,
     )
 
@@ -341,17 +343,49 @@ def _month_number(name: str) -> int:
 
 
 def _infer_activity_type(token_blob: str) -> str:
-    if any(keyword in token_blob for keyword in (" lecture ", " talk ", " discussion ")):
+    if any(
+        keyword in token_blob
+        for keyword in (" lecture ", " talk ", " talks ", " discussion ", " conversation ", " spotlight ")
+    ):
         return "lecture"
     return "workshop"
+
+
+def _infer_danforth_audience(*, title: str, description: str | None, token_blob: str) -> str:
+    blob = f" {re.sub(r'[^a-z0-9]+', ' ', ' '.join([title, description or '']).lower())} "
+    # Artist talks / lectures / Sunday Spotlight conversations are adult programs,
+    # even when their theme references "family" (e.g. "Artmaking in the Family").
+    if any(
+        marker in blob
+        for marker in (" lecture ", " talks ", " in conversation ", " spotlight ", " gallery talk ", " artist talk ")
+    ):
+        return "adults"
+    if " community day " in blob or " all are welcome " in blob:
+        return "all_ages"
+    if " all ages " in blob or " family " in blob or " families " in blob or " drop into art " in blob:
+        return "all_ages"
+    has_teen = " teen " in blob or " teens " in blob or " high school " in blob
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if " kid " in blob or " kids " in blob or " child " in blob or " children " in blob or " youth " in blob:
+        return "kids"
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _price_kwargs_from_description(description: str | None) -> dict[str, bool | None | str]:
     normalized = " ".join((description or "").lower().split())
     if "paid museum admission" in normalized:
         return {"is_free": False, "free_verification_status": "confirmed"}
+    # Danforth (Framingham State) is a paid-admission museum, so events that are
+    # "free with museum admission" are included with paid admission → not free.
     if "with museum admission" in normalized:
-        return {"is_free": None, "free_verification_status": "uncertain"}
+        return {"is_free": False, "free_verification_status": "confirmed"}
     if any(
         phrase in normalized
         for phrase in (

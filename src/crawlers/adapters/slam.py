@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -52,7 +53,11 @@ INCLUDE_PATTERNS = (
     " young artists ",
 )
 NO_OVERRIDE_EXCLUDES = (
+    " cinema ",
     " concert ",
+    " documentary ",
+    " film ",
+    " films ",
     " fundraiser ",
     " fundraising ",
     " jazz ",
@@ -191,7 +196,7 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
     excerpt = _html_to_text(event_obj.get("excerpt"))
     category_names = [_normalize_space(item.get("name")) for item in (event_obj.get("categories") or [])]
     category_names = [value for value in category_names if value]
-    venue_name, location_text = _extract_location(event_obj.get("venue"))
+    room_name, location_text = _extract_location(event_obj.get("venue"))
     price_text = _normalize_space(event_obj.get("cost") or "")
 
     description_parts = [part for part in [excerpt, description] if part]
@@ -210,12 +215,18 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         marker in token_blob for marker in (" register ", " registration ", " reserve ", " ticket ", " tickets ")
     )
 
+    # The Tribe "venue" field is the room/gallery within the museum (e.g. "The
+    # Farrell Auditorium", "Main Exhibition Galleries"); keep the museum as the
+    # venue and fold the room into the location text so events don't fragment
+    # into per-room artifact venues.
+    full_location = ", ".join(part for part in [room_name, location_text or SLAM_DEFAULT_LOCATION] if part)
+
     return ExtractedActivity(
         source_url=source_url,
         title=title,
         description=description_text,
-        venue_name=venue_name or SLAM_VENUE_NAME,
-        location_text=location_text or SLAM_DEFAULT_LOCATION,
+        venue_name=SLAM_VENUE_NAME,
+        location_text=full_location or SLAM_DEFAULT_LOCATION,
         city=SLAM_CITY,
         state=SLAM_STATE,
         activity_type=_infer_activity_type(token_blob),
@@ -226,8 +237,18 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=MO_TIMEZONE,
-        **price_classification_kwargs_from_amount(amount, text=price_text or description_text),
+        audience_segment=_infer_slam_audience(title=title, description=description_text, token_blob=token_blob),
+        # Saint Louis Art Museum has free general admission, so programs default
+        # to free unless an explicit ticket price is present. Member-exclusive
+        # programs require a paid membership, so they are marked not free.
+        **_slam_price_kwargs(title=title, amount=amount, text=price_text or description_text),
     )
+
+
+def _slam_price_kwargs(*, title: str, amount, text: str | None) -> dict[str, object]:
+    if " member " in _searchable_blob(title):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    return price_classification_kwargs_from_amount(amount, text=text, default_is_free=True)
 
 
 def _should_include_event(*, token_blob: str, title: str) -> bool:
@@ -284,6 +305,41 @@ def _infer_activity_type(token_blob: str) -> str:
     if any(marker in token_blob for marker in (" lecture ", " lectures ", " talk ", " discussion ", " conversation ")):
         return "lecture"
     return "workshop"
+
+
+def _infer_slam_audience(*, title: str, description: str | None, token_blob: str) -> str:
+    # token_blob is already a searchable blob (lowercased, punctuation stripped).
+    if any(marker in token_blob for marker in (" toddler ", " toddlers ", " wee weekend ", " young artists ", " stroller ")):
+        return "kids"
+    if any(
+        marker in token_blob
+        for marker in (
+            " family ",
+            " families ",
+            " all ages ",
+            " all abilities ",
+            " celebration ",
+            " birthday ",
+            " dog days ",
+            " everyone can create ",
+        )
+    ):
+        return "all_ages"
+    has_teen = " teen " in token_blob or " teens " in token_blob or " high school " in token_blob
+    has_adult = " adult " in token_blob or " adults " in token_blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(
+        marker in token_blob
+        for marker in (" lecture ", " lectures ", " lets talk ", " talk ", " book club ", " conversation ", " discussion ", " curator ")
+    ):
+        return "adults"
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _parse_datetime(value: object) -> datetime | None:

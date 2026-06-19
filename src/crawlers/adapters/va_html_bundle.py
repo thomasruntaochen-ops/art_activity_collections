@@ -421,6 +421,11 @@ def _infer_va_html_price(
         if any(marker in token_blob for marker in (" workshop ", " workshops ", " class ", " classes ")):
             return False, "inferred"
         return True, "inferred"
+    if venue.slug in {"icavcu", "kluge_ruhe"}:
+        is_free, status = infer_price_classification(description, default_is_free=True)
+        if is_free is None:
+            return True, "inferred"
+        return is_free, status
     return infer_price_classification(description)
 
 
@@ -451,6 +456,8 @@ def _infer_va_html_audience(
         return "kids"
     if any(marker in token_blob for marker in (" teen ", " teens ")):
         return "teens"
+    if venue.slug == "icavcu" and "mend friend" in token_blob:
+        return "adults"
     if any(marker in token_blob for marker in (" talk ", " lecture ", " workshop ", " class ", " conversation ")):
         return "adults"
     return "unknown"

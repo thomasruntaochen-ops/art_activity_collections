@@ -335,6 +335,8 @@ def _build_row(event_obj: dict, *, venue: LaTribeVenueConfig) -> ExtractedActivi
     title_blob = _searchable_blob(title)
     if venue.slug == "noma" and _should_reject_noma_event(title_blob=title_blob, token_blob=token_blob):
         return None
+    if venue.slug == "rwnorton" and _should_reject_rwnorton_event(title_blob=title_blob, token_blob=token_blob):
+        return None
     if not _should_keep_event(title_blob=title_blob, token_blob=token_blob):
         return None
 
@@ -417,6 +419,21 @@ def _should_reject_noma_event(*, title_blob: str, token_blob: str) -> bool:
     if any(marker in token_blob for marker in (" soul sip ", " noma at night ", " producer s choice ")):
         return True
     if any(marker in title_blob for marker in (" screening ", " film ")):
+        return True
+    return False
+
+
+def _should_reject_rwnorton_event(*, title_blob: str, token_blob: str) -> bool:
+    has_program_signal = any(
+        marker in title_blob
+        for marker in (
+            " class ",
+            " lecture ",
+            " talk ",
+            " workshop ",
+        )
+    )
+    if not has_program_signal and any(marker in token_blob for marker in (" exhibition ", " exhibit ", " on display ")):
         return True
     return False
 

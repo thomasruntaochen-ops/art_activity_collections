@@ -11,6 +11,7 @@ from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_datetime_range
 from src.crawlers.adapters.oh_common import should_include_event
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -65,6 +66,7 @@ def parse_akron_art_museum_payload(html: str) -> list[ExtractedActivity]:
             activity_type=infer_activity_type(title, description, categories),
             age_min=None,
             age_max=None,
+            audience_segment=_infer_akron_audience(title=title, description=description, categories=categories),
             drop_in=False,
             registration_required=("register" in (description or "").lower()),
             start_at=start_at,
@@ -90,3 +92,13 @@ class AkronArtMuseumAdapter(BaseSourceAdapter):
 
     async def parse(self, payload: str) -> list[ExtractedActivity]:
         return parse_akron_art_museum_payload(payload)
+
+
+def _infer_akron_audience(*, title: str, description: str | None, categories: str | None) -> str:
+    inferred = infer_audience_segment(title=title, description=description, category=categories)
+    if inferred != "unknown":
+        return inferred
+    blob = f" {normalize_space(' '.join(part for part in [title, description or '', categories or ''] if part)).lower()} "
+    if any(marker in blob for marker in (" talk ", " lecture ", " workshop ", " class ", " conversation ")):
+        return "adults"
+    return "unknown"

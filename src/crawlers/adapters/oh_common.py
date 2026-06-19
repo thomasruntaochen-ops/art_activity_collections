@@ -8,6 +8,8 @@ from html import unescape
 import httpx
 from bs4 import BeautifulSoup
 
+from src.crawlers.pipeline.audience import infer_audience_segment
+
 
 NY_TIMEZONE = "America/New_York"
 
@@ -289,6 +291,50 @@ def should_include_event(
     if strong_body_exclude_hit and not include_hit:
         return False
     return include_hit
+
+
+def infer_oh_audience(
+    *,
+    title: str | None,
+    description: str | None = None,
+    category: str | None = None,
+    age_min: int | None = None,
+    age_max: int | None = None,
+    default: str = "adults",
+) -> str:
+    """Shared audience inference for OH museum adapters.
+
+    Most OH museum programming is adult gallery talks/lectures/classes, so the
+    default is adults; family / all-ages / kids / teen language overrides it.
+    """
+    raw = join_non_empty([title, description, category]) or ""
+    blob = f" {re.sub(r'[^a-z0-9]+', ' ', raw.lower())} "
+    if any(
+        marker in blob
+        for marker in (" all ages ", " all age ", " family ", " families ", " intergenerational ", " for everyone ")
+    ):
+        return "all_ages"
+    has_teen = " teen " in blob or " teens " in blob or " high school " in blob
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(
+        marker in blob
+        for marker in (" kid ", " kids ", " child ", " children ", " youth ", " toddler ", " toddlers ", " preschool ", " storytime ")
+    ):
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=category,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return default
 
 
 def infer_activity_type(title: str, description: str | None = None, category: str | None = None) -> str:

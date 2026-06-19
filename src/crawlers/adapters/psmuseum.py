@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.types import ExtractedActivity
 
 PSMUSEUM_PROGRAMS_URL = "https://www.psmuseum.org/events/programs-events"
@@ -197,6 +198,7 @@ def _build_row_from_slider_card(
         ]
     )
 
+    age_min, age_max = _infer_age_range(title=title, description=description)
     return ExtractedActivity(
         source_url=source_url,
         title=title,
@@ -206,14 +208,21 @@ def _build_row_from_slider_card(
         city=PSMUSEUM_CITY,
         state=PSMUSEUM_STATE,
         activity_type=_infer_activity_type(title=title, tag=tag, description=description),
-        age_min=None,
-        age_max=None,
+        age_min=age_min,
+        age_max=age_max,
+        audience_segment=_infer_psmuseum_audience(
+            title=title,
+            tag=tag,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         drop_in=("drop-in" in text_blob or "drop in" in text_blob),
         registration_required=("registration" in text_blob and "not required" not in text_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=LA_TIMEZONE,
-        free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+        **_psmuseum_price_kwargs(title=title, tag=tag, description=description, text_blob=text_blob),
     )
 
 
@@ -306,6 +315,57 @@ def _infer_activity_type(*, title: str, tag: str | None, description: str | None
     if any(keyword in blob for keyword in ("family", "workshop", "class", "activity", "lab")):
         return "workshop"
     return "activity"
+
+
+def _infer_age_range(*, title: str, description: str | None) -> tuple[int | None, int | None]:
+    blob = " ".join(part for part in [title, description or ""] if part).lower()
+    if "summer workshop series" in blob:
+        return 12, None
+    return None, None
+
+
+def _infer_psmuseum_audience(
+    *,
+    title: str,
+    tag: str | None,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = " ".join(part for part in [title, tag or "", description or ""] if part).lower()
+    if "family+" in blob or "family" in blob:
+        return "all_ages"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=tag,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in ("workshop", "class", "talk", "lecture", "conversation")):
+        return "adults"
+    return "unknown"
+
+
+def _psmuseum_price_kwargs(
+    *,
+    title: str,
+    tag: str | None,
+    description: str | None,
+    text_blob: str,
+) -> dict[str, bool | None | str]:
+    blob = " ".join(part for part in [title, tag or "", description or "", text_blob] if part).lower()
+    if "family+" in blob:
+        return {"is_free": True, "free_verification_status": "confirmed"}
+    if "free with admission" in blob or "free for members" in blob or "included with admission" in blob:
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    if "summer workshop series" in blob or "class" in blob or "workshop" in blob:
+        return {"is_free": False, "free_verification_status": "inferred"}
+    if "free" in blob:
+        return {"is_free": True, "free_verification_status": "confirmed"}
+    return {"is_free": False, "free_verification_status": "inferred"}
 
 
 def _normalize_text(node) -> str | None:

@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -97,6 +98,9 @@ ANYWHERE_REJECT_PATTERNS = (
     " jazz ",
     " concert ",
     " orchestra ",
+    " screening ",
+    " screenings ",
+    " member appreciation ",
 )
 TITLE_REJECT_PATTERNS = (
     " member event ",
@@ -168,6 +172,8 @@ class FlHtmlVenueConfig:
     city: str
     state: str
     list_urls: tuple[str, ...]
+    # Free-admission museums default their programs to free; paid/unknown leave None.
+    default_is_free: bool | None = None
 
 
 FL_HTML_VENUES: tuple[FlHtmlVenueConfig, ...] = (
@@ -206,6 +212,7 @@ FL_HTML_VENUES: tuple[FlHtmlVenueConfig, ...] = (
         city="Miami",
         state="FL",
         list_urls=("https://www.pamm.org/en/events/",),
+        default_is_free=False,  # Paid-admission museum: programs included with admission are not free.
     ),
     FlHtmlVenueConfig(
         slug="rollins",
@@ -217,6 +224,7 @@ FL_HTML_VENUES: tuple[FlHtmlVenueConfig, ...] = (
             "https://www.rollins.edu/rma/learn/families/",
             "https://www.rollins.edu/rma/learn/lectures-tours/",
         ),
+        default_is_free=True,  # Rollins College museum: free admission.
     ),
 )
 
@@ -629,7 +637,9 @@ def _build_row_template(
         return None
 
     age_min, age_max = _parse_age_range(" ".join(part for part in [title, description or ""] if part))
-    is_free, free_status = infer_price_classification(description)
+    is_free, free_status = infer_price_classification(description, default_is_free=venue.default_is_free)
+    if venue.slug == "moca_nomi" and is_free is None:
+        is_free, free_status = False, "inferred"
     return ExtractedActivity(
         source_url=source_url,
         title=title,
@@ -646,9 +656,53 @@ def _build_row_template(
         start_at=datetime.combine(date(2000, 1, 1), time(0, 0)),
         end_at=None,
         timezone=NY_TIMEZONE,
+        audience_segment=_infer_fl_html_audience(
+            title=title, description=description, token_blob=token_blob, age_min=age_min, age_max=age_max
+        ),
         is_free=is_free,
         free_verification_status=free_status,
     )
+
+
+def _infer_fl_html_audience(
+    *,
+    title: str,
+    description: str | None,
+    token_blob: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    # token_blob is a searchable blob (lowercased, punctuation→spaces).
+    if any(
+        m in token_blob
+        for m in (" maker day ", " community day ", " all ages ", " as well as adults ", " intergenerational ")
+    ):
+        return "all_ages"
+    # Educator professional development (not "museum educators lead…").
+    if any(
+        m in token_blob
+        for m in (" professional learning ", " professional development ", " for educators ", " for teachers ", " educator workshop ")
+    ):
+        return "adults"
+    if " family " in token_blob or " families " in token_blob:
+        return "kids"
+    has_teen = " teen " in token_blob or " teens " in token_blob or " high school " in token_blob
+    has_adult = " adult " in token_blob or " adults " in token_blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(m in token_blob for m in (" kid ", " kids ", " child ", " children ", " youth ", " toddler ", " stroller ")):
+        return "kids"
+    if any(
+        m in token_blob
+        for m in (" panel ", " lecture ", " lectures ", " discussion ", " talk ", " talks ", " artist ", " curator ", " conversation ")
+    ):
+        return "adults"
+    inferred = infer_audience_segment(title=title, description=description, age_min=age_min, age_max=age_max)
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _hydrate_row(
@@ -677,6 +731,7 @@ def _hydrate_row(
         start_at=start_at,
         end_at=end_at,
         timezone=template.timezone,
+        audience_segment=template.audience_segment,
         is_free=template.is_free,
         free_verification_status=template.free_verification_status,
     )
@@ -908,9 +963,9 @@ def _normalize_space(value: object) -> str:
     return " ".join(value.split())
 
 
-def get_fl_html_source_prefixes() -> tuple[str, ...]:
+def get_fl_html_source_prefixes(venues=None) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in FL_HTML_VENUES:
+    for venue in (venues if venues is not None else FL_HTML_VENUES):
         for url in venue.list_urls:
             parsed = urlparse(url)
             prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")

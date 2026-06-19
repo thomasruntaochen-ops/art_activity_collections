@@ -10,7 +10,8 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from src.crawlers.adapters.base import BaseSourceAdapter
-from src.crawlers.pipeline.pricing import infer_price_classification
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 SLATER_EVENTS_PAGE_URL = "https://www.slatermuseum.org/events"
@@ -43,7 +44,6 @@ INCLUDED_KEYWORDS = (
     "class",
     "art class",
     "activity",
-    "lab",
 )
 EXCLUDED_KEYWORDS = (
     "closed",
@@ -61,6 +61,15 @@ EXCLUDED_KEYWORDS = (
     "movie",
     "film",
     "artisan craft show",
+    # Social / catered fundraiser events are not art activities.
+    "soiree",
+    "soirée",
+    "murder mystery",
+    "gala",
+    "dinner",
+    "catering",
+    "fundraiser",
+    "cocktail",
 )
 REGISTRATION_MARKERS = (
     "register",
@@ -217,7 +226,6 @@ def _build_row_from_event(event: dict[str, dict[str, object]]) -> ExtractedActiv
 
     text_blob = _normalize_space(" ".join(part for part in (title, description, location) if part))
     age_min, age_max = _parse_age_range(text_blob)
-    is_free, free_status = infer_price_classification(text_blob)
 
     source_url = SLATER_EVENTS_PAGE_URL
     if uid:
@@ -239,9 +247,38 @@ def _build_row_from_event(event: dict[str, dict[str, object]]) -> ExtractedActiv
         start_at=start_at,
         end_at=end_at,
         timezone=SLATER_TIMEZONE,
-        is_free=is_free,
-        free_verification_status=free_status,
+        audience_segment=_infer_slater_audience(
+            title=title, description=description, age_min=age_min, age_max=age_max
+        ),
+        # Slater Memorial Museum (Norwich Free Academy) has free admission, so
+        # its lectures/talks/programs default to free.
+        **price_classification_kwargs(text_blob, default_is_free=True),
     )
+
+
+def _infer_slater_audience(
+    *,
+    title: str,
+    description: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {' '.join((title + ' ' + description).lower().split())} "
+    if " all ages " in blob or " family " in blob or " families " in blob:
+        return "all_ages"
+    has_teen = " teen " in blob or " teens " in blob or " high school " in blob
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(m in blob for m in (" kid ", " kids ", " child ", " children ", " youth ", " toddler ")):
+        return "kids"
+    inferred = infer_audience_segment(title=title, description=description, age_min=age_min, age_max=age_max)
+    if inferred != "unknown":
+        return inferred
+    # Slater's lineup is adult lectures/talks/classes by default.
+    return "adults"
 
 
 def _ics_text_value(field: dict[str, object] | None) -> str:

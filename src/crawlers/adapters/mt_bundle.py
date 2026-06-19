@@ -966,6 +966,23 @@ def _should_include_event(*, title: str, description: str | None, categories: li
         return False
     if " registration opens " in title_blob or " artist registration " in title_blob:
         return False
+    if " design contest " in blob or " t-shirt design " in blob:
+        return False
+    if " festival " in title_blob and not any(
+        marker in blob
+        for marker in (
+            " activity ",
+            " art making ",
+            " artmaking ",
+            " class ",
+            " classes ",
+            " demonstration ",
+            " hands-on ",
+            " workshop ",
+            " workshops ",
+        )
+    ):
+        return False
     if title_blob.startswith(" last day ") or " museum closed " in title_blob:
         return False
 

@@ -484,6 +484,7 @@ def _parse_delaware_contemporary_events(payload: dict, *, venue: DeVenueConfig) 
 
         if title == "Body of Art: Open Figure Drawing":
             for start_at, end_at in _parse_tdc_open_figure_dates(description, current_date=current_date):
+                age_min, age_max = _parse_age_range(description)
                 rows.append(
                     ExtractedActivity(
                         source_url=f"{venue.list_url}#body-of-art-open-figure-drawing",
@@ -494,8 +495,17 @@ def _parse_delaware_contemporary_events(payload: dict, *, venue: DeVenueConfig) 
                         city=venue.city,
                         state=venue.state,
                         activity_type="workshop",
-                        age_min=_parse_age_range(description)[0],
-                        age_max=_parse_age_range(description)[1],
+                        age_min=age_min,
+                        age_max=age_max,
+                        audience_segment=_infer_de_audience(
+                            venue=venue,
+                            title=title,
+                            description=description,
+                            category_text=None,
+                            age_min=age_min,
+                            age_max=age_max,
+                            activity_type="workshop",
+                        ),
                         drop_in=True,
                         registration_required=_registration_required(description),
                         start_at=start_at,
@@ -509,6 +519,7 @@ def _parse_delaware_contemporary_events(payload: dict, *, venue: DeVenueConfig) 
             if parsed is None:
                 continue
             start_at, end_at = parsed
+            age_min, age_max = _parse_age_range(description)
             rows.append(
                 ExtractedActivity(
                     source_url=f"{venue.list_url}#body-of-art-intro-to-figure-drawing",
@@ -519,8 +530,17 @@ def _parse_delaware_contemporary_events(payload: dict, *, venue: DeVenueConfig) 
                     city=venue.city,
                     state=venue.state,
                     activity_type="workshop",
-                    age_min=_parse_age_range(description)[0],
-                    age_max=_parse_age_range(description)[1],
+                    age_min=age_min,
+                    age_max=age_max,
+                    audience_segment=_infer_de_audience(
+                        venue=venue,
+                        title=title,
+                        description=description,
+                        category_text=None,
+                        age_min=age_min,
+                        age_max=age_max,
+                        activity_type="workshop",
+                    ),
                     drop_in=None,
                     registration_required=_registration_required(description),
                     start_at=start_at,

@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -458,6 +459,9 @@ def _parse_speed_events(payload: dict, *, venue: KyVenueConfig) -> list[Extracte
         full_description = " | ".join(description_parts) if description_parts else None
         text_blob = _searchable_text(" ".join([title, full_description or ""]))
         price_kwargs = _price_kwargs(full_description)
+        if venue.slug == "speed" and price_kwargs["is_free"] is None:
+            price_kwargs = {"is_free": False, "free_verification_status": "inferred"}
+        activity_type = _infer_activity_type(text_blob)
 
         row = ExtractedActivity(
             source_url=source_url,
@@ -467,9 +471,14 @@ def _parse_speed_events(payload: dict, *, venue: KyVenueConfig) -> list[Extracte
             location_text=location_name,
             city=venue.city,
             state=venue.state,
-            activity_type=_infer_activity_type(text_blob),
+            activity_type=activity_type,
             age_min=None,
             age_max=None,
+            audience_segment=_infer_ky_audience(
+                title=title,
+                description=full_description,
+                activity_type=activity_type,
+            ),
             drop_in=(" drop-in " in text_blob or " drop in " in text_blob),
             registration_required=(
                 " registration " in text_blob
@@ -850,6 +859,18 @@ def _price_kwargs(text: str | None) -> dict[str, bool | None | str]:
     if re.search(r"\bfree\b", text or "", re.IGNORECASE):
         return {"is_free": True, "free_verification_status": "confirmed"}
     return price_classification_kwargs(text)
+
+
+def _infer_ky_audience(*, title: str, description: str | None, activity_type: str | None) -> str:
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    blob = _searchable_text(" ".join([title, description or ""]))
+    if any(marker in blob for marker in (" docent ", " chat spot ", " lecture ", " talk ", " conversation ")):
+        return "adults"
+    if activity_type in {"talk", "class", "workshop"}:
+        return "adults"
+    return "unknown"
 
 
 def _is_qualifying_event(*, title: str, description: str | None) -> bool:

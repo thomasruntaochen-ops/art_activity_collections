@@ -27,6 +27,7 @@ from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -129,6 +130,12 @@ HMOA_REJECT_PATTERNS = (
     " reception ",
     " tour ",
     " tours ",
+    # Closure / cancellation announcements are not events.
+    " no saturday kidsart ",
+    " no kidsart ",
+    " hma closed ",
+    " museum closed ",
+    " closed on ",
 )
 WVU_REJECT_PATTERNS = (
     " admission ",
@@ -227,9 +234,9 @@ class WvBundleAdapter(BaseSourceAdapter):
         raise NotImplementedError("Use load_wv_bundle_payload/parse_wv_events from the script runner.")
 
 
-def get_wv_source_prefixes() -> tuple[str, ...]:
+def get_wv_source_prefixes(venues=None) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in WV_VENUES:
+    for venue in (venues if venues is not None else WV_VENUES):
         prefixes.extend(venue.source_prefixes)
     return tuple(dict.fromkeys(prefixes))
 
@@ -556,11 +563,41 @@ def _parse_hmoa_events(payload: dict, *, venue: WvVenueConfig) -> list[Extracted
                 start_at=start_at,
                 end_at=end_at,
                 timezone=WV_TIMEZONE,
+                audience_segment=_infer_wv_audience(
+                    title=title, description=description or detail_text, combined=combined, age_min=age_min, age_max=age_max
+                ),
                 **price_classification_kwargs(combined),
             )
         )
 
     return activities
+
+
+def _infer_wv_audience(
+    *,
+    title: str | None,
+    description: str | None,
+    combined: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {re.sub(r'[^a-z0-9]+', ' ', (combined or '').lower())} "
+    if " kidsart " in blob or " kids art " in blob:
+        return "kids"
+    if " all ages " in blob or " family " in blob or " families " in blob:
+        return "all_ages"
+    has_teen = " teen " in blob or " teens " in blob or " high school " in blob
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(m in blob for m in (" kid ", " kids ", " child ", " children ", " youth ", " toddler ", " kindergarten ")):
+        return "kids"
+    inferred = infer_audience_segment(title=title, description=description, age_min=age_min, age_max=age_max)
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _parse_stifel_events(payload: dict, *, venue: WvVenueConfig) -> list[ExtractedActivity]:

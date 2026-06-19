@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -158,6 +159,14 @@ def parse_joslyn_payload(payload: dict) -> list[ExtractedActivity]:
         end_at = _parse_datetime(detail.get("end_at") or event.get("end_at"))
         age_min, age_max = _parse_age_range(" ".join(filter(None, [title, description])))
 
+        # Joslyn general admission is free, but every included row is an
+        # instructor-led, registration-required class/workshop (a special paid
+        # program). Explicit prices ("General Public: $180") resolve to not-free;
+        # rows without a printed price fall back to not-free instead of uncertain.
+        price_kwargs = price_classification_kwargs(description, default_is_free=False)
+        if price_kwargs["is_free"] is None:
+            price_kwargs = {"is_free": False, "free_verification_status": "inferred"}
+
         row = ExtractedActivity(
             source_url=source_url,
             title=title,
@@ -174,7 +183,13 @@ def parse_joslyn_payload(payload: dict) -> list[ExtractedActivity]:
             start_at=start_at,
             end_at=end_at,
             timezone=JOSLYN_TIMEZONE,
-            **price_classification_kwargs(description),
+            audience_segment=_infer_joslyn_audience(
+                title=title,
+                description=description,
+                age_min=age_min,
+                age_max=age_max,
+            ),
+            **price_kwargs,
         )
         key = (row.source_url, row.title, row.start_at)
         if key in seen:
@@ -330,6 +345,39 @@ def _infer_activity_type(blob: str) -> str:
     if any(marker in blob for marker in (" lecture ", " talk ", " conversation ", " discussion ")):
         return "lecture"
     return "workshop"
+
+
+def _infer_joslyn_audience(
+    *,
+    title: str | None,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    # Joslyn labels its program audiences explicitly in the title, e.g.
+    # "(Teens & Adults)", "(Adults)", "(Family)", "(Kids)". Strip punctuation so
+    # the parenthetical labels match on whole-word boundaries.
+    text = re.sub(r"[^a-z0-9]+", " ", " ".join(filter(None, [title, description])).lower())
+    blob = f" {' '.join(text.split())} "
+    has_teen = " teen " in blob or " teens " in blob or " high school " in blob
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if " all ages " in blob or " family " in blob or " families " in blob:
+        return "all_ages"
+    if has_teen:
+        return "teens"
+    if " kid " in blob or " kids " in blob or " children " in blob or " youth " in blob:
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _parse_age_range(text: str) -> tuple[int | None, int | None]:

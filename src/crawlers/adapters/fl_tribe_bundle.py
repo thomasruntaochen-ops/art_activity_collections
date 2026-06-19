@@ -360,6 +360,8 @@ def _build_row(event_obj: dict, *, venue: FlTribeVenueConfig) -> ExtractedActivi
 
     title_blob = _searchable_blob(" ".join([title, " ".join(category_names)]))
     token_blob = _searchable_blob(" ".join([title, description or "", " ".join(category_names)]))
+    if venue.slug == "harn" and any(marker in token_blob for marker in (" art after dark ", " wine down ", " wine downs ")):
+        return None
     if not _should_keep_event(title_blob=title_blob, token_blob=token_blob):
         return None
 

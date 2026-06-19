@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import NY_TIMEZONE
 from src.crawlers.adapters.oh_common import infer_activity_type
+from src.crawlers.adapters.oh_common import infer_oh_audience
 from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_time_range
@@ -145,8 +146,35 @@ def _build_row(item: dict, *, today: date) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        **price_classification_kwargs(full_description),
+        audience_segment=_infer_butler_audience(
+            title=title, description=full_description, age_min=age_min, age_max=age_max
+        ),
+        # The Butler Institute is a free-admission museum: programs default free.
+        **price_classification_kwargs(full_description, default_is_free=True),
     )
+
+
+def _infer_butler_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    title_blob = f" {re.sub(r'[^a-z0-9]+', ' ', title.lower())} "
+    desc_blob = f" {re.sub(r'[^a-z0-9]+', ' ', (description or '').lower())} "
+    # Infant / stroller programs are for the youngest children.
+    if " stroller " in title_blob or " infant " in title_blob or " infants " in title_blob:
+        return "kids"
+    # Classes where adults participate alongside children are all-ages.
+    if any(
+        phrase in desc_blob
+        for phrase in (" as well as adults ", " children and adults ", " adults and children ", " for all ages ")
+    ):
+        return "all_ages"
+    # Infer from the title + age only; Butler descriptions carry partner-org
+    # noise (e.g. "Bliss Kids Collective") that pollutes keyword matching.
+    return infer_oh_audience(title=title, description=None, age_min=age_min, age_max=age_max)
 
 
 def _title_is_candidate(title: str) -> bool:

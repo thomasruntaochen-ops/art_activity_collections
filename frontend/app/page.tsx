@@ -13,7 +13,7 @@ type MapViewportMode = "fit" | "focus" | "usa";
 type ViewMode = "map" | "table";
 type UserLocation = { lat: number; lng: number };
 
-// "Near me" distance choices (miles) offered in the mobile location dialog.
+// "Near me" distance choices (miles) offered in the mobile location panel.
 const LOCATION_RANGES = [10, 25, 50];
 
 const AUDIENCE_OPTIONS: { value: "" | AudienceSegment; label: string }[] = [
@@ -165,7 +165,7 @@ export default function HomePage() {
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [locationRange, setLocationRange] = useState<number | null>(null);
-  const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
+  const [isLocationPanelOpen, setIsLocationPanelOpen] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState("");
   const detailRef = useRef<HTMLElement | null>(null);
@@ -191,15 +191,15 @@ export default function HomePage() {
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }, [viewMode]);
 
-  // Lock background scroll while a mobile overlay (map, filters, or the
-  // location dialog) is open.
+  // Lock background scroll while a full-screen mobile overlay (map or filters)
+  // is open. The "near me" panel slides inline and keeps the page scrollable.
   useEffect(() => {
     if (typeof document === "undefined") return;
-    document.body.style.overflow = isMapOpen || isFiltersOpen || isLocationDialogOpen ? "hidden" : "";
+    document.body.style.overflow = isMapOpen || isFiltersOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isMapOpen, isFiltersOpen, isLocationDialogOpen]);
+  }, [isMapOpen, isFiltersOpen]);
 
   // Let Esc and the device Back gesture close the full-screen mobile map overlay
   // instead of navigating away from the page.
@@ -394,7 +394,7 @@ export default function HomePage() {
 
   const requestLocation = useCallback(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocationError("Location isn't supported by this browser.");
+      setLocationError("This browser can't share your location, so museums near you aren't available here.");
       return;
     }
     // Browsers only expose geolocation in a secure context (HTTPS or localhost).
@@ -414,12 +414,12 @@ export default function HomePage() {
       (error) => {
         const message =
           error.code === error.PERMISSION_DENIED
-            ? "Location permission was denied. Enable it for this site in your browser settings, then try again."
+            ? "Location is turned off for this site. Turn on location access for your browser (and your phone's location services), then tap Try again."
             : error.code === error.POSITION_UNAVAILABLE
-              ? "Your location is unavailable right now. Try again in a moment."
+              ? "We can't find your location. Make sure location services are turned on for your device, then tap Try again."
               : error.code === error.TIMEOUT
-                ? "Finding your location timed out. Try again."
-                : "We couldn't access your location. Check permissions and try again.";
+                ? "Finding your location took too long. Tap Try again."
+                : "We couldn't access your location. Turn on location access, then tap Try again.";
         setLocationError(message);
         setLocationLoading(false);
       },
@@ -428,16 +428,22 @@ export default function HomePage() {
   }, []);
 
   const handleLocateClick = useCallback(() => {
-    setIsLocationDialogOpen(true);
+    // Toggle the inline panel; kick off a location request the first time it opens.
+    if (isLocationPanelOpen) {
+      setIsLocationPanelOpen(false);
+      return;
+    }
+    setIsLocationPanelOpen(true);
     if (!userLocation) {
       requestLocation();
     }
-  }, [requestLocation, userLocation]);
+  }, [isLocationPanelOpen, requestLocation, userLocation]);
 
   const handlePickRange = useCallback(
     (range: number) => {
       setLocationRange(range);
-      setIsLocationDialogOpen(false);
+      // Picking a distance finishes the flow: slide the panel back up.
+      setIsLocationPanelOpen(false);
       if (!userLocation && !locationLoading) {
         requestLocation();
       }
@@ -447,7 +453,7 @@ export default function HomePage() {
 
   const clearLocationFilter = useCallback(() => {
     setLocationRange(null);
-    setIsLocationDialogOpen(false);
+    setIsLocationPanelOpen(false);
   }, []);
 
   // From a map popup: close the map, select the venue, and bring its card +
@@ -582,6 +588,10 @@ export default function HomePage() {
     if (nextView === "table" && !tableVenueName && selectedVenueName) {
       setTableVenueName(selectedVenueName);
     }
+    // The locate button only lives in map view, so collapse the panel on switch.
+    if (nextView !== "map") {
+      setIsLocationPanelOpen(false);
+    }
     setViewMode(nextView);
   }
 
@@ -681,6 +691,58 @@ export default function HomePage() {
         </div>
       </header>
 
+      {/* Inline "near me" panel: slides down under the search/locate row instead
+          of opening a modal, so it pushes the content below it down rather than
+          covering it. Mile choices are hidden when location is unavailable. */}
+      <div className={`location-panel${isLocationPanelOpen ? " is-open" : ""}`}>
+        <div className="location-panel__inner">
+          <div className="location-panel__card">
+            <div className="location-panel__header">
+              <p className="location-panel__title">Museums near me</p>
+              <button
+                type="button"
+                className="location-panel__close"
+                onClick={() => setIsLocationPanelOpen(false)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            {locationError ? (
+              <div className="location-panel__notice">
+                <p className="status-note is-error">{locationError}</p>
+                <button type="button" className="location-panel__retry" onClick={requestLocation}>
+                  Try again
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="location-panel__hint">Show museums within this distance, closest first.</p>
+                {locationLoading ? <p className="status-note">Finding your location…</p> : null}
+                <div className="location-panel__options">
+                  {LOCATION_RANGES.map((range) => (
+                    <button
+                      key={range}
+                      type="button"
+                      className={`location-range${locationRange === range ? " is-active" : ""}`}
+                      onClick={() => handlePickRange(range)}
+                    >
+                      <span>Within {range} mi</span>
+                      <span aria-hidden="true">›</span>
+                    </button>
+                  ))}
+                </div>
+                {locationRange ? (
+                  <button type="button" className="location-panel__clear" onClick={clearLocationFilter}>
+                    Clear distance filter
+                  </button>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
       <section className="explorer-filterbar">
         {/* `display: contents` (desktop) keeps these inline in the grid; on mobile
             this wrapper becomes a bottom sheet opened by the Filters button. */}
@@ -761,36 +823,6 @@ export default function HomePage() {
 
       {isFiltersOpen ? (
         <div className="sheet-backdrop" onClick={() => setIsFiltersOpen(false)} aria-hidden="true" />
-      ) : null}
-
-      {isLocationDialogOpen ? (
-        <>
-          <div className="sheet-backdrop" onClick={() => setIsLocationDialogOpen(false)} aria-hidden="true" />
-          <div className="location-dialog" role="dialog" aria-modal="true" aria-label="Museums near me">
-            <p className="location-dialog__title">Museums near me</p>
-            <p className="location-dialog__hint">Show museums within this distance, closest first.</p>
-            {locationError ? <p className="status-note is-error">{locationError}</p> : null}
-            {locationLoading ? <p className="status-note">Finding your location…</p> : null}
-            <div className="location-dialog__options">
-              {LOCATION_RANGES.map((range) => (
-                <button
-                  key={range}
-                  type="button"
-                  className={`location-range${locationRange === range ? " is-active" : ""}`}
-                  onClick={() => handlePickRange(range)}
-                >
-                  <span>Within {range} mi</span>
-                  <span aria-hidden="true">›</span>
-                </button>
-              ))}
-            </div>
-            {locationRange ? (
-              <button type="button" className="location-dialog__clear" onClick={clearLocationFilter}>
-                Clear distance filter
-              </button>
-            ) : null}
-          </div>
-        </>
       ) : null}
 
       {viewMode === "map" ? (

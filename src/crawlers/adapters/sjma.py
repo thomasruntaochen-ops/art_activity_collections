@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -198,6 +199,8 @@ def parse_sjma_events_html(
         title = _normalize_text(title_node.get_text(" ", strip=True) if title_node else None)
         if not title or is_irrelevant_item_text(title):
             continue
+        if _is_hard_excluded_title(title):
+            continue
 
         source_url = urljoin(list_url, anchor["href"])
         abstract = _normalize_text(abstract_node.get_text(" ", strip=True) if abstract_node else None)
@@ -255,6 +258,12 @@ def parse_sjma_events_html(
                 activity_type=_infer_activity_type(text_blob),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_sjma_audience(
+                    title=title,
+                    description=description,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=("drop-in" in text_blob.lower() or "drop in" in text_blob.lower()),
                 registration_required=registration_required,
                 start_at=start_at,
@@ -404,6 +413,20 @@ def _should_include_event(text: str) -> bool:
     return any(keyword in normalized for keyword in INCLUDED_KEYWORDS)
 
 
+def _is_hard_excluded_title(title: str) -> bool:
+    normalized = title.lower()
+    return any(
+        marker in normalized
+        for marker in (
+            "make music",
+            "museum hours",
+            "jazz summer fest",
+            "next gen stage",
+            "summer fest",
+        )
+    )
+
+
 def _is_registration_required(text: str) -> bool:
     normalized = text.lower()
     return any(keyword in normalized for keyword in ("register", "registration", "tickets", "ticket", "application"))
@@ -416,6 +439,29 @@ def _infer_activity_type(text: str) -> str:
     if any(keyword in normalized for keyword in ("workshop", "class", "artmaking", "art 101", "lab")):
         return "workshop"
     return "activity"
+
+
+def _infer_sjma_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = " ".join(part for part in [title, description or ""] if part).lower()
+    if any(marker in blob for marker in ("juneteenth", "game zone", "arttech playground", "all ages")):
+        return "all_ages"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if any(marker in blob for marker in ("talk", "lecture", "conversation", "workshop", "class")):
+        return "adults"
+    return "unknown"
 
 
 def _parse_age_range(*, title: str, description: str | None) -> tuple[int | None, int | None]:

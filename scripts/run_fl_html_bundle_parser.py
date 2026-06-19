@@ -26,7 +26,8 @@ from src.models.activity import Activity, Source  # noqa: E402
 FL_HTML_SOURCE_URL_PREFIXES = get_fl_html_source_prefixes()
 
 
-def clear_fl_html_entries() -> dict[str, int]:
+def clear_fl_html_entries(*, venues=None) -> dict[str, int]:
+    venues_to_clear = list(venues) if venues is not None else list(FL_HTML_VENUES)
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
@@ -35,20 +36,21 @@ def clear_fl_html_entries() -> dict[str, int]:
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in FL_HTML_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in venues_to_clear],
         )
 
-        source_ids = db.scalars(
-            select(Source.id).where(
-                or_(
-                    Source.base_url.in_([url for venue in FL_HTML_VENUES for url in venue.list_urls]),
-                    Source.name.like("fl_html_%"),
-                    Source.name.in_([venue.source_name for venue in FL_HTML_VENUES]),
-                )
-            )
-        ).all()
+        source_filters = [
+            Source.base_url.in_([url for venue in venues_to_clear for url in venue.list_urls]),
+            Source.name.in_([venue.source_name for venue in venues_to_clear]),
+        ]
+        if len(venues_to_clear) == len(FL_HTML_VENUES):
+            source_filters.append(Source.name.like("fl_html_%"))
+        source_ids = db.scalars(select(Source.id).where(or_(*source_filters))).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in FL_HTML_SOURCE_URL_PREFIXES]
+        url_filters = [
+            Activity.source_url.like(f"{prefix}%")
+            for prefix in get_fl_html_source_prefixes(venues_to_clear)
+        ]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -122,7 +124,7 @@ async def main() -> None:
     )
 
     if args.clear and not args.commit:
-        deleted = clear_fl_html_entries()
+        deleted = clear_fl_html_entries(venues=selected_venues)
         print(
             "Deleted FL HTML rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -142,7 +144,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_fl_html_entries()
+        deleted = clear_fl_html_entries(venues=selected_venues)
         print(
             "Deleted FL HTML rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

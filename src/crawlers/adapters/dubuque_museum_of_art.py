@@ -13,6 +13,7 @@ from src.crawlers.adapters.oh_common import DEFAULT_HEADERS
 from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_date_text
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -133,6 +134,7 @@ def _build_row(item: dict) -> ExtractedActivity | None:
     price_text = normalize_space(event.get("price"))
     tickets_link = normalize_space(event.get("tickets_link"))
     blob = " ".join(part for part in [title, description or "", type_text, category_text, price_text] if part)
+    registration_required = _requires_registration(blob, tickets_link=tickets_link)
 
     return ExtractedActivity(
         source_url=item["source_url"],
@@ -145,8 +147,9 @@ def _build_row(item: dict) -> ExtractedActivity | None:
         activity_type=_infer_activity_type(blob),
         age_min=None,
         age_max=None,
-        drop_in=not bool(tickets_link),
-        registration_required=bool(tickets_link),
+        audience_segment=_infer_dubuque_audience(title=title, description=description, blob=blob),
+        drop_in=not registration_required,
+        registration_required=registration_required,
         start_at=start_at,
         end_at=end_at,
         timezone=DUBUQUE_TIMEZONE,
@@ -200,6 +203,11 @@ def _parse_datetime_value(value: str | None) -> datetime | None:
 
 def _should_keep(title: str, description: str, type_text: str, category_text: str) -> bool:
     blob = f" {title.lower()} {description.lower()} {type_text.lower()} {category_text.lower()} "
+    title_blob = f" {title.lower()} "
+    if " dubuque rendezvous " in title_blob:
+        return False
+    if " festival " in blob and " workshop " not in title_blob and " class " not in title_blob:
+        return False
     has_exclude = any(marker in blob for marker in EXCLUDE_MARKERS)
     strong_include = any(
         marker in blob
@@ -229,8 +237,39 @@ def _should_keep(title: str, description: str, type_text: str, category_text: st
 
 def _infer_activity_type(text: str) -> str:
     blob = f" {text.lower()} "
+    if "workshop" in blob:
+        return "workshop"
+    if "class" in blob or "program" in blob:
+        return "class"
     if "talk" in blob or "lecture" in blob or "conversation" in blob:
         return "talk"
-    if "class" in blob:
-        return "class"
     return "activity"
+
+
+def _infer_dubuque_audience(*, title: str, description: str | None, blob: str) -> str:
+    normalized = f" {blob.lower()} "
+    if " high school " in normalized or " highschool " in normalized or " teen " in normalized:
+        return "teens"
+    if any(marker in normalized for marker in (" family ", " families ", " children ", " kids ")):
+        return "kids"
+    inferred = infer_audience_segment(title=title, description=description)
+    if inferred != "unknown":
+        return inferred
+    if any(marker in normalized for marker in (" talk ", " lecture ", " conversation ", " workshop ", " class ")):
+        return "adults"
+    return "unknown"
+
+
+def _requires_registration(blob: str, *, tickets_link: str | None) -> bool:
+    normalized = f" {blob.lower()} "
+    return bool(tickets_link) or any(
+        marker in normalized
+        for marker in (
+            " sign up ",
+            " signs up ",
+            " spots are limited ",
+            " limited admission ",
+            " permission slip ",
+            " selected to participate ",
+        )
+    )

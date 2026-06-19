@@ -815,7 +815,12 @@ def _parse_umma_events(payload: dict, *, venue: MiVenueConfig) -> list[Extracted
         if _should_keep_umma_event(title=featured_row["title"], description=combined_description):
             key = (source_url, featured_row["title"], featured_row["start_at"])
             seen.add(key)
-            is_free, free_status = infer_price_classification(combined_description, default_is_free=None)
+            # UMMA general admission is free, so programs default to free unless
+            # the text shows an explicit price. (Bios containing words like
+            # "Live Feed" can trip the ambiguous "fee" marker → force free.)
+            is_free, free_status = infer_price_classification(combined_description, default_is_free=True)
+            if is_free is None:
+                is_free, free_status = True, "inferred"
             registration_required = detail_registration_required or _registration_required_for_text(
                 title=featured_row["title"],
                 description=combined_description,
@@ -837,6 +842,10 @@ def _parse_umma_events(payload: dict, *, venue: MiVenueConfig) -> list[Extracted
                     start_at=featured_row["start_at"],
                     end_at=featured_row["end_at"],
                     timezone=MI_TIMEZONE,
+                    audience_segment=_infer_umma_audience(
+                        title=featured_row["title"],
+                        description=combined_description,
+                    ),
                     free_verification_status=free_status,
                     is_free=is_free,
                 )
@@ -890,7 +899,9 @@ def _parse_umma_events(payload: dict, *, venue: MiVenueConfig) -> list[Extracted
             continue
         seen.add(key)
 
-        is_free, free_status = infer_price_classification(combined_description, default_is_free=None)
+        is_free, free_status = infer_price_classification(combined_description, default_is_free=True)
+        if is_free is None:
+            is_free, free_status = True, "inferred"
         registration_required = detail_registration_required or _registration_required_for_text(
             title=title,
             description=combined_description,
@@ -912,6 +923,7 @@ def _parse_umma_events(payload: dict, *, venue: MiVenueConfig) -> list[Extracted
                 start_at=start_at,
                 end_at=end_at,
                 timezone=MI_TIMEZONE,
+                audience_segment=_infer_umma_audience(title=title, description=combined_description),
                 free_verification_status=free_status,
                 is_free=is_free,
             )
@@ -1337,6 +1349,24 @@ def _should_keep_muskegon_event(*, title: str, description: str | None) -> bool:
     if _contains_any(blob, (" family night ", " workshop ", " lecture ", " talk ", " class ", " activity ", " art-filled activities ", " art making ", " artmaking ")):
         return True
     return False
+
+
+def _infer_umma_audience(*, title: str, description: str | None) -> str:
+    # Base the audience on the title only: UMMA descriptions are long artist
+    # bios that frequently trip keyword matches (e.g. "adjudicated teens").
+    blob = _normalize_for_match(title)
+    if _contains_any(blob, (" family ", " families ", " all ages ", " intergenerational ", " family art activity ")):
+        return "all_ages"
+    has_teen = _contains_any(blob, (" teen ", " teens ", " high school "))
+    has_adult = _contains_any(blob, (" adult ", " adults "))
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if _contains_any(blob, (" kids ", " children ", " youth ", " toddler ", " preschool ")):
+        return "kids"
+    # Talks, lectures, demonstrations, tours, and workshops default to adults.
+    return "adults"
 
 
 def _should_keep_umma_event(*, title: str, description: str | None) -> bool:

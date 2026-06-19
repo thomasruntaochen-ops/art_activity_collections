@@ -459,6 +459,8 @@ def _parse_eiteljorg_events(payload: dict, *, venue: InVenueConfig) -> list[Extr
             continue
         if _is_unavailable_event(title=title, description=description, event_obj=event_obj):
             continue
+        if _should_reject_eiteljorg_event(title=title, description=description):
+            continue
         if not _should_keep_event(title=title, description=description):
             continue
 
@@ -483,16 +485,58 @@ def _parse_eiteljorg_events(payload: dict, *, venue: InVenueConfig) -> list[Extr
                 activity_type=_infer_activity_type(text_blob),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_eiteljorg_audience(
+                    title=title,
+                    description=full_description,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=_contains_any(text_blob, DROP_IN_PATTERNS),
                 registration_required=_registration_required(text_blob),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=IN_TIMEZONE,
-                **price_classification_kwargs_from_amount(price_amount, text=price_text or full_description),
+                **price_classification_kwargs_from_amount(
+                    price_amount,
+                    text=price_text or full_description,
+                    default_is_free=False,
+                ),
             )
         )
 
     return rows
+
+
+def _should_reject_eiteljorg_event(*, title: str, description: str | None) -> bool:
+    blob = f" {normalize_space(' '.join(part for part in [title, description or ''] if part)).lower()} "
+    if " members-only " in blob or " member-only " in blob:
+        return True
+    if " documentary screening " in blob or " film screening " in blob:
+        return True
+    if " ticket proceeds " in blob or " fundraiser " in blob or " raise funds " in blob:
+        return True
+    return False
+
+
+def _infer_eiteljorg_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    blob = f" {normalize_space(' '.join(part for part in [title, description or ''] if part)).lower()} "
+    if any(marker in blob for marker in (" conversation ", " lecture ", " panel ", " talk ", " workshop ", " class ")):
+        return "adults"
+    return "unknown"
 
 
 def _parse_eskenazi_events(payload: dict, *, venue: InVenueConfig) -> list[ExtractedActivity]:
@@ -562,6 +606,7 @@ def _parse_eskenazi_events(payload: dict, *, venue: InVenueConfig) -> list[Extra
 def _parse_fwmoa_events(payload: dict, *, venue: InVenueConfig) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
     today = datetime.now(ZoneInfo(IN_TIMEZONE)).date()
+    seen: set[tuple[str, datetime]] = set()
 
     for source_url, html in (payload.get("detail_html_by_url") or {}).items():
         soup = BeautifulSoup(html, "html.parser")
@@ -585,8 +630,24 @@ def _parse_fwmoa_events(payload: dict, *, venue: InVenueConfig) -> list[Extracte
             continue
 
         start_at, end_at = parsed
+        # Legacy event slugs (e.g. chalkwalk2024) can re-list the current event,
+        # so de-dupe on the title + start datetime.
+        dedupe_key = (_searchable_blob(title).strip(), start_at)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+
         text_blob = " ".join(part for part in [title, description] if part)
         age_min, age_max = parse_age_range(text_blob)
+        activity_type = _infer_activity_type(text_blob)
+        title_blob = _searchable_blob(title)
+
+        # The Chalk Walk is a free public downtown street-painting festival
+        # (only artists reserving a square pay an optional fee).
+        if " chalk walk " in title_blob:
+            price_kwargs: dict[str, bool | None | str] = {"is_free": True, "free_verification_status": "confirmed"}
+        else:
+            price_kwargs = price_classification_kwargs(description)
 
         rows.append(
             ExtractedActivity(
@@ -597,7 +658,7 @@ def _parse_fwmoa_events(payload: dict, *, venue: InVenueConfig) -> list[Extracte
                 location_text=venue.default_location,
                 city=venue.city,
                 state=venue.state,
-                activity_type=_infer_activity_type(text_blob),
+                activity_type=activity_type,
                 age_min=age_min,
                 age_max=age_max,
                 drop_in=_contains_any(text_blob, DROP_IN_PATTERNS),
@@ -605,11 +666,53 @@ def _parse_fwmoa_events(payload: dict, *, venue: InVenueConfig) -> list[Extracte
                 start_at=start_at,
                 end_at=end_at,
                 timezone=IN_TIMEZONE,
-                **price_classification_kwargs(description),
+                audience_segment=_infer_fwmoa_audience(
+                    title=title,
+                    description=description,
+                    source_url=source_url,
+                    age_min=age_min,
+                    age_max=age_max,
+                    activity_type=activity_type,
+                ),
+                **price_kwargs,
             )
         )
 
     return rows
+
+
+def _infer_fwmoa_audience(
+    *,
+    title: str | None,
+    description: str | None,
+    source_url: str | None,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str | None,
+) -> str:
+    title_blob = _searchable_blob(" ".join(part for part in [title or "", source_url or ""] if part))
+    if any(m in title_blob for m in (" chalk walk ", " family ", " families ", " all ages ", " community day ")):
+        return "all_ages"
+    has_teen = " teen " in title_blob or " teens " in title_blob or " high school " in title_blob
+    has_adult = " adult " in title_blob or " adults " in title_blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(m in title_blob for m in (" kid ", " kids ", " child ", " children ", " youth ", " toddler ")):
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    if activity_type in {"class", "workshop", "lecture", "activity"}:
+        return "adults"
+    return "unknown"
 
 
 def _parse_raclin_events(payload: dict, *, venue: InVenueConfig) -> list[ExtractedActivity]:

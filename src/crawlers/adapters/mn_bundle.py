@@ -801,6 +801,7 @@ def _build_mmaa_row(event: dict, *, venue: MnVenueConfig) -> ExtractedActivity |
         description_parts.append(f"Price: {_normalize_space(event.get('cost'))}")
     description_text = " | ".join(description_parts) if description_parts else None
     age_min, age_max = _extract_age_range(blob)
+    activity_type = _infer_activity_type(title, blob)
     is_free, free_status = infer_price_classification(
         " ".join([description_text or "", _normalize_space(event.get("cost"))]),
         default_is_free=True if " free " in _token_blob(blob) else None,
@@ -814,9 +815,16 @@ def _build_mmaa_row(event: dict, *, venue: MnVenueConfig) -> ExtractedActivity |
         location_text=f"{venue.venue_name}, {venue.city}, {venue.state}",
         city=venue.city,
         state=venue.state,
-        activity_type=_infer_activity_type(title, blob),
+        activity_type=activity_type,
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_mn_audience(
+            title=title,
+            text=blob,
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+        ),
         drop_in=_has_any_pattern(blob, DROP_IN_PATTERNS),
         registration_required=_has_registration_signal(blob),
         start_at=start_at,

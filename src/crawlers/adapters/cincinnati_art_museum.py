@@ -7,6 +7,7 @@ from src.crawlers.adapters.oh_common import NY_TIMEZONE
 from src.crawlers.adapters.oh_common import absolute_url
 from src.crawlers.adapters.oh_common import fetch_html
 from src.crawlers.adapters.oh_common import infer_activity_type
+from src.crawlers.adapters.oh_common import infer_oh_audience
 from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_datetime_range
@@ -67,7 +68,10 @@ def parse_cincinnati_art_museum_payload(html: str) -> list[ExtractedActivity]:
             start_at=start_at,
             end_at=end_at,
             timezone=NY_TIMEZONE,
-            **price_classification_kwargs(full_description),
+            audience_segment=infer_oh_audience(title=title, description=description, category=category),
+            # Cincinnati Art Museum general admission is free, so programs default
+            # to free; ticketed/priced classes resolve to not-free via price text.
+            **price_classification_kwargs(full_description, default_is_free=True),
         )
         key = (row.source_url, row.title, row.start_at)
         if key in seen:

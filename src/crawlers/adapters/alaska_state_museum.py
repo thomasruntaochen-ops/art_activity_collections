@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import normalize_space
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -210,6 +211,14 @@ def _parse_asm_events_page(html: str, *, source_url: str) -> ExtractedActivity |
             activity_type="workshop",
             age_min=age_min,
             age_max=age_max,
+            audience_segment=_infer_asm_audience(
+                title=title,
+                description=description,
+                source_url=source_url,
+                age_min=age_min,
+                age_max=age_max,
+                default="adults",
+            ),
             drop_in=("drop-in" in text_blob or "drop in" in text_blob),
             registration_required=(
                 "registration required" in text_blob or "registration is required" in text_blob
@@ -288,6 +297,14 @@ def _parse_youthart_page(html: str, *, source_url: str) -> ExtractedActivity | N
         activity_type="workshop",
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_asm_audience(
+            title=title,
+            description=description,
+            source_url=source_url,
+            age_min=age_min,
+            age_max=age_max,
+            default="kids",
+        ),
         drop_in=("drop-in" in text_blob or "drop in" in text_blob),
         registration_required=(
             "registration required" in text_blob or "registration is required" in text_blob
@@ -408,3 +425,22 @@ def _parse_age_range(text: str) -> tuple[int | None, int | None]:
     if plus_match is not None:
         return int(plus_match.group(1)), None
     return None, None
+
+
+def _infer_asm_audience(
+    *,
+    title: str,
+    description: str | None,
+    source_url: str,
+    age_min: int | None,
+    age_max: int | None,
+    default: str,
+) -> str:
+    return infer_audience_segment(
+        title=title,
+        description=description,
+        source_url=source_url,
+        age_min=age_min,
+        age_max=age_max,
+        default=default,
+    )

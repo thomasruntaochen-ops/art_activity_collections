@@ -11,6 +11,7 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import DEFAULT_HEADERS
 from src.crawlers.adapters.oh_common import fetch_html
 from src.crawlers.adapters.oh_common import infer_activity_type
+from src.crawlers.adapters.oh_common import infer_oh_audience
 from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_date_text
@@ -187,7 +188,9 @@ def _build_row(event: dict, detail_html: str) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=CHAZEN_TIMEZONE,
-        **price_classification_kwargs(full_description),
+        audience_segment=infer_oh_audience(title=title, description=full_description),
+        # Chazen Museum of Art (UW-Madison) has free admission: default free.
+        **price_classification_kwargs(full_description, default_is_free=True),
     )
 
 

@@ -31,7 +31,8 @@ from src.models.activity import Source  # noqa: E402
 WV_SOURCE_URL_PREFIXES = get_wv_source_prefixes()
 
 
-def clear_wv_bundle_entries() -> dict[str, int]:
+def clear_wv_bundle_entries(*, venues=None) -> dict[str, int]:
+    venues_to_clear = list(venues) if venues is not None else list(WV_VENUES)
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
@@ -40,27 +41,28 @@ def clear_wv_bundle_entries() -> dict[str, int]:
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in WV_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in venues_to_clear],
         )
 
-        source_ids = db.scalars(
-            select(Source.id).where(
-                or_(
-                    Source.base_url.in_([venue.list_url for venue in WV_VENUES]),
-                    Source.name.like("wv_%_events"),
-                    Source.name.in_([venue.source_name for venue in WV_VENUES]),
-                )
-            )
-        ).all()
+        source_filters = [
+            Source.base_url.in_([venue.list_url for venue in venues_to_clear]),
+            Source.name.in_([venue.source_name for venue in venues_to_clear]),
+        ]
+        if len(venues_to_clear) == len(WV_VENUES):
+            source_filters.append(Source.name.like("wv_%_events"))
+        source_ids = db.scalars(select(Source.id).where(or_(*source_filters))).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in WV_SOURCE_URL_PREFIXES]
-        activity_filter = or_(*url_filters)
+        url_filters = [
+            Activity.source_url.like(f"{prefix}%")
+            for prefix in get_wv_source_prefixes(venues_to_clear)
+        ]
+        clauses = list(url_filters)
         if source_ids:
-            activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
+            clauses.append(Activity.source_id.in_(source_ids))
         if venue_ids:
-            activity_filter = or_(activity_filter, Activity.venue_id.in_(venue_ids))
+            clauses.append(Activity.venue_id.in_(venue_ids))
 
-        activity_ids = db.scalars(select(Activity.id).where(activity_filter)).all()
+        activity_ids = db.scalars(select(Activity.id).where(or_(*clauses))).all() if clauses else []
         if activity_ids:
             delete_tags_stmt = text(
                 "DELETE FROM activity_tags WHERE activity_id IN :activity_ids"
@@ -116,7 +118,7 @@ async def main() -> None:
     selected_venues = list(WV_VENUES) if args.venue == "all" else [WV_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_wv_bundle_entries()
+        deleted = clear_wv_bundle_entries(venues=selected_venues)
         print(
             "Deleted WV bundle rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -136,7 +138,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_wv_bundle_entries()
+        deleted = clear_wv_bundle_entries(venues=selected_venues)
         print(
             "Deleted WV bundle rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

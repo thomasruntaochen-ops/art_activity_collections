@@ -359,8 +359,9 @@ def _parse_zuckerman_events(payload: dict, *, venue: GaHtmlVenueConfig) -> list[
         if "free" in description.lower():
             price_text = "free"
 
-        is_free, free_status = infer_price_classification(description)
+        is_free, free_status = infer_price_classification(description, default_is_free=True)
         full_description = description or None
+        audience_segment = _infer_zuckerman_audience(title=title, description=description)
 
         rows.append(
             ExtractedActivity(
@@ -374,6 +375,7 @@ def _parse_zuckerman_events(payload: dict, *, venue: GaHtmlVenueConfig) -> list[
                 activity_type=_infer_activity_type(f"{title} {description}"),
                 age_min=None,
                 age_max=None,
+                audience_segment=audience_segment,
                 drop_in=False,
                 registration_required=("rsvp" in description.lower() or registration_link is not None),
                 start_at=start_at,
@@ -710,6 +712,22 @@ def _infer_high_audience(*, title: str, description: str | None, meta_text: str 
         description=description,
         category=meta_text,
     )
+
+
+def _infer_zuckerman_audience(*, title: str, description: str | None) -> str:
+    blob = _searchable_blob(" ".join(part for part in (title, description or "") if part))
+    if " all ages " in blob:
+        return "all_ages"
+    if any(marker in blob for marker in (" children ", " kids ", " family ", " families ", " youth ")):
+        return "kids"
+    if any(marker in blob for marker in (" teen ", " teens ")):
+        return "teens"
+    generic = infer_audience_segment(title=title, description=description)
+    if generic != "unknown":
+        return generic
+    if any(marker in blob for marker in (" artist talk ", " lecture ", " panel ", " talk ", " workshop ")):
+        return "adults"
+    return "unknown"
 
 
 def _should_keep_event(*, title: str, description: str) -> bool:

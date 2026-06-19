@@ -32,6 +32,7 @@ DEFAULT_HEADERS = {
 ALWAYS_EXCLUDE_PATTERNS = (
     " admission ",
     " admissions ",
+    " blood drive ",
     " camp ",
     " camps ",
     " concert ",
@@ -368,7 +369,14 @@ def _price_classification(
     description: str | None,
 ) -> tuple[bool | None, str]:
     text = " | ".join(part for part in [price_text, description] if part)
-    if "included with admission" in text.lower():
+    lowered = text.lower()
+    # Pay-what-you-can / pay-what-you-wish programs are attendable for free.
+    if any(
+        marker in lowered
+        for marker in ("pay what you can", "pay-what-you-can", "pay what you wish", "pay-what-you-wish", "pwyw", "pwyc")
+    ):
+        return True, "confirmed"
+    if "included with admission" in lowered:
         return False, "confirmed"
     return infer_price_classification_from_amount(amount, text=text)
 
@@ -392,12 +400,43 @@ def _infer_wa_audience(
             or " in the studio: " in token_blob
         ):
             return "kids"
-    return infer_audience_segment(
+    # Prefer title/category signals first; free-text descriptions carry room
+    # names ("Murray Family Event Space") and artwork themes ("family
+    # photographs") that mislead family/kids detection. Strip punctuation so
+    # markers match across "Artist Talk:" / "Art Class:" style titles.
+    title_blob = f" {re.sub(r'[^a-z0-9]+', ' ', ' '.join([title, *category_names, *tag_names]).lower()).strip()} "
+    title_blob = f" {' '.join(title_blob.split())} "
+    if " family " in title_blob or " families " in title_blob or " all ages " in title_blob:
+        return "all_ages"
+    if " creative aging " in title_blob or " older adults " in title_blob or " 55 " in title_blob:
+        return "adults"
+    # Talks/lectures/classes are adult programs even when their content
+    # description mentions "family" (e.g. an artist talk about family photos).
+    if any(
+        marker in title_blob
+        for marker in (" artist talk ", " art class ", " gallery talk ", " lecture ", " curator talk ", " in conversation ")
+    ):
+        return "adults"
+    has_teen = " teen " in title_blob or " teens " in title_blob or " high school " in title_blob
+    has_adult = " adult " in title_blob or " adults " in title_blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(m in title_blob for m in (" kid ", " kids ", " child ", " children ", " youth ", " toddler ", " preschool ")):
+        return "kids"
+    # Fall back to the full text (incl. description) — this catches genuine
+    # "all ages" / family descriptors that aren't in the title.
+    inferred = infer_audience_segment(
         title=title,
         description=description,
         category=" ".join(category_names),
         tags=tag_names,
     )
+    if inferred != "unknown":
+        return inferred
+    # Art classes, artist talks, lectures, and workshops default to adults.
+    return "adults"
 
 
 def _extract_amount(cost_details: object) -> Decimal | None:

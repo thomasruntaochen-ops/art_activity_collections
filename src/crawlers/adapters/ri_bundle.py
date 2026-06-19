@@ -774,6 +774,12 @@ def _parse_warwick_events(
                 activity_type=_infer_activity_type(title=title, description=description),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_newport_audience(
+                    title=title,
+                    description=description,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=False,
                 registration_required=True,
                 start_at=start_at,

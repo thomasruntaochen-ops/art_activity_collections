@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -187,7 +188,16 @@ def parse_benton_payload(payload: dict) -> list[ExtractedActivity]:
 
         age_min, age_max = _parse_age_range(detail["text_blob"])
         text_blob = detail["text_blob"].lower()
+        activity_type = _infer_activity_type(text_blob)
         is_free, free_status = infer_price_classification(text_blob)
+        if is_free is None:
+            # The Benton (UConn) has free general admission, so gallery
+            # lectures/talks default to free, but its instructor-led
+            # workshops/craft/classes are special paid registration programs.
+            if activity_type in ("workshop", "class"):
+                is_free, free_status = False, "inferred"
+            else:
+                is_free, free_status = True, "inferred"
         rows.append(
             ExtractedActivity(
                 source_url=detail["source_url"],
@@ -197,7 +207,7 @@ def parse_benton_payload(payload: dict) -> list[ExtractedActivity]:
                 location_text=detail["location_text"] or BENTON_DEFAULT_LOCATION,
                 city=BENTON_CITY,
                 state=BENTON_STATE,
-                activity_type=_infer_activity_type(text_blob),
+                activity_type=activity_type,
                 age_min=age_min,
                 age_max=age_max,
                 drop_in=("drop-in" in text_blob or "drop in" in text_blob or "no registration" in text_blob),
@@ -205,6 +215,13 @@ def parse_benton_payload(payload: dict) -> list[ExtractedActivity]:
                 start_at=start_at,
                 end_at=detail["end_at"],
                 timezone=NY_TIMEZONE,
+                audience_segment=_infer_benton_audience(
+                    title=detail["title"],
+                    description=detail["description"],
+                    text_blob=text_blob,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 is_free=is_free,
                 free_verification_status=free_status,
             )
@@ -405,6 +422,36 @@ def _infer_activity_type(text: str) -> str:
     if "class" in text:
         return "class"
     return "workshop"
+
+
+def _infer_benton_audience(
+    *,
+    title: str,
+    description: str | None,
+    text_blob: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {re.sub(r'[^a-z0-9]+', ' ', text_blob)} "
+    if " all ages " in blob or " family " in blob or " families " in blob:
+        return "all_ages"
+    has_teen = " teen " in blob or " teens " in blob or " high school " in blob
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if " kid " in blob or " kids " in blob or " child " in blob or " children " in blob or " youth " in blob:
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _parse_age_range(text: str) -> tuple[int | None, int | None]:

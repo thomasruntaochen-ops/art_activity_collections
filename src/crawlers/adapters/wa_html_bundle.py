@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -338,7 +339,11 @@ def _parse_bima_events(payload: dict, *, venue: WaHtmlVenueConfig) -> list[Extra
         when_text = _extract_bima_detail(detail_html, "When")
         description = _extract_bima_description(detail_html)
         signal_blob = _searchable_blob(" ".join(part for part in [title, blob, when_text or "", description or ""] if part))
-        if not _allow_bima(signal_blob):
+        # Check include/exclude against the title + listing category only; the
+        # detail description carries incidental words ("reception to follow")
+        # that wrongly excluded legitimate artist talks/workshops.
+        allow_blob = _searchable_blob(" ".join(part for part in [title, blob, when_text or ""] if part))
+        if not _allow_bima(allow_blob):
             continue
         start_date = _parse_first_date_with_year(when_text or blob) or _parse_first_date_with_year(detail_html)
         if start_date is None:
@@ -597,7 +602,16 @@ def _make_row(
     price_text: str | None,
 ) -> ExtractedActivity:
     is_free, free_status = infer_price_classification(price_text)
+    if is_free is None and price_text and (
+        "buy tickets" in price_text.lower() or "purchase tickets" in price_text.lower()
+    ):
+        # A "buy/purchase tickets" call-to-action denotes a paid ticketed event.
+        is_free, free_status = False, "inferred"
+    if is_free is None and venue.slug == "henry":
+        is_free, free_status = True, "inferred"
     registration_blob = _searchable_blob(" ".join(part for part in [title, description or "", price_text or ""] if part))
+    age_min = _parse_age_min(token_blob)
+    age_max = _parse_age_max(token_blob)
     return ExtractedActivity(
         source_url=source_url,
         title=title,
@@ -607,16 +621,40 @@ def _make_row(
         city=venue.city,
         state=venue.state,
         activity_type=activity_type,
-        age_min=_parse_age_min(token_blob),
-        age_max=_parse_age_max(token_blob),
+        age_min=age_min,
+        age_max=age_max,
         drop_in=("drop-in" in token_blob or "drop in" in token_blob),
         registration_required=("register" in registration_blob or "rsvp" in registration_blob or "ticket" in registration_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=WA_TIMEZONE,
+        audience_segment=_infer_wa_html_audience(title=title, age_min=age_min, age_max=age_max),
         is_free=is_free,
         free_verification_status=free_status,
     )
+
+
+def _infer_wa_html_audience(*, title: str, age_min: int | None, age_max: int | None) -> str:
+    # Base on the title + age; wa_html descriptions carry exhibition blurbs and
+    # partner names that mislead family/kids keyword matching.
+    blob = f" {re.sub(r'[^a-z0-9]+', ' ', title.lower())} "
+    if " family " in blob or " families " in blob or " all ages " in blob or " all-ages " in blob:
+        return "all_ages"
+    if " creative aging " in blob or " older adults " in blob:
+        return "adults"
+    has_teen = " teen " in blob or " teens " in blob or " high school " in blob
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(m in blob for m in (" kid ", " kids ", " child ", " children ", " youth ", " toddler ", " preschool ", " stroller ")):
+        return "kids"
+    inferred = infer_audience_segment(title=title, age_min=age_min, age_max=age_max)
+    if inferred != "unknown":
+        return inferred
+    # Talks, lectures, classes, and workshops default to adults.
+    return "adults"
 
 
 def _allow_bima(token_blob: str) -> bool:
@@ -1061,9 +1099,9 @@ def _searchable_blob(value: str) -> str:
     return f" {' '.join(normalized.split())} "
 
 
-def get_wa_html_source_prefixes() -> list[str]:
+def get_wa_html_source_prefixes(venues: "list[WaHtmlVenueConfig] | tuple[WaHtmlVenueConfig, ...] | None" = None) -> list[str]:
     prefixes: list[str] = []
-    for venue in WA_HTML_VENUES:
+    for venue in (venues if venues is not None else WA_HTML_VENUES):
         parsed = urlparse(venue.list_url)
         if parsed.scheme and parsed.netloc:
             prefixes.append(f"{parsed.scheme}://{parsed.netloc}")

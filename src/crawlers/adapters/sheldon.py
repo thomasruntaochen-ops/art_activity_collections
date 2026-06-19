@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -146,23 +147,40 @@ def parse_sheldon_payload(payload: dict) -> list[ExtractedActivity]:
         if start_at is None or start_at.date() < current_date:
             continue
 
+        title_text = detail.get("title") or title
+        age_min, age_max = _parse_sheldon_age_range(" ".join(filter(None, [title_text, description])))
+        # Sheldon (UNL) has free admission, so family days / talks are free, but
+        # instructor-led workshops are paid registration programs.
+        price_kwargs = price_classification_kwargs(description)
+        if price_kwargs["is_free"] is None:
+            if " workshop " in blob or " class " in blob:
+                price_kwargs = {"is_free": False, "free_verification_status": "inferred"}
+            else:
+                price_kwargs = {"is_free": True, "free_verification_status": "inferred"}
+
         row = ExtractedActivity(
             source_url=source_url,
-            title=detail.get("title") or title,
+            title=title_text,
             description=description,
             venue_name=SHELDON_VENUE_NAME,
             location_text=detail.get("location_text") or SHELDON_DEFAULT_LOCATION,
             city=SHELDON_CITY,
             state=SHELDON_STATE,
             activity_type=_infer_activity_type(blob),
-            age_min=None,
-            age_max=None,
+            age_min=age_min,
+            age_max=age_max,
             drop_in=("drop in" in blob or "drop-in" in blob),
             registration_required=(" register " in blob or " registration " in blob),
             start_at=start_at,
             end_at=end_at,
             timezone=SHELDON_TIMEZONE,
-            **price_classification_kwargs(description),
+            audience_segment=_infer_sheldon_audience(
+                title=title_text,
+                description=description,
+                age_min=age_min,
+                age_max=age_max,
+            ),
+            **price_kwargs,
         )
         key = (row.source_url, row.title, row.start_at)
         if key in seen:
@@ -245,6 +263,54 @@ def _infer_activity_type(blob: str) -> str:
     if any(marker in blob for marker in (" lecture ", " visiting artist ", " teach-in ", " conversation ")):
         return "lecture"
     return "workshop"
+
+
+_SHELDON_AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
+_SHELDON_AGE_PLUS_RE = re.compile(
+    r"\bages?\s*(\d{1,2})\s*(?:\+|and (?:up|older|over))\b", re.IGNORECASE
+)
+
+
+def _parse_sheldon_age_range(text: str) -> tuple[int | None, int | None]:
+    match = _SHELDON_AGE_RANGE_RE.search(text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    plus = _SHELDON_AGE_PLUS_RE.search(text)
+    if plus:
+        return int(plus.group(1)), None
+    return None, None
+
+
+def _infer_sheldon_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    cleaned = f" {re.sub(r'[^a-z0-9]+', ' ', ' '.join([title, description or '']).lower())} "
+    if any(
+        marker in cleaned
+        for marker in (" family ", " families ", " all ages ", " open to everyone ", " for everyone ")
+    ):
+        return "all_ages"
+    has_teen = " teen " in cleaned or " teens " in cleaned or " high school " in cleaned
+    has_adult = " adult " in cleaned or " adults " in cleaned
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if " kid " in cleaned or " kids " in cleaned or " child " in cleaned or " children " in cleaned or " youth " in cleaned:
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _normalize_space(value: object) -> str:

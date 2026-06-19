@@ -8,6 +8,8 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 THEMODERN_PROGRAMS_URL = "https://www.themodern.org/programs"
@@ -51,6 +53,8 @@ DEFAULT_HEADERS = {
     "Referer": THEMODERN_PROGRAMS_URL,
 }
 WHITESPACE_RE = re.compile(r"\s+")
+AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
+AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\+\b", re.IGNORECASE)
 
 
 async def fetch_themodern_page(
@@ -199,6 +203,7 @@ def parse_themodern_payload(payload: dict[str, object]) -> list[ExtractedActivit
             seen.add(key)
 
             text_blob = " ".join([title, description or "", " ".join(program_types)]).lower()
+            age_min, age_max = _parse_themodern_age_range(" ".join([title, description or ""]))
             rows.append(
                 ExtractedActivity(
                     source_url=source_url,
@@ -209,14 +214,24 @@ def parse_themodern_payload(payload: dict[str, object]) -> list[ExtractedActivit
                     city=THEMODERN_CITY,
                     state=THEMODERN_STATE,
                     activity_type=_infer_themodern_activity_type(title, description),
-                    age_min=None,
-                    age_max=None,
+                    age_min=age_min,
+                    age_max=age_max,
                     drop_in=("drop-in" in text_blob or "drop in" in text_blob),
                     registration_required=("registration" in text_blob and "free" not in text_blob),
                     start_at=start_at,
                     end_at=None,
                     timezone=THEMODERN_TIMEZONE,
-                    free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+                    audience_segment=_infer_themodern_audience(
+                        title=title,
+                        description=description,
+                        program_types=program_types,
+                        age_min=age_min,
+                        age_max=age_max,
+                    ),
+                    # The Modern's general admission is paid, but the parser only
+                    # keeps its free youth/teen/family drop-in programs, so those
+                    # default to free unless the text gives an explicit price.
+                    **price_classification_kwargs(text_blob, default_is_free=True),
                 )
             )
 
@@ -317,6 +332,60 @@ def _should_keep_themodern_event(
     if any(keyword in text for keyword in THEMODERN_EXCLUDED_KEYWORDS) and not included:
         return False
     return included
+
+
+def _parse_themodern_age_range(text: str) -> tuple[int | None, int | None]:
+    match = AGE_RANGE_RE.search(text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    plus = AGE_PLUS_RE.search(text)
+    if plus:
+        return int(plus.group(1)), None
+    return None, None
+
+
+def _infer_themodern_audience(
+    *,
+    title: str,
+    description: str | None,
+    program_types: set[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    raw = " ".join([title, description or "", " ".join(program_types)])
+    blob = f" {re.sub(r'[^a-z0-9]+', ' ', raw.lower())} "
+    has_teen = (
+        " teen " in blob
+        or " teens " in blob
+        or " middle school " in blob
+        or " high school " in blob
+        or " teen program " in blob
+    )
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if " family " in blob or " families " in blob or " all ages " in blob:
+        return "all_ages"
+    if (
+        " child " in blob
+        or " children " in blob
+        or " kid " in blob
+        or " kids " in blob
+        or " school aged " in blob
+    ):
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    # The parser only keeps youth/family programming, so fall back to kids.
+    return "kids"
 
 
 def _infer_themodern_activity_type(title: str, description: str | None) -> str:

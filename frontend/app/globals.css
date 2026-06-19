@@ -858,39 +858,90 @@ a {
   background: #155ec2;
 }
 
-/* "Near me" range dialog (opened from the mobile locate button). */
-.location-dialog {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  z-index: 1200;
+/* "Near me" panel: slides down inline under the mobile search/locate row and
+   pushes the content below it down (rather than overlaying as a modal). The
+   0fr -> 1fr grid-row transition animates the open/close height smoothly. */
+.location-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-bottom: 0;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.28s ease,
+    opacity 0.2s ease,
+    margin-bottom 0.28s ease;
+}
+
+.location-panel.is-open {
+  grid-template-rows: 1fr;
+  margin-bottom: 18px;
+  opacity: 1;
+}
+
+.location-panel__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.location-panel__card {
   display: grid;
   gap: 12px;
-  width: min(360px, calc(100vw - 36px));
-  padding: 22px;
+  padding: 16px 18px;
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: 18px;
   background: var(--paper-strong);
-  box-shadow: 0 28px 60px rgba(58, 42, 24, 0.28);
-  transform: translate(-50%, -50%);
+  box-shadow: var(--shadow);
 }
 
-.location-dialog__title {
+.location-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.location-panel__title {
   margin: 0;
   font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  font-size: 1.25rem;
+  font-size: 1.2rem;
 }
 
-.location-dialog__hint {
+.location-panel__close {
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.location-panel__hint {
   margin: 0;
   color: var(--muted);
   font-size: 0.85rem;
   line-height: 1.5;
 }
 
-.location-dialog__options {
+.location-panel__notice {
+  display: grid;
+  gap: 12px;
+}
+
+.location-panel__options {
   display: grid;
   gap: 10px;
+}
+
+.location-panel__retry {
+  justify-self: start;
+  padding: 9px 16px;
+  border: 1px solid rgba(26, 115, 232, 0.4);
+  border-radius: 12px;
+  background: rgba(26, 115, 232, 0.12);
+  color: #175ec2;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .location-range {
@@ -913,9 +964,10 @@ a {
   color: #175ec2;
 }
 
-.location-dialog__clear {
+.location-panel__clear {
   justify-self: start;
   padding: 8px 4px;
+  border: 0;
   background: transparent;
   color: var(--gold-deep);
   font-weight: 600;

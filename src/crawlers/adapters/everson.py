@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -210,7 +211,7 @@ def parse_everson_payload(payload: dict) -> list[ExtractedActivity]:
             )
         ).lower()
         age_min, age_max = _parse_age_range(full_description or text_blob)
-        is_free, free_status = infer_price_classification(detail.get("price_text"))
+        is_free, free_status = _classify_everson_price(detail.get("price_text"), text_blob)
 
         rows.append(
             ExtractedActivity(
@@ -229,6 +230,13 @@ def parse_everson_payload(payload: dict) -> list[ExtractedActivity]:
                 start_at=detail["start_at"],
                 end_at=detail["end_at"],
                 timezone=NY_TIMEZONE,
+                audience_segment=_infer_everson_audience(
+                    title=detail["title"],
+                    description=full_description,
+                    text_blob=text_blob,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 is_free=is_free,
                 free_verification_status=free_status,
             )
@@ -597,6 +605,47 @@ def _should_include_event(*, listing: dict | None, detail: dict) -> bool:
     if has_soft_exclude and not has_strong_include:
         return False
     return True
+
+
+def _classify_everson_price(price_text: str | None, text_blob: str) -> tuple[bool | None, str]:
+    # Everson general admission is Pay-What-You-Wish, so talks/programs that are
+    # "included with admission" are effectively free. Hands-on art classes and
+    # workshops are separate paid registration programs.
+    ptext = (price_text or "").lower()
+    if any(marker in ptext for marker in ("pay-what-you-wish", "pay what you wish", "pwyw")):
+        return True, "confirmed"
+    is_free, status = infer_price_classification(price_text)
+    if is_free is not None:
+        return is_free, status
+    if "class" in text_blob or "workshop" in text_blob:
+        return False, "inferred"
+    return True, "inferred"
+
+
+def _infer_everson_audience(
+    *,
+    title: str | None,
+    description: str | None,
+    text_blob: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {re.sub(r'[^a-z0-9]+', ' ', text_blob)} "
+    if " all ages " in blob or " family " in blob or " families " in blob:
+        return "all_ages"
+    if " teen " in blob or " teens " in blob or " high school " in blob:
+        return "teens"
+    if " kid " in blob or " kids " in blob or " children " in blob or " youth " in blob:
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _infer_activity_type(text: str) -> str:

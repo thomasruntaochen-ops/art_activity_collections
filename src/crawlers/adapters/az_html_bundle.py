@@ -412,6 +412,14 @@ async def load_az_html_bundle_payload(
                     page_htmls[url] = await fetch_html(url, client=client)
             elif venue.discovery_mode == "scottsdale_playwright":
                 list_html = await fetch_html_playwright(venue.list_url)
+                for detail_url in _extract_scottsdale_detail_urls(list_html, venue.list_url)[:max_detail_pages]:
+                    try:
+                        detail_html = await fetch_html(detail_url, client=client)
+                        if _scottsdale_detail_needs_playwright(detail_html):
+                            detail_html = await fetch_html_playwright(detail_url)
+                        detail_pages[detail_url] = detail_html
+                    except Exception as exc:
+                        print(f"[az-html-fetch] detail failed slug={venue.slug} url={detail_url}: {exc}")
             elif venue.discovery_mode == "uama_detail":
                 list_html = await fetch_html(venue.list_url, client=client)
                 for detail_url in _extract_uama_detail_urls(list_html, venue.list_url)[:max_detail_pages]:
@@ -656,6 +664,7 @@ def _parse_phoenix_events(payload: dict, *, venue: AzHtmlVenueConfig) -> list[Ex
 
 def _parse_scottsdale_events(payload: dict, *, venue: AzHtmlVenueConfig) -> list[ExtractedActivity]:
     soup = BeautifulSoup(payload.get("list_html") or "", "html.parser")
+    detail_pages = payload.get("detail_pages") or {}
     rows: list[ExtractedActivity] = []
 
     for card in soup.select("#grid-view .events > *"):
@@ -671,24 +680,34 @@ def _parse_scottsdale_events(payload: dict, *, venue: AzHtmlVenueConfig) -> list
         if not _should_keep_event(title=title, description=description):
             continue
 
+        source_url = urljoin(venue.list_url, href)
+        detail_description = _extract_scottsdale_detail_text(detail_pages.get(source_url) or "")
+        full_description = detail_description or description
+        age_min, age_max = _parse_age_range(full_description)
         rows.append(
             ExtractedActivity(
-                source_url=urljoin(venue.list_url, href),
+                source_url=source_url,
                 title=title,
-                description=description,
+                description=full_description,
                 venue_name=venue.venue_name,
                 location_text=f"{venue.venue_name}, {venue.city}, {venue.state}",
                 city=venue.city,
                 state=venue.state,
-                activity_type=_infer_activity_type(f"{title} {description}"),
-                age_min=_parse_age_range(description)[0],
-                age_max=_parse_age_range(description)[1],
+                activity_type=_infer_activity_type(f"{title} {full_description}"),
+                age_min=age_min,
+                age_max=age_max,
+                audience_segment=_infer_scottsdale_audience(
+                    title=title,
+                    description=full_description,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=None,
-                registration_required=None,
+                registration_required=_registration_required(full_description),
                 start_at=start_at,
                 end_at=None,
                 timezone=AZ_TIMEZONE,
-                **price_classification_kwargs(description),
+                **_scottsdale_price_kwargs(full_description),
             )
         )
 
@@ -727,6 +746,12 @@ def _parse_uama_events(payload: dict, *, venue: AzHtmlVenueConfig) -> list[Extra
                 activity_type=_infer_activity_type(f"{title} {description}"),
                 age_min=age_min,
                 age_max=age_max,
+                audience_segment=_infer_uama_audience(
+                    title=title,
+                    description=description,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
                 drop_in=None,
                 registration_required=_registration_required(description),
                 start_at=start_at,
@@ -776,6 +801,22 @@ def _extract_mesa_detail_urls(html: str, list_url: str) -> list[str]:
     seen: set[str] = set()
     for anchor in soup.select('a[href*="/show-details/"]'):
         href = (anchor.get("href") or "").strip()
+        if not href:
+            continue
+        absolute = urljoin(list_url, href)
+        if absolute in seen:
+            continue
+        seen.add(absolute)
+        urls.append(absolute)
+    return urls
+
+
+def _extract_scottsdale_detail_urls(html: str, list_url: str) -> list[str]:
+    soup = BeautifulSoup(html or "", "html.parser")
+    urls: list[str] = []
+    seen: set[str] = set()
+    for card in soup.select("#grid-view .events > *"):
+        href = next((node.get("href") for node in card.select("[href]") if node.get("href")), None)
         if not href:
             continue
         absolute = urljoin(list_url, href)
@@ -889,6 +930,36 @@ def _parse_scottsdale_card(text: str) -> tuple[str, datetime, str] | None:
     )
     description = _normalize_space(text[match.end() :])
     return title, start_at, description
+
+
+def _extract_scottsdale_detail_text(html: str) -> str | None:
+    if not html:
+        return None
+    soup = BeautifulSoup(html, "html.parser")
+    node = soup.select_one("main") or soup.select_one("article") or soup
+    text = _normalize_space(node.get_text(" ", strip=True))
+    if not text:
+        return None
+    start_marker = " What's On / "
+    start_index = text.find(start_marker)
+    if start_index > 0:
+        text = text[start_index + 1 :]
+    for marker in (" Curated For You ", " Scottsdale Arts Sponsors ", " Copyright "):
+        marker_index = text.find(marker)
+        if marker_index > 0:
+            text = text[:marker_index]
+            break
+    return _normalize_space(text) or None
+
+
+def _scottsdale_detail_needs_playwright(html: str) -> bool:
+    text = _extract_scottsdale_detail_text(html) or ""
+    if not text:
+        return True
+    if len(text) < 180:
+        return True
+    title_only_suffixes = (" - Scottsdale Arts", " | Scottsdale Arts")
+    return any(text.endswith(suffix) for suffix in title_only_suffixes)
 
 
 def _parse_heard_datetime(text: str) -> tuple[datetime, datetime | None] | None:
@@ -1178,6 +1249,78 @@ def _infer_phoenix_audience(
     return generic if generic != "unknown" else "adults"
 
 
+def _scottsdale_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    blob = _searchable_blob(text or "")
+    if any(
+        marker in blob
+        for marker in (
+            " free for members ",
+            " free with admission ",
+            " free with museum admission ",
+            " included with admission ",
+            " included with museum admission ",
+            " member free ",
+            " members free ",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    kwargs = price_classification_kwargs(text, default_is_free=False)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
+
+
+def _infer_scottsdale_audience(
+    *,
+    title: str,
+    description: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = _searchable_blob(" ".join([title, description]))
+    if " all ages " in blob:
+        return "all_ages"
+    if any(marker in blob for marker in (" family ", " families ", " kids ", " children ")):
+        return "kids"
+    if any(marker in blob for marker in (" teen ", " teens ")):
+        generic = infer_audience_segment(
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        return generic if generic != "unknown" else "teens"
+    if any(marker in blob for marker in (" adult ", " adults ", " lecture ", " talk ", " conversation ", " workshop ")):
+        return "adults"
+    generic = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    return generic if generic != "unknown" else "adults"
+
+
+def _infer_uama_audience(
+    *,
+    title: str,
+    description: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    generic = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if generic != "unknown":
+        return generic
+    if any(marker in _searchable_blob(f"{title} {description}") for marker in (" talk ", " lecture ", " workshop ", " class ")):
+        return "adults"
+    return "unknown"
+
+
 def _infer_activity_type(token_blob: str) -> str:
     lead_searchable = _searchable_blob(token_blob[:160])
     if any(
@@ -1196,6 +1339,8 @@ def _infer_activity_type(token_blob: str) -> str:
         pattern in lead_searchable
         for pattern in (
             " conversation ",
+            " discuss ",
+            " discussing ",
             " discussion ",
             " lecture ",
             " lectures ",
@@ -1213,6 +1358,8 @@ def _infer_activity_type(token_blob: str) -> str:
         pattern in searchable
         for pattern in (
             " conversation ",
+            " discuss ",
+            " discussing ",
             " discussion ",
             " lecture ",
             " lectures ",

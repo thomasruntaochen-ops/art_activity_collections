@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -198,9 +199,46 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=MONA_TIMEZONE,
+        audience_segment=_infer_mona_audience(
+            title=title,
+            description=description,
+            category=" ".join(category_names),
+            blob=blob,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         is_free=is_free,
         free_verification_status=free_status,
     )
+
+
+def _infer_mona_audience(
+    *,
+    title: str | None,
+    description: str | None,
+    category: str | None,
+    blob: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    # blob is a search blob (lowercased, space-padded).
+    if " all ages " in blob or " family " in blob or " families " in blob:
+        return "all_ages"
+    has_teen = " teen " in blob or " teens " in blob or " high school " in blob
+    has_adult = " adult " in blob or " adults " in blob
+    if has_teen and has_adult:
+        return "teens_adults"
+    if has_teen:
+        return "teens"
+    if any(m in blob for m in (" kid ", " kids ", " child ", " children ", " youth ", " toddler ")):
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title, description=description, category=category, age_min=age_min, age_max=age_max
+    )
+    if inferred != "unknown":
+        return inferred
+    # Figure drawing / workshops / talks default to adults.
+    return "adults"
 
 
 def _extract_amount(cost_details: object) -> Decimal | None:
