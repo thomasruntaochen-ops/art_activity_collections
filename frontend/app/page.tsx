@@ -1091,6 +1091,55 @@ export default function HomePage() {
           {tableLoading ? <p className="status-note">Loading activities...</p> : <ActivityTable activities={tableActivities} />}
         </section>
       )}
+
+      <footer className="site-footer">
+        <div className="site-footer__inner">
+          <p className="site-footer__summary">
+            Activity details are gathered automatically from museum websites and may be out of
+            date — always confirm dates, prices, ages, and registration with the venue before you
+            go.
+          </p>
+          <details className="site-footer__details">
+            <summary className="site-footer__toggle">Read full disclaimer</summary>
+            <div className="site-footer__full">
+              <p className="site-footer__heading">Disclaimer</p>
+              <ul className="site-footer__list">
+                <li>
+                  <strong>Independent directory.</strong> Art Museum Activities Explorer is an
+                  independent guide to art activities for all ages — kids, teens, and adults — and
+                  is not affiliated with, endorsed by, or sponsored by any museum or institution
+                  listed here.
+                </li>
+                <li>
+                  <strong>Information may be inaccurate or out of date.</strong> Listings are
+                  collected automatically from public museum websites. Dates, times, locations,
+                  age ranges, registration rules, and availability can change or be removed at any
+                  time.
+                </li>
+                <li>
+                  <strong>&ldquo;Free&rdquo; is not a guarantee.</strong> A &ldquo;Free&rdquo;
+                  label reflects what we found when the listing was collected; admission,
+                  materials, or registration fees may still apply. Confirm pricing with the venue.
+                </li>
+                <li>
+                  <strong>Verify before attending.</strong> Check the museum&rsquo;s official
+                  website or contact them directly to confirm an activity is still running and is
+                  suitable for you, your child, or your group.
+                </li>
+                <li>
+                  <strong>External links.</strong> Links open third-party websites we don&rsquo;t
+                  control and aren&rsquo;t responsible for.
+                </li>
+                <li>
+                  <strong>No warranty.</strong> This site is provided &ldquo;as is,&rdquo; without
+                  warranties of any kind, and we are not liable for any loss or inconvenience from
+                  reliance on this information.
+                </li>
+              </ul>
+            </div>
+          </details>
+        </div>
+      </footer>
     </main>
   );
 }
