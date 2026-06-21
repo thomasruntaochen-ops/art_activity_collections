@@ -471,6 +471,23 @@ export default function HomePage() {
     setIsLocationPanelOpen(false);
   }, []);
 
+  // Clear every active filter back to its default. Wired to the "Clear all"
+  // button in the Filters group (inline on desktop, in the sheet on mobile).
+  const handleResetFilters = useCallback(() => {
+    setSelectedState("");
+    setSelectedCity("");
+    setAudienceFilter("");
+    setFreeOnly(false);
+    setSearchValue("");
+    setAgeFilter("");
+    setDropInFilter("");
+    setTableVenueName("");
+    setDateFrom(formatDateInput(new Date()));
+    setDateTo(formatDateInput(addMonths(new Date(), 1)));
+    setLocationRange(null);
+    setIsLocationPanelOpen(false);
+  }, []);
+
   // From a map popup: close the map, select the venue, and bring its card +
   // activities into view in the explorer below.
   const handleViewVenueActivities = useCallback((venueName: string) => {
@@ -810,6 +827,10 @@ export default function HomePage() {
             />
             <span>Free only</span>
           </label>
+
+          <button type="button" className="filters-advanced__reset" onClick={handleResetFilters}>
+            Clear all
+          </button>
 
           <button type="button" className="filters-advanced__done" onClick={() => setIsFiltersOpen(false)}>
             Done

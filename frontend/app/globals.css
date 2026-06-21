@@ -166,7 +166,7 @@ a {
 
 .explorer-filterbar {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto auto;
   gap: 14px;
   margin-bottom: 20px;
   padding: 16px;
@@ -214,6 +214,31 @@ a {
 }
 .explorer-filterbar .ctl-free {
   order: 6;
+}
+.explorer-filterbar .filters-advanced__reset {
+  order: 7;
+}
+
+/* "Clear all" button: visible inline on desktop and inside the mobile sheet. */
+.filters-advanced__reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filters-advanced__reset:hover {
+  border-color: var(--gold);
+  color: var(--gold-deep);
 }
 
 /* Mobile-only chrome: hidden on desktop, revealed in the <=980px media query. */
@@ -830,6 +855,7 @@ a {
 }
 
 .directions-link__icon {
+  display: block;
   width: 18px;
   height: 18px;
   flex: none;
@@ -1513,10 +1539,23 @@ a {
   .ctl-from input,
   .ctl-to input {
     height: 38px;
-    padding: 0 12px;
-    font-size: 0.85rem;
+    padding: 0 10px;
+    font-size: 0.8rem;
     width: 100%;
     min-width: 0;
+    /* Native date inputs enforce an intrinsic min-width from their internal
+       fields, which ignores width:100% and pushes the two boxes past their
+       grid tracks (so they overlap). Dropping the native appearance lets them
+       actually shrink to the track width. */
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Keep the calendar picker button compact so it doesn't re-inflate the box. */
+  .ctl-from input::-webkit-calendar-picker-indicator,
+  .ctl-to input::-webkit-calendar-picker-indicator {
+    margin: 0;
+    padding: 0;
   }
 
   .filterbar__sheet-trigger,
