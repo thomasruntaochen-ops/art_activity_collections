@@ -114,3 +114,72 @@ def test_list_activities_filters_audience_and_keeps_paid_adults_when_not_free_on
 
     assert [activity.title for activity in adult_results] == ["Adult Drawing Workshop"]
     assert free_adult_results == []
+
+
+def test_list_activities_teens_and_adults_filters_include_teens_adults() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    TestingSessionLocal = sessionmaker(bind=engine)
+    Base.metadata.create_all(engine)
+
+    now = datetime(2026, 6, 10, 12, 0)
+
+    def make_activity(slug: str, title: str, segment: AudienceSegment) -> Activity:
+        return Activity(
+            source_id=source.id,
+            source_url=f"https://example.org/{slug}",
+            title=title,
+            audience_segment=segment,
+            is_free=True,
+            free_verification_status=FreeVerificationStatus.confirmed,
+            drop_in=True,
+            registration_required=False,
+            start_at=now,
+            timezone="America/New_York",
+            venue_id=venue.id,
+            status=ActivityStatus.active,
+            first_seen_at=now,
+            last_seen_at=now,
+            updated_at=now,
+        )
+
+    with TestingSessionLocal() as db:
+        source = Source(
+            name="example_source",
+            base_url="https://example.org",
+            adapter_type="static_html",
+            crawl_frequency="daily",
+            active=True,
+        )
+        venue = Venue(name="Example Museum", city="New York", state="NY")
+        db.add_all([source, venue])
+        db.flush()
+        db.add_all(
+            [
+                make_activity("teens", "Teen Studio", AudienceSegment.teens),
+                make_activity("both", "Teen & Adult Studio", AudienceSegment.teens_adults),
+                make_activity("adults", "Adult Studio", AudienceSegment.adults),
+                make_activity("kids", "Kids Studio", AudienceSegment.kids),
+            ]
+        )
+        db.commit()
+
+        def titles(audience: str) -> set[str]:
+            results = list_activities(
+                db,
+                age=None,
+                drop_in=None,
+                venue=None,
+                city=None,
+                state=None,
+                date_from=None,
+                date_to=None,
+                free_only=False,
+                audience=audience,
+            )
+            return {activity.title for activity in results}
+
+        # teens_adults activities surface under both teens and adults filters.
+        assert titles("teens") == {"Teen Studio", "Teen & Adult Studio"}
+        assert titles("adults") == {"Adult Studio", "Teen & Adult Studio"}
+        # Unrelated segments stay scoped to themselves.
+        assert titles("kids") == {"Kids Studio"}

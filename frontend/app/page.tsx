@@ -19,8 +19,9 @@ const LOCATION_RANGES = [10, 25, 50];
 const AUDIENCE_OPTIONS: { value: "" | AudienceSegment; label: string }[] = [
   { value: "", label: "All audiences" },
   { value: "kids", label: "Kids" },
+  // "Teens" and "Adults" each surface teens_adults activities (see the API's
+  // _audience_segments), so a separate "Teens & adults" filter is redundant.
   { value: "teens", label: "Teens" },
-  { value: "teens_adults", label: "Teens & adults" },
   { value: "adults", label: "Adults" },
   { value: "all_ages", label: "All ages" },
 ];
@@ -598,16 +599,18 @@ export default function HomePage() {
     freeOnly,
   ]);
 
-  function handleViewChange(nextView: ViewMode) {
-    if (nextView === "table" && !tableVenueName && selectedVenueName) {
-      setTableVenueName(selectedVenueName);
-    }
-    // The locate button only lives in map view, so collapse the panel on switch.
-    if (nextView !== "map") {
-      setIsLocationPanelOpen(false);
-    }
-    setViewMode(nextView);
-  }
+  // Unused while the Map/Table switch is removed and the table view is disabled.
+  // Retained for when the table view is re-enabled.
+  // function handleViewChange(nextView: ViewMode) {
+  //   if (nextView === "table" && !tableVenueName && selectedVenueName) {
+  //     setTableVenueName(selectedVenueName);
+  //   }
+  //   // The locate button only lives in map view, so collapse the panel on switch.
+  //   if (nextView !== "map") {
+  //     setIsLocationPanelOpen(false);
+  //   }
+  //   setViewMode(nextView);
+  // }
 
   const selectedLocation = formatVenueLine(selectedVenue);
   const directionsTargets = useMemo(
@@ -687,6 +690,8 @@ export default function HomePage() {
           )}
         </div>
 
+        {/* Map/Table view switch removed — the Activity Table view is disabled.
+            Retained (commented) for future use.
         <div className="view-switch" role="tablist" aria-label="Explorer view">
           <button
             type="button"
@@ -703,6 +708,7 @@ export default function HomePage() {
             Table
           </button>
         </div>
+        */}
       </header>
 
       {/* Inline "near me" panel: slides down under the search/locate row instead
@@ -839,7 +845,8 @@ export default function HomePage() {
         <div className="sheet-backdrop" onClick={() => setIsFiltersOpen(false)} aria-hidden="true" />
       ) : null}
 
-      {viewMode === "map" ? (
+      {/* Map/Table switch removed; the Activity Table view below is disabled
+          (kept, not rendered). The map view always shows. */}
       <section className="explorer-content">
         <aside className="explorer-sidebar">
           <div className="explorer-sidebar__heading">
@@ -1005,7 +1012,9 @@ export default function HomePage() {
           </div>
         </section>
       </section>
-      ) : (
+      {/* Activity Table view — disabled, kept for future use. To re-enable, restore the
+          `viewMode === "map" ? (...) : (...)` ternary around the map section above and
+          this table section.
         <section className="table-shell">
           <div className="table-shell__header">
             <div>
@@ -1090,7 +1099,7 @@ export default function HomePage() {
           {tableError ? <p className="status-note is-error">{tableError}</p> : null}
           {tableLoading ? <p className="status-note">Loading activities...</p> : <ActivityTable activities={tableActivities} />}
         </section>
-      )}
+      */}
 
       <footer className="site-footer">
         <div className="site-footer__inner">

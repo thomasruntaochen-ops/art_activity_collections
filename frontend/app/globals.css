@@ -802,13 +802,14 @@ a {
   transform: translateY(-1px);
 }
 
-/* Mobile-only controls: hidden on desktop, revealed in the <=980px media query. */
-.explorer-locate,
-.detail-directions {
+/* Mobile-only control: hidden on desktop, revealed in the <=980px media query. */
+.explorer-locate {
   display: none;
 }
 
+/* Directions button under the venue name: shown on both desktop and mobile. */
 .detail-directions {
+  display: flex;
   position: relative;
   flex-wrap: wrap;
   align-items: center;

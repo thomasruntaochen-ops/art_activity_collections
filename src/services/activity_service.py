@@ -8,13 +8,25 @@ from sqlalchemy.orm import Session, selectinload
 from src.models.activity import Activity, AudienceSegment, Venue
 
 
-def _audience_filter(value: str | None) -> AudienceSegment | None:
+def _audience_segments(value: str | None) -> list[AudienceSegment]:
+    """Map a requested audience to the segments that should match it.
+
+    Activities tagged ``teens_adults`` suit both teens and adults, and the UI no
+    longer offers a standalone "Teens & adults" filter. So a ``teens`` request
+    matches teens + teens_adults, an ``adults`` request matches adults +
+    teens_adults, and every other segment matches only itself.
+    """
     if not value:
-        return None
+        return []
     try:
-        return AudienceSegment(value)
+        segment = AudienceSegment(value)
     except ValueError:
-        return None
+        return []
+    if segment is AudienceSegment.teens:
+        return [AudienceSegment.teens, AudienceSegment.teens_adults]
+    if segment is AudienceSegment.adults:
+        return [AudienceSegment.adults, AudienceSegment.teens_adults]
+    return [segment]
 
 
 def list_activities(
@@ -41,9 +53,9 @@ def list_activities(
     if age is not None:
         filters.append(or_(Activity.age_min.is_(None), Activity.age_min <= age))
         filters.append(or_(Activity.age_max.is_(None), Activity.age_max >= age))
-    audience_segment = _audience_filter(audience)
-    if audience_segment is not None:
-        filters.append(Activity.audience_segment == audience_segment)
+    audience_segments = _audience_segments(audience)
+    if audience_segments:
+        filters.append(Activity.audience_segment.in_(audience_segments))
     if drop_in is not None:
         filters.append(Activity.drop_in.is_(drop_in))
     if venue:
@@ -143,9 +155,9 @@ def get_filter_options(
     base_conditions = [Activity.status.in_(("active", "needs_review")), Activity.venue_id.is_not(None)]
     if free_only:
         base_conditions.append(Activity.is_free.is_(True))
-    audience_segment = _audience_filter(audience)
-    if audience_segment is not None:
-        base_conditions.append(Activity.audience_segment == audience_segment)
+    audience_segments = _audience_segments(audience)
+    if audience_segments:
+        base_conditions.append(Activity.audience_segment.in_(audience_segments))
     filters = list(base_conditions)
     if state:
         filters.append(Venue.state == state.strip().upper())
@@ -194,9 +206,9 @@ def list_venue_summaries(
     conditions = [Activity.status.in_(("active", "needs_review")), Activity.venue_id.is_not(None)]
     if free_only:
         conditions.append(Activity.is_free.is_(True))
-    audience_segment = _audience_filter(audience)
-    if audience_segment is not None:
-        conditions.append(Activity.audience_segment == audience_segment)
+    audience_segments = _audience_segments(audience)
+    if audience_segments:
+        conditions.append(Activity.audience_segment.in_(audience_segments))
     if state:
         conditions.append(Venue.state == state.strip().upper())
     if city:
