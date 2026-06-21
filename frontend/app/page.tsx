@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityTable } from "../components/activity-table";
+import { AppleMapsIcon, GoogleMapsIcon } from "../components/map-icons";
 import { fetchActivities, fetchFilterOptions, fetchVenueSummaries } from "../lib/api";
 import { getVenueMedia } from "../lib/venue-media";
 import { haversineMiles, resolveVenueCoordinates } from "../lib/venue-map-data";
@@ -163,7 +164,6 @@ export default function HomePage() {
   const [mapViewportMode, setMapViewportMode] = useState<MapViewportMode>("fit");
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-  const [directionsOpen, setDirectionsOpen] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [locationRange, setLocationRange] = useState<number | null>(null);
   const [isLocationPanelOpen, setIsLocationPanelOpen] = useState(false);
@@ -486,11 +486,6 @@ export default function HomePage() {
       }, 150);
     }
   }, []);
-
-  // Collapse the directions menu whenever the selected venue changes.
-  useEffect(() => {
-    setDirectionsOpen(false);
-  }, [selectedVenueName]);
 
   // Try to locate the user when the map opens so the "you are here" marker can
   // appear without an explicit tap on the locate button. Guards prevent
@@ -837,7 +832,7 @@ export default function HomePage() {
         </button>
 
         <button type="button" className="filterbar__map-trigger" onClick={() => setIsMapOpen(true)}>
-          <span aria-hidden="true">🗺</span> Map
+          <span aria-hidden="true">🗺</span> Map view
         </button>
       </section>
 
@@ -905,34 +900,29 @@ export default function HomePage() {
           <p className="explorer-detail__location">{selectedLocation}</p>
           {selectedVenue && directionsTargets ? (
             <div className="detail-directions">
-              <button
-                type="button"
-                className="detail-directions__trigger"
-                onClick={() => setDirectionsOpen((open) => !open)}
-                aria-expanded={directionsOpen}
+              <span className="detail-directions__label">Directions</span>
+              <a
+                className="directions-link"
+                href={directionsTargets.google}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open directions in Google Maps"
+                title="Open in Google Maps"
               >
-                <span aria-hidden="true">🧭</span> Directions
-              </button>
-              {directionsOpen ? (
-                <div className="detail-directions__menu">
-                  <a
-                    className="directions-link"
-                    href={directionsTargets.google}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Google Maps
-                  </a>
-                  <a
-                    className="directions-link"
-                    href={directionsTargets.apple}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Apple Maps
-                  </a>
-                </div>
-              ) : null}
+                <GoogleMapsIcon className="directions-link__icon" />
+                <span className="directions-link__text">Google Maps</span>
+              </a>
+              <a
+                className="directions-link"
+                href={directionsTargets.apple}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open directions in Apple Maps"
+                title="Open in Apple Maps"
+              >
+                <AppleMapsIcon className="directions-link__icon" />
+                <span className="directions-link__text">Apple Maps</span>
+              </a>
             </div>
           ) : null}
           {selectedVenue ? (

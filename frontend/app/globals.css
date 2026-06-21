@@ -816,24 +816,38 @@ a {
   gap: 8px;
 }
 
-.detail-directions__trigger {
+/* "Directions" is now a static blue text box; the Google/Apple Maps links sit
+   next to it and are always visible (no toggle). */
+.detail-directions__label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 40px;
-  padding: 0 16px;
-  border: 1px solid rgba(118, 138, 168, 0.22);
+  min-height: 36px;
+  padding: 0 14px;
   border-radius: 999px;
   background: rgba(26, 115, 232, 0.1);
   color: #175ec2;
   font-weight: 600;
-  cursor: pointer;
 }
 
-.detail-directions__menu {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.directions-link__icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.directions-link__text {
+  margin-left: 6px;
+}
+
+/* When the row is cramped, drop the labels — the brand icons read on their own. */
+@media (max-width: 600px) {
+  .directions-link__text {
+    display: none;
+  }
+
+  .directions-link {
+    padding: 0 12px;
+  }
 }
 
 /* "View activities" link inside a venue map popup. */
@@ -1467,9 +1481,11 @@ a {
     grid-template-columns: 1fr;
   }
 
-  /* Filter bar: From/To stay visible (2-up); the rest move into a sheet. */
+  /* Filter bar: From/To stay visible (2-up); the rest move into a sheet.
+     minmax(0, 1fr) lets the tracks shrink below the date inputs' intrinsic
+     width so the two boxes never overflow and overlap at the column boundary. */
   .explorer-filterbar {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     /* Same reason as .explorer-content: backdrop-filter would trap the fixed
        filters sheet behind its backdrop (can't tap / type). */
     backdrop-filter: none;
@@ -1479,6 +1495,8 @@ a {
   .ctl-from,
   .ctl-to {
     order: 0;
+    /* Allow the control (and its date input) to shrink inside its grid track. */
+    min-width: 0;
   }
 
   /* Compact From/To boxes. */
@@ -1497,6 +1515,8 @@ a {
     height: 38px;
     padding: 0 12px;
     font-size: 0.85rem;
+    width: 100%;
+    min-width: 0;
   }
 
   .filterbar__sheet-trigger,
