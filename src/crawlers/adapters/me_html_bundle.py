@@ -156,6 +156,7 @@ INCLUDE_PATTERNS = (
     " workshop ",
     " workshops ",
 )
+PAID_ADMISSION_SLUGS = {"farnsworth", "ogunquit", "pma"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -496,7 +497,7 @@ def _parse_tribe_json_events(payload: dict, *, venue: MeVenueConfig, now: dateti
                 f"Categories: {categories}" if categories else None,
             ]
         )
-        if not _should_keep_event(title=title, description=description, category=categories):
+        if not _should_keep_event(title=title, description=description, category=categories, venue=venue):
             continue
 
         start_at = _parse_isoish_datetime(event.get("start_date"))
@@ -541,17 +542,37 @@ def _parse_tribe_json_events(payload: dict, *, venue: MeVenueConfig, now: dateti
 
 
 def _me_price_kwargs(*, venue: MeVenueConfig, text: str | None) -> dict[str, bool | None | str]:
+    blob = f" {normalize_space(text).lower()} "
     kwargs = price_classification_kwargs(
         text,
-        default_is_free=False if venue.slug == "farnsworth" else None,
+        default_is_free=False if venue.slug in PAID_ADMISSION_SLUGS else venue.default_is_free,
     )
+    if venue.slug in PAID_ADMISSION_SLUGS and _is_paid_admission_included_free(blob):
+        return {"is_free": False, "free_verification_status": "inferred"}
     if (
-        venue.slug == "farnsworth"
+        venue.slug in PAID_ADMISSION_SLUGS
         and kwargs["is_free"] is None
         and kwargs["free_verification_status"] == "uncertain"
     ):
         return {"is_free": False, "free_verification_status": "inferred"}
     return kwargs
+
+
+def _is_paid_admission_included_free(blob: str) -> bool:
+    return any(
+        marker in blob
+        for marker in (
+            " free with admission ",
+            " free with museum admission ",
+            " free with general admission ",
+            " included with admission ",
+            " included in admission ",
+            " included with museum admission ",
+            " free for members ",
+            " member rate ",
+            " members only ",
+        )
+    )
 
 
 def _parse_bowdoin_widget(payload: dict, *, venue: MeVenueConfig, now: datetime) -> list[ExtractedActivity]:
@@ -911,13 +932,44 @@ def _tribe_location_text(event: dict, *, venue: MeVenueConfig) -> str:
     return location_text or venue.default_location
 
 
-def _should_keep_event(*, title: str, description: str | None, category: str | None) -> bool:
+def _should_keep_event(
+    *,
+    title: str,
+    description: str | None,
+    category: str | None,
+    venue: MeVenueConfig | None = None,
+) -> bool:
     title_blob = f" {normalize_space(title).lower()} "
     body_blob = f" {normalize_space(join_non_empty([description, category]) or '').lower()} "
     include_hit = any(pattern in title_blob or pattern in body_blob for pattern in INCLUDE_PATTERNS)
 
     if not include_hit:
         return False
+
+    if venue is not None:
+        venue_blob = f"{title_blob}{body_blob}"
+        if venue.slug == "pma" and any(
+            pattern in venue_blob
+            for pattern in (
+                " book club ",
+                " director's circle ",
+                " directors circle ",
+                " contemporaries council ",
+                " leadership circles ",
+                " member event ",
+                " members event ",
+                " members evening ",
+                " members lecture ",
+                " preview night ",
+                " pma films ",
+                " road to everywhere ",
+            )
+        ):
+            return False
+        if venue.slug == "pma" and any(pattern in title_blob for pattern in (" third thursday ", " film ")):
+            return False
+        if venue.slug == "ogunquit" and " save the date " in title_blob:
+            return False
 
     if any(pattern in title_blob for pattern in TITLE_REJECT_PATTERNS):
         return False

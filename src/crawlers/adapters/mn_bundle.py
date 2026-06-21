@@ -558,6 +558,10 @@ def _infer_mn_audience(
     # teaching kids/teens, so they take precedence over audience-age markers.
     if _has_any_pattern(combined, (" teacher workshop ", " teacher ", " teachers ", " educator ", " educators ", " professional development ")):
         return "adults"
+    if age_max is not None and age_max <= 12:
+        return "kids"
+    if _has_any_pattern(combined, (" toddler ", " toddlers ", " preschool ", " early childhood ")):
+        return "kids"
     if _has_any_pattern(combined, (" family ", " families ", " all ages ", " all-ages ", " intergenerational ")):
         return "all_ages"
     if _has_any_pattern(combined, (" teen ", " teens ", " high school ", " teenager ", " teenagers ")):
@@ -773,6 +777,13 @@ def _build_mmam_row(url: str, html: str, *, venue: MnVenueConfig) -> ExtractedAc
         start_at=start_at,
         end_at=end_at,
         timezone=MN_TIMEZONE,
+        audience_segment=_infer_mn_audience(
+            title=title,
+            text=content_text,
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=_infer_activity_type(title, content_text),
+        ),
         free_verification_status=free_status,
         is_free=is_free,
     )
@@ -1239,6 +1250,7 @@ def _should_include_event(title: str, text: str | None) -> bool:
 
     title_reject_patterns = (
         " book launch ",
+        " author event ",
         " camp ",
         " camps ",
         " closing ",
@@ -1293,6 +1305,7 @@ def _should_include_event(title: str, text: str | None) -> bool:
             return False
         blocking_even_with_override = (
             " book launch ",
+            " author event ",
             " concert ",
             " fundraiser ",
             " fundraising ",

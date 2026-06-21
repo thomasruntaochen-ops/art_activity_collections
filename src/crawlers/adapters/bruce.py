@@ -7,6 +7,8 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 BRUCE_EVENTS_URL = "https://brucemuseum.org/events/"
@@ -34,6 +36,10 @@ TITLE_YOUTH_RE = re.compile(
 )
 DESCRIPTION_YOUTH_RE = re.compile(
     r"\b(children ages|children and their caregivers|teens and their friends|young people|families are invited|for teens|for children|for families)\b",
+    re.IGNORECASE,
+)
+ADULT_ACTIVITY_RE = re.compile(
+    r"\b(artist talk|lecture|conversation|discussion|workshop|class|studio|science lecture|bruce presents)\b",
     re.IGNORECASE,
 )
 EXCLUDED_KEYWORDS = (
@@ -188,7 +194,13 @@ def parse_bruce_events_payload(payload: dict) -> list[ExtractedActivity]:
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
-                free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+                audience_segment=_infer_bruce_audience(
+                    title=detail["title"],
+                    description=detail["description"],
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
+                **_bruce_price_kwargs(text_blob),
             )
         )
 
@@ -267,7 +279,43 @@ def _should_include_event(*, title: str, description: str | None) -> bool:
         return False
     if TITLE_YOUTH_RE.search(normalized_title):
         return True
-    return DESCRIPTION_YOUTH_RE.search(normalized_description) is not None
+    if DESCRIPTION_YOUTH_RE.search(normalized_description) is not None:
+        return True
+    return ADULT_ACTIVITY_RE.search(text_blob) is not None
+
+
+def _infer_bruce_audience(
+    *,
+    title: str,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "adults"
+
+
+def _bruce_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    blob = f" {_normalize_space(text).lower()} "
+    kwargs = price_classification_kwargs(text, default_is_free=False)
+    if any(
+        marker in blob
+        for marker in (
+            "free with general admission",
+            "free with museum admission",
+            "included with admission",
+            "free for members",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _parse_detail_datetime(value: str) -> tuple[datetime | None, datetime | None]:

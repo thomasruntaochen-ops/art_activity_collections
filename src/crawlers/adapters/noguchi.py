@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -273,9 +274,39 @@ def _build_row_from_card(
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
+        audience_segment=_infer_noguchi_audience(
+            title=title,
+            description=description,
+            category_names=category_names,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         is_free=is_free,
         free_verification_status=free_status,
     )
+
+
+def _infer_noguchi_audience(
+    *,
+    title: str,
+    description: str | None,
+    category_names: list[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    category_blob = f" {' '.join(category_names).lower()} "
+    if " families " in category_blob or " family " in category_blob:
+        return "kids"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        category=", ".join(category_names),
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "adults"
 
 
 def _extract_card_field(container, class_name: str) -> str:

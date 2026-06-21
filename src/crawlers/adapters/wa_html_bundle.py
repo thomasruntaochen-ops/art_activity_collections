@@ -229,7 +229,7 @@ async def load_wa_html_bundle_payload(
             link_candidates = _extract_listing_links(venue.slug, list_html, venue.list_url)[:max_links_per_venue]
             if link_candidates:
                 for detail_url, _ in link_candidates:
-                    if venue.slug in {"sam", "mona"}:
+                    if venue.slug == "sam":
                         break
                     try:
                         detail_pages[detail_url] = await fetch_html(detail_url, client=client)
@@ -440,17 +440,22 @@ def _parse_henry_events(payload: dict, *, venue: WaHtmlVenueConfig) -> list[Extr
 
 def _parse_mona_events(payload: dict, *, venue: WaHtmlVenueConfig) -> list[ExtractedActivity]:
     list_html = payload.get("list_html") or ""
+    detail_pages = payload.get("detail_pages") or {}
     rows: list[ExtractedActivity] = []
 
     for source_url, blob in _extract_listing_links("mona", list_html, venue.list_url):
-        title = _extract_mona_title(blob)
-        signal_blob = _searchable_blob(blob)
-        if not _allow_mona(signal_blob):
+        detail_html = detail_pages.get(source_url) or ""
+        title = _extract_page_title(detail_html) or _extract_mona_title(blob)
+        detail_text = _html_to_text(detail_html)
+        listing_signal_blob = _searchable_blob(blob)
+        if not _allow_mona(listing_signal_blob):
             continue
+        signal_blob = _searchable_blob(" ".join(part for part in [blob, detail_text] if part))
         start_at, end_at = _parse_mona_datetime(blob)
         if start_at is None:
             continue
-        description = _extract_mona_description(blob)
+        description = _extract_mona_description(blob) or _extract_first_description(detail_html)
+        price_text = _extract_price_text(detail_html) or blob
         rows.append(
             _make_row(
                 venue=venue,
@@ -462,7 +467,7 @@ def _parse_mona_events(payload: dict, *, venue: WaHtmlVenueConfig) -> list[Extra
                 start_at=start_at,
                 end_at=end_at,
                 token_blob=signal_blob,
-                price_text=blob,
+                price_text=price_text,
             )
         )
 
@@ -563,6 +568,8 @@ def _parse_mac_events(payload: dict, *, venue: WaHtmlVenueConfig) -> list[Extrac
     for source_url, blob in _extract_listing_links("mac", list_html, venue.list_url):
         detail_html = detail_pages.get(source_url) or ""
         title = _extract_mac_title(detail_html) or _extract_mac_title(blob)
+        if title.lower().startswith("mac after hours"):
+            continue
         signal_blob = _searchable_blob(" ".join(part for part in [title, blob, detail_html] if part))
         if not _allow_mac(signal_blob):
             continue
@@ -611,6 +618,17 @@ def _make_row(
         is_free, free_status = True, "inferred"
     if is_free is None and venue.slug == "sam":
         is_free, free_status = False, "inferred"
+    if is_free is None and venue.slug in {"mac", "mona"} and price_text:
+        price_blob = _searchable_blob(price_text)
+        if (
+            " admission " in price_blob
+            or " member rate " in price_blob
+            or " members " in price_blob
+            or " add to cart " in price_blob
+        ):
+            is_free, free_status = False, "inferred"
+    if is_free is None and venue.slug == "mona":
+        is_free, free_status = True, "inferred"
     registration_blob = _searchable_blob(" ".join(part for part in [title, description or "", price_text or ""] if part))
     age_min = _parse_age_min(token_blob)
     age_max = _parse_age_max(token_blob)
@@ -630,19 +648,35 @@ def _make_row(
         start_at=start_at,
         end_at=end_at,
         timezone=WA_TIMEZONE,
-        audience_segment=_infer_wa_html_audience(title=title, age_min=age_min, age_max=age_max),
+        audience_segment=_infer_wa_html_audience(
+            title=title,
+            age_min=age_min,
+            age_max=age_max,
+            activity_type=activity_type,
+        ),
         is_free=is_free,
         free_verification_status=free_status,
     )
 
 
-def _infer_wa_html_audience(*, title: str, age_min: int | None, age_max: int | None) -> str:
+def _infer_wa_html_audience(
+    *,
+    title: str,
+    age_min: int | None,
+    age_max: int | None,
+    activity_type: str,
+) -> str:
     # Base on the title + age; wa_html descriptions carry exhibition blurbs and
     # partner names that mislead family/kids keyword matching.
     blob = f" {re.sub(r'[^a-z0-9]+', ' ', title.lower())} "
     if " family " in blob or " families " in blob or " all ages " in blob or " all-ages " in blob:
         return "all_ages"
     if " creative aging " in blob or " older adults " in blob:
+        return "adults"
+    if activity_type in {"lecture", "talk"} and not any(
+        marker in blob
+        for marker in (" family ", " families ", " for kids ", " for children ", " for teens ", " teen workshop ")
+    ):
         return "adults"
     has_teen = " teen " in blob or " teens " in blob or " high school " in blob
     has_adult = " adult " in blob or " adults " in blob
@@ -1097,7 +1131,7 @@ def _normalize_space(value: object) -> str:
 
 def _searchable_blob(value: str) -> str:
     normalized = _normalize_space(value).lower()
-    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    normalized = re.sub(r"[^a-z0-9+]+", " ", normalized)
     return f" {' '.join(normalized.split())} "
 
 

@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -49,6 +50,7 @@ HARD_EXCLUDE_PATTERNS = (
     " concert ",
     " festival ",
     " film ",
+    " book talk ",
     " fundraiser ",
     " fundraising ",
     " gala ",
@@ -57,10 +59,12 @@ HARD_EXCLUDE_PATTERNS = (
     " members event ",
     " performance ",
     " pep rally ",
+    " reading ",
     " storytime ",
     " story time ",
     " tour ",
     " tours ",
+    " writing ",
 )
 TITLE_EXCLUDE_PATTERNS = (
     "admission",
@@ -249,6 +253,11 @@ def _build_row(event_obj: dict) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
+        audience_segment=_infer_massmoca_audience(
+            title=title,
+            description=description,
+            category_names=category_names,
+        ),
         is_free=is_free,
         free_verification_status=free_status,
     )
@@ -285,8 +294,21 @@ def _should_include_event(
 def _price_classification(*, cost_text: str, amount: Decimal | None) -> tuple[bool | None, str]:
     normalized = _token_blob(cost_text)
     if " with museum admission " in normalized:
-        return None, "uncertain"
+        return False, "inferred"
     return infer_price_classification_from_amount(amount, text=cost_text)
+
+
+def _infer_massmoca_audience(*, title: str, description: str | None, category_names: list[str]) -> str:
+    category_blob = f" {' '.join(category_names).lower()} "
+    title_blob = f" {title.lower()} "
+    if " kidspace " in category_blob or " family " in title_blob or " storytime " in title_blob:
+        return "kids"
+    if " teen " in title_blob or " teens " in title_blob:
+        return "teens"
+    inferred = infer_audience_segment(title=title, category=", ".join(category_names))
+    if inferred in {"teens_adults", "adults"}:
+        return inferred
+    return "adults"
 
 
 def _has_registration_signal(*, token_blob: str, cost_text: str) -> bool | None:

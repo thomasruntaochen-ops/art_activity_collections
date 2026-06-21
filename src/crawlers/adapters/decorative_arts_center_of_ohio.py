@@ -8,12 +8,12 @@ from bs4 import BeautifulSoup
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import NY_TIMEZONE
 from src.crawlers.adapters.oh_common import infer_activity_type
+from src.crawlers.adapters.oh_common import infer_oh_audience
 from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.adapters.oh_common import should_include_event
-from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -155,15 +155,14 @@ def _parse_page(
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
-                audience_segment=infer_audience_segment(
+                audience_segment=_infer_decorative_audience(
                     title=title,
                     description=description,
                     category=category,
-                    source_url=page_url,
                     age_min=age_min,
                     age_max=age_max,
                 ),
-                **price_classification_kwargs(join_non_empty([price_line, description])),
+                **_decorative_price_kwargs(join_non_empty([price_line, description])),
             )
         )
 
@@ -225,15 +224,14 @@ def _parse_current_page_text(
                     start_at=start_at,
                     end_at=end_at,
                     timezone=NY_TIMEZONE,
-                    audience_segment=infer_audience_segment(
+                    audience_segment=_infer_decorative_audience(
                         title=title,
                         description=description,
                         category=category,
-                        source_url=page_url,
                         age_min=age_min,
                         age_max=age_max,
                     ),
-                    **price_classification_kwargs(join_non_empty([price_line, description])),
+                    **_decorative_price_kwargs(join_non_empty([price_line, description])),
                 )
             )
 
@@ -281,7 +279,12 @@ def _find_title(lines: list[str], date_line_index: int) -> str | None:
         candidate = normalize_space(lines[index])
         if not candidate or candidate in generic:
             continue
-        if _is_metadata_line(candidate) or candidate.lower().startswith("register for "):
+        if (
+            _is_metadata_line(candidate)
+            or _line_has_date_and_time(candidate)
+            or DATE_TIME_RE.search(candidate)
+            or candidate.lower().startswith("register for ")
+        ):
             continue
         immediate = candidate
         immediate_index = index
@@ -359,6 +362,33 @@ def _is_metadata_line(line: str) -> bool:
 
 def _has_registration(description_lines: list[str]) -> bool:
     return any("register" in line.lower() for line in description_lines)
+
+
+def _infer_decorative_audience(
+    *,
+    title: str,
+    description: str | None,
+    category: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    if category == "lecture":
+        return "adults"
+    return infer_oh_audience(
+        title=title,
+        description=description,
+        category=category,
+        age_min=age_min,
+        age_max=age_max,
+        default="adults",
+    )
+
+
+def _decorative_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    kwargs = price_classification_kwargs(text, default_is_free=True)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": True, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _extract_register_text(paragraph) -> str | None:

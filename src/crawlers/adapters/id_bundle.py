@@ -363,9 +363,9 @@ def parse_id_events(payload: dict, *, venue: IdVenueConfig) -> list[ExtractedAct
     return out
 
 
-def get_id_source_prefixes() -> tuple[str, ...]:
+def get_id_source_prefixes(venues=None) -> tuple[str, ...]:
     prefixes: list[str] = []
-    for venue in ID_VENUES:
+    for venue in (venues if venues is not None else ID_VENUES):
         parsed = urlparse(venue.list_url)
         prefixes.append(f"{parsed.scheme}://{parsed.netloc}/")
         if venue.discovery_url:
@@ -704,6 +704,13 @@ def _parse_tam_events(payload: dict, *, venue: IdVenueConfig) -> list[ExtractedA
                 start_at=start_at,
                 end_at=end_at,
                 timezone=ID_TIMEZONE,
+                audience_segment=infer_audience_segment(
+                    title=title,
+                    description=description,
+                    age_min=age_min,
+                    age_max=age_max,
+                    default="adults" if " adults " in _searchable_blob(full_text) else None,
+                ),
                 **price_classification_kwargs(full_text),
             )
         )

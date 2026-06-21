@@ -214,26 +214,26 @@ Undefined means `audience_segment = unknown` or `audience_segment IS NULL`.
 | ~~Mabee-Gerrer Museum of Art~~ fixed 2026-06-19: live parser now returns 0 qualifying current rows; cleared 1 stale row from local MySQL | Shawnee | OK | 1 | 2026-04-14 | 2026-04-14 | 2026-04-08 |
 | ~~Jordan Schnitzer Museum of Art at Portland State University~~ fixed 2026-06-19: live parser now returns 0 qualifying current rows; cleared 1 stale row from local MySQL | Portland | OR | 1 | 2026-04-23 | 2026-04-23 | 2026-03-27 |
 | ~~Jamestown Arts Center~~ fixed 2026-06-19: live parser now returns 0 qualifying current rows; cleared 1 stale row from local MySQL | Jamestown | RI | 1 | 2026-06-17 | 2026-06-17 | 2026-06-03 |
-| Franklin G. Burroughs-Simeon B. Chapin Art Museum | Myrtle Beach | SC | 1 | 2026-06-20 | 2026-06-20 | 2026-06-04 |
-| Greenville County Museum of Art | Greenville | SC | 1 | 2026-06-28 | 2026-06-28 | 2026-06-04 |
+| ~~Franklin G. Burroughs-Simeon B. Chapin Art Museum~~ fixed 2026-06-21: live parser now returns 0 qualifying current rows; cleared 1 stale row from local MySQL | Myrtle Beach | SC | 1 | 2026-06-20 | 2026-06-20 | 2026-06-04 |
+| ~~Greenville County Museum of Art~~ fixed 2026-06-21: now 1 active row, 0 undefined audience, 0 null free flags (Family Art Adventure -> kids; free-admission default -> free inferred) | Greenville | SC | 1 | 2026-06-28 | 2026-06-28 | 2026-06-04 |
 
 ## Partially Undefined
 
 | Venue | City | State | Active Rows | Undefined | Known | Last Seen |
 | --- | --- | --- | --- | --- | --- | --- |
-| Stifel Fine Arts Center | Wheeling | WV | 78 | 58 | 20 | 2026-06-07 |
-| Crocker Art Museum | Sacramento | CA | 51 | 35 | 16 | 2026-06-07 |
-| Hickory Museum of Art | Hickory | NC | 37 | 34 | 3 | 2026-06-07 |
-| Holter Museum of Art | Helena | MT | 32 | 31 | 1 | 2026-06-07 |
-| Leigh Yawkey Woodson Art Museum | Wausau | WI | 46 | 22 | 24 | 2026-06-07 |
-| Frye Art Museum | Seattle | WA | 29 | 22 | 7 | 2026-06-07 |
-| Seattle Art Museum | Seattle | WA | 25 | 22 | 3 | 2026-06-07 |
-| Hammer Museum | Los Angeles | CA | 44 | 21 | 23 | 2026-06-07 |
-| Farnsworth Art Museum | Rockland | ME | 32 | 17 | 15 | 2026-06-07 |
-| Sun Valley Museum of Art | Ketchum | ID | 23 | 15 | 8 | 2026-06-07 |
-| Saint Louis Art Museum | St. Louis | MO | 35 | 14 | 21 | 2026-06-07 |
-| Canton Museum of Art | Canton | OH | 25 | 14 | 11 | 2026-06-07 |
-| The Farrell Auditorium | St. Louis | MO | 29 | 13 | 16 | 2026-06-07 |
+| ~~Stifel Fine Arts Center~~ fixed 2026-06-21: now 14 active rows, 0 undefined audience, 0 null free flags (current paid/free classes and workshops; stale/past rows cleared; age-based all_ages/adults/teens set) | Wheeling | WV | 78 | 58 | 20 | 2026-06-07 |
+| ~~Crocker Art Museum~~ fixed 2026-06-21: now 14 active rows, 0 undefined audience, 0 null free flags (kids/teens/adults set; educator/member-style noise filtered; paid-admission default not-free) | Sacramento | CA | 51 | 35 | 16 | 2026-06-07 |
+| ~~Hickory Museum of Art~~ fixed 2026-06-21: now 1 active row, 0 undefined audience, 0 null free flags (round-table discussion -> adults; admission-free text confirmed free) | Hickory | NC | 37 | 34 | 3 | 2026-06-07 |
+| ~~Holter Museum of Art~~ fixed 2026-06-21: now 1 active row, 0 undefined audience, 0 null free flags (teen workshop confirmed free; stale rows cleared) | Helena | MT | 32 | 31 | 1 | 2026-06-07 |
+| ~~Leigh Yawkey Woodson Art Museum~~ fixed 2026-06-21: now 19 active rows, 0 undefined audience, 0 null free flags (kids/teens/adults/all_ages set; residency/travel/non-activity rows filtered; explicit paid/free retained) | Wausau | WI | 46 | 22 | 24 | 2026-06-07 |
+| ~~Frye Art Museum~~ fixed 2026-06-21: live parser now returns 0 qualifying current rows; cleared 29 stale rows from local MySQL | Seattle | WA | 29 | 22 | 7 | 2026-06-07 |
+| ~~Seattle Art Museum~~ fixed 2026-06-21: now 2 active rows, 0 undefined audience, 0 null free flags (SAM Talks -> adults; paid-admission default not-free inferred) | Seattle | WA | 25 | 22 | 3 | 2026-06-07 |
+| ~~Hammer Museum~~ fixed 2026-06-21: now 19 active rows, 0 undefined audience, 0 null free flags (Art Lab kids, art talks/conversations adults; writing/memoir workshops filtered; free-admission default free) | Los Angeles | CA | 44 | 21 | 23 | 2026-06-07 |
+| ~~Farnsworth Art Museum~~ fixed 2026-06-21: now 9 active rows, 0 undefined audience, 0 null free flags (paid adult/all-ages classes and lectures retained; gallery walks, travel, writing/private patron rows filtered) | Rockland | ME | 32 | 17 | 15 | 2026-06-07 |
+| ~~Sun Valley Museum of Art~~ fixed 2026-06-21: now 7 active rows, 0 undefined audience, 0 null free flags (Maker Space all_ages/free; teen comics workshop teens/free inferred; scoped ID clear fixed) | Ketchum | ID | 23 | 15 | 8 | 2026-06-07 |
+| ~~Saint Louis Art Museum~~ fixed 2026-06-21: now 60 active rows, 0 undefined audience, 0 null free flags (adult talks/classes and family/all-ages activities retained; free/member pricing normalized) | St. Louis | MO | 35 | 14 | 21 | 2026-06-07 |
+| ~~Canton Museum of Art~~ fixed 2026-06-21: now 1 active row, 0 undefined audience, 0 null free flags (Creative Clay age 10-14 -> all_ages; paid confirmed; summer camps filtered) | Canton | OH | 25 | 14 | 11 | 2026-06-07 |
+| ~~The Farrell Auditorium~~ fixed 2026-06-21: local MySQL now has 0 active rows for this stale venue label; current SLAM parser stores Farrell as location_text under Saint Louis Art Museum | St. Louis | MO | 29 | 13 | 16 | 2026-06-07 |
 | Princeton University Art Museum | Princeton | NJ | 17 | 13 | 4 | 2026-06-07 |
 | Bruce Museum | Greenwich | CT | 23 | 12 | 11 | 2026-06-07 |
 | Portland Museum of Art | Portland | ME | 22 | 12 | 10 | 2026-06-07 |

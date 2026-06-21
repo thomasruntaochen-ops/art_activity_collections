@@ -14,6 +14,7 @@ from src.crawlers.adapters.oh_common import AGE_RANGE_RE
 from src.crawlers.adapters.oh_common import fetch_html
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.pipeline.pricing import price_classification_kwargs
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.types import ExtractedActivity
 
 DMAC_CALENDAR_URL = "https://desmoinesartcenter.org/calendar/"
@@ -47,6 +48,7 @@ EXCLUDE_MARKERS = (
     "exhibition tour",
     "film screening",
     "guided tour",
+    "hike",
     "live performance",
     "music",
     "performance",
@@ -167,7 +169,13 @@ def _build_row(event: dict) -> ExtractedActivity | None:
         start_at=start_at,
         end_at=end_at,
         timezone=DMAC_TIMEZONE,
-        **price_classification_kwargs(" ".join(part for part in [title, description] if part)),
+        audience_segment=_infer_dmac_audience(
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        ),
+        **_dmac_price_kwargs(title=title, description=description),
     )
 
 
@@ -209,3 +217,48 @@ def _parse_age_range(*parts: str | None) -> tuple[int | None, int | None]:
     if match:
         return int(match.group(1)), None
     return None, None
+
+
+def _infer_dmac_audience(
+    *,
+    title: str,
+    description: str,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    blob = f" {re.sub(r'[^a-z0-9]+', ' ', ' '.join([title, description]).lower())} "
+    if " art for brunch " in blob:
+        return "adults"
+    if any(marker in blob for marker in (" social saturday ", " all ages ", " all-ages ")):
+        return "all_ages"
+    if " creative aging " in blob or " age 55 " in blob or " ages 55 " in blob:
+        return "adults"
+    inferred = infer_audience_segment(
+        title=title,
+        description=description,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "adults"
+
+
+def _dmac_price_kwargs(*, title: str, description: str) -> dict[str, bool | None | str]:
+    text = " ".join(part for part in [title, description] if part)
+    blob = f" {re.sub(r'[^a-z0-9$]+', ' ', text.lower())} "
+    kwargs = price_classification_kwargs(text)
+    if kwargs["is_free"] is not None:
+        return kwargs
+    if any(
+        marker in blob
+        for marker in (
+            " art workshop ",
+            " multi media ",
+            " world of wine ",
+            " calligraphy ",
+            " henna ",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return {"is_free": True, "free_verification_status": "inferred"}

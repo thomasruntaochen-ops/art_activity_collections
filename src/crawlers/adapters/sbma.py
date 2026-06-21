@@ -8,6 +8,8 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 SBMA_EVENTS_URL = (
@@ -256,7 +258,19 @@ def parse_sbma_events_pages(
                     start_at=start_at,
                     end_at=end_at,
                     timezone=LA_TIMEZONE,
-                    free_verification_status=("confirmed" if "free" in blob else "inferred"),
+                    audience_segment=_infer_sbma_audience(
+                        title=title,
+                        subtitle=subtitle,
+                        categories=categories,
+                        age_min=age_min,
+                        age_max=age_max,
+                    ),
+                    **_sbma_price_kwargs(
+                        title=title,
+                        subtitle=subtitle,
+                        categories=categories,
+                        cta_text=cta_text,
+                    ),
                 )
             )
 
@@ -300,6 +314,46 @@ def _infer_activity_type(*, title: str, subtitle: str | None, categories: list[s
     if any(keyword in blob for keyword in ("workshop", "class", "lab", "sketch", "art party")):
         return "workshop"
     return "activity"
+
+
+def _infer_sbma_audience(
+    *,
+    title: str,
+    subtitle: str | None,
+    categories: list[str],
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    category_blob = f" {' '.join(categories).lower()} "
+    if " adults " in category_blob and " kids & family " in category_blob:
+        return "all_ages"
+    inferred = infer_audience_segment(
+        title=title,
+        description=subtitle,
+        category=", ".join(categories),
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "adults"
+
+
+def _sbma_price_kwargs(
+    *,
+    title: str,
+    subtitle: str | None,
+    categories: list[str],
+    cta_text: str | None,
+) -> dict[str, bool | None | str]:
+    category_blob = f" {' '.join(categories).lower()} "
+    if " free " in category_blob:
+        return {"is_free": True, "free_verification_status": "confirmed"}
+    text = " ".join(part for part in [title, subtitle or "", category_blob, cta_text or ""] if part)
+    kwargs = price_classification_kwargs(text)
+    if kwargs["is_free"] is not None:
+        return kwargs
+    return {"is_free": False, "free_verification_status": "inferred"}
 
 
 def _parse_schedule(value: str) -> tuple[datetime | None, datetime | None]:

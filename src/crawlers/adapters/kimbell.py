@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -247,7 +248,7 @@ def parse_kimbell_payload(payload: dict[str, object]) -> list[ExtractedActivity]
                 ]
                 if part
             ),
-            default_is_free=None,
+            default_is_free=True,
         )
         normalized_blob = f" {text_blob.lower()} "
         registration_required = any(
@@ -274,6 +275,13 @@ def parse_kimbell_payload(payload: dict[str, object]) -> list[ExtractedActivity]
             start_at=start_at,
             end_at=end_at,
             timezone=KIMBELL_TIMEZONE,
+            audience_segment=_infer_kimbell_audience(
+                title=entry["title"],
+                subtitle=subtitle,
+                description=description,
+                age_min=age_min,
+                age_max=age_max,
+            ),
             is_free=is_free,
             free_verification_status=free_status,
         )
@@ -285,6 +293,25 @@ def parse_kimbell_payload(payload: dict[str, object]) -> list[ExtractedActivity]
 
     rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
     return rows
+
+
+def _infer_kimbell_audience(
+    *,
+    title: str,
+    subtitle: str | None,
+    description: str | None,
+    age_min: int | None,
+    age_max: int | None,
+) -> str:
+    inferred = infer_audience_segment(
+        title=title,
+        description=" ".join(part for part in [subtitle or "", description or ""] if part),
+        age_min=age_min,
+        age_max=age_max,
+    )
+    if inferred != "unknown":
+        return inferred
+    return "kids" if "kids" in title.lower() or "pages" in title.lower() else "adults"
 
 
 def _discover_kimbell_listing_entries(html: str, *, list_url: str) -> list[dict[str, str | None]]:

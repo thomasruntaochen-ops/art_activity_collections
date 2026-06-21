@@ -188,7 +188,14 @@ export default function HomePage() {
     } else {
       url.searchParams.set("view", viewMode);
     }
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    // Keep Next's App Router routing state on the entry. Replacing it with `{}`
+    // strands the entry, so navigating back to it (e.g. Back to close the map
+    // overlay) makes the router remount the page and lose the selected venue.
+    window.history.replaceState(
+      { ...window.history.state },
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
   }, [viewMode]);
 
   // Lock background scroll while a full-screen mobile overlay (map or filters)
@@ -205,20 +212,27 @@ export default function HomePage() {
   // instead of navigating away from the page.
   useEffect(() => {
     if (!isMapOpen || typeof window === "undefined") return;
-    window.history.pushState({ mapOverlay: true }, "");
+    // Push a marker history entry so the device Back button/gesture closes the
+    // map overlay instead of leaving the page. We reuse an existing marker entry
+    // (closing via the button leaves it in place) so repeated open/close cycles
+    // don't stack up entries.
+    //
+    // Crucially we never call `window.history.back()` ourselves: in the Next App
+    // Router that popstate remounts the whole page, which would reset the
+    // selected venue (so "View activities" always fell back to the first venue).
+    const alreadyMarked = (window.history.state as { mapOverlay?: boolean } | null)?.mapOverlay === true;
+    if (!alreadyMarked) {
+      window.history.pushState({ ...window.history.state, mapOverlay: true }, "");
+    }
     const handlePop = () => setIsMapOpen(false);
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") window.history.back();
+      if (event.key === "Escape") setIsMapOpen(false);
     };
     window.addEventListener("popstate", handlePop);
     window.addEventListener("keydown", handleKey);
     return () => {
       window.removeEventListener("popstate", handlePop);
       window.removeEventListener("keydown", handleKey);
-      // Closed via button/Esc rather than Back: drop the entry we pushed.
-      if ((window.history.state as { mapOverlay?: boolean } | null)?.mapOverlay) {
-        window.history.back();
-      }
     };
   }, [isMapOpen]);
 
