@@ -73,10 +73,15 @@ TITLE_REJECT_PATTERNS = (
     " camp ",
     " concert ",
     " gala ",
+    " gallery walk ",
+    " gallery walks ",
     " film ",
     " films ",
+    " memoir ",
     " mindfulness ",
     " music ",
+    " patron ",
+    " patrons ",
     " opening day ",
     " opening: ",
     " opening reception ",
@@ -92,6 +97,8 @@ TITLE_REJECT_PATTERNS = (
     " storytime ",
     " tour ",
     " tours ",
+    " travel ",
+    " writing ",
     " yoga ",
 )
 BODY_REJECT_PATTERNS = (
@@ -108,6 +115,8 @@ BODY_REJECT_PATTERNS = (
     " mindfulness ",
     " music ",
     " orchestra ",
+    " patron event ",
+    " patron events ",
     " performance ",
     " poem ",
     " poetry ",
@@ -117,6 +126,9 @@ BODY_REJECT_PATTERNS = (
     " storytime ",
     " tour ",
     " tours ",
+    " travel opportunity ",
+    " writing ",
+    " memoir ",
     " yoga ",
 )
 INCLUDE_PATTERNS = (
@@ -499,6 +511,7 @@ def _parse_tribe_json_events(payload: dict, *, venue: MeVenueConfig, now: dateti
         seen.add(key)
 
         text_blob = join_non_empty([title, description, categories, normalize_space(event.get("cost"))])
+        age_min, age_max = parse_age_range(text_blob)
         rows.append(
             ExtractedActivity(
                 source_url=source_url,
@@ -509,21 +522,36 @@ def _parse_tribe_json_events(payload: dict, *, venue: MeVenueConfig, now: dateti
                 city=venue.city,
                 state=venue.state,
                 activity_type=_infer_me_activity_type(title=title, description=description, category=categories),
-                age_min=parse_age_range(text_blob)[0],
-                age_max=parse_age_range(text_blob)[1],
+                age_min=age_min,
+                age_max=age_max,
                 drop_in=_infer_drop_in(text_blob),
                 registration_required=_infer_registration_required(text_blob),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
-                **price_classification_kwargs(
-                    join_non_empty([normalize_space(event.get("cost")), description, categories]),
-                    default_is_free=None,
+                audience_segment=_infer_me_audience(title=title, description=description),
+                **_me_price_kwargs(
+                    venue=venue,
+                    text=join_non_empty([normalize_space(event.get("cost")), description, categories]),
                 ),
             )
         )
 
     return rows
+
+
+def _me_price_kwargs(*, venue: MeVenueConfig, text: str | None) -> dict[str, bool | None | str]:
+    kwargs = price_classification_kwargs(
+        text,
+        default_is_free=False if venue.slug == "farnsworth" else None,
+    )
+    if (
+        venue.slug == "farnsworth"
+        and kwargs["is_free"] is None
+        and kwargs["free_verification_status"] == "uncertain"
+    ):
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _parse_bowdoin_widget(payload: dict, *, venue: MeVenueConfig, now: datetime) -> list[ExtractedActivity]:
@@ -602,7 +630,10 @@ def _infer_me_audience(*, title: str | None, description: str | None) -> str:
     # Base on the title; ME calendar descriptions are exhibition blurbs that
     # mislead family/kids keyword matching.
     blob = f" {re.sub(r'[^a-z0-9]+', ' ', (title or '').lower())} "
+    full_blob = f" {re.sub(r'[^a-z0-9]+', ' ', (join_non_empty([title, description]) or '').lower())} "
     if " family " in blob or " families " in blob or " all ages " in blob or " all-ages " in blob:
+        return "all_ages"
+    if any(marker in full_blob for marker in (" children under ", " youth family events ", " youth and family events ")):
         return "all_ages"
     has_teen = " teen " in blob or " teens " in blob or " high school " in blob
     has_adult = " adult " in blob or " adults " in blob

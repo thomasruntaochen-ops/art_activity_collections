@@ -22,6 +22,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -46,16 +47,19 @@ BLOCK_MARKERS = (
     "challenge-platform",
 )
 REJECT_PATTERNS = (
+    " artist in residence ",
     " book club ",
     " breakfast with tiffany",
     " bottoms up ",
+    " call for pricing ",
+    " museum travel opportunity ",
+    " travel with the museum ",
 )
 INCLUDE_PATTERNS = (
     " art babies ",
     " art beyond sight ",
     " art buds ",
     " art kids ",
-    " artist in residence ",
     " ceramic workshop ",
     " creative explorers ",
     " create ",
@@ -214,6 +218,8 @@ def _build_row(event: dict, detail_html: str) -> ExtractedActivity | None:
     source_url = normalize_space(event.get("link"))
     if not title or not source_url:
         return None
+    if "artist in residence" in re.sub(r"[^a-z0-9]+", " ", title.lower()):
+        return None
 
     description = _extract_description(detail_html) or _rest_description(event)
     if not _should_include(title=title, description=description):
@@ -232,6 +238,22 @@ def _build_row(event: dict, detail_html: str) -> ExtractedActivity | None:
     )
     blob = _blob(" ".join(part for part in [title, full_description or ""] if part))
     age_min, age_max = _parse_ages(" ".join(part for part in [title, full_description or ""] if part))
+    plain_blob = normalize_space(full_description).lower()
+    no_registration = any(
+        marker in blob
+        for marker in (
+            " no registration is required ",
+            " no registration required ",
+            " registration is not required ",
+        )
+    ) or any(
+        marker in plain_blob
+        for marker in (
+            "no registration is required",
+            "no registration required",
+            "registration is not required",
+        )
+    )
 
     return ExtractedActivity(
         source_url=source_url,
@@ -251,12 +273,28 @@ def _build_row(event: dict, detail_html: str) -> ExtractedActivity | None:
             or (" reserve " in blob)
             or (" ticket " in blob)
             or (" limited " in blob)
-        ) and " no registration required " not in blob,
+        ) and not no_registration,
         start_at=start_at,
         end_at=end_at,
         timezone=LYWAM_TIMEZONE,
-        **price_classification_kwargs(full_description),
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=full_description,
+            age_min=age_min,
+            age_max=age_max,
+        ),
+        **_lywam_price_kwargs(full_description),
     )
+
+
+def _lywam_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    blob = _blob(text or "")
+    if " call for pricing " in blob:
+        return {"is_free": False, "free_verification_status": "inferred"}
+    kwargs = price_classification_kwargs(text, default_is_free=True)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": True, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _is_candidate(event: dict) -> bool:
@@ -266,6 +304,8 @@ def _is_candidate(event: dict) -> bool:
 
 
 def _should_include(*, title: str, description: str | None) -> bool:
+    if "artist in residence" in re.sub(r"[^a-z0-9]+", " ", title.lower()):
+        return False
     blob = _blob(" ".join(part for part in [title, description or ""] if part))
     if any(pattern in blob for pattern in REJECT_PATTERNS):
         return False

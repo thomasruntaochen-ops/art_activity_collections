@@ -642,11 +642,13 @@ def _parse_stifel_events(payload: dict, *, venue: WvVenueConfig) -> list[Extract
             continue
 
         start_at, end_at = parse_time_range(base_date=occurrence_date, time_text=occurrence_time)
-        if end_at is None and start_at.date() < today:
+        if start_at.date() < today:
             continue
 
         body_text = join_non_empty([description, detail_text, price_text])
         age_min, age_max = _parse_extended_age_range(age_text or body_text)
+        if age_min is None and age_max is None:
+            age_min, age_max = _parse_extended_age_range(body_text)
         activity_type = "workshop" if _contains_phrase(title, "workshop") else "class"
 
         activities.append(
@@ -666,7 +668,13 @@ def _parse_stifel_events(payload: dict, *, venue: WvVenueConfig) -> list[Extract
                 start_at=start_at,
                 end_at=end_at,
                 timezone=WV_TIMEZONE,
-                **price_classification_kwargs(price_text or body_text),
+                audience_segment=infer_audience_segment(
+                    title=title,
+                    description=body_text,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
+                **price_classification_kwargs(price_text or body_text, default_is_free=False),
             )
         )
 

@@ -884,6 +884,10 @@ def _infer_nc_html_price(
         if is_free is None and status == "uncertain":
             return True, "inferred"
         return is_free, status
+    if venue.slug == "hickory":
+        blob = _searchable_blob(price_text or "")
+        if " free " in blob:
+            return True, "confirmed"
     return infer_price_classification(price_text)
 
 
@@ -926,7 +930,7 @@ def _infer_nc_html_audience(
             return "adults"
         if any(marker in token_blob for marker in (" craft nights ", " sun prints ", " workshop ", " lecture ", " talk ", " class ")):
             return "adults"
-    if any(marker in token_blob for marker in (" workshop ", " lecture ", " talk ", " class ", " open studio ")):
+    if any(marker in token_blob for marker in (" workshop ", " lecture ", " talk ", " discussion ", " round table ", " round-table ", " class ", " open studio ")):
         return "adults"
     return "unknown"
 

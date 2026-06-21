@@ -607,8 +607,10 @@ def _make_row(
     ):
         # A "buy/purchase tickets" call-to-action denotes a paid ticketed event.
         is_free, free_status = False, "inferred"
-    if is_free is None and venue.slug == "henry":
+    if is_free is None and venue.slug in {"frye", "henry"}:
         is_free, free_status = True, "inferred"
+    if is_free is None and venue.slug == "sam":
+        is_free, free_status = False, "inferred"
     registration_blob = _searchable_blob(" ".join(part for part in [title, description or "", price_text or ""] if part))
     age_min = _parse_age_min(token_blob)
     age_max = _parse_age_max(token_blob)

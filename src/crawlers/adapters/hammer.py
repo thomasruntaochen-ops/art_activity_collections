@@ -8,6 +8,8 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 HAMMER_PROGRAMS_URL = (
@@ -243,11 +245,28 @@ def parse_hammer_program_pages(
                     start_at=start_at,
                     end_at=end_at,
                     timezone=LA_TIMEZONE,
-                    free_verification_status=("confirmed" if "free" in blob else "inferred"),
+                    audience_segment=infer_audience_segment(
+                        title=title,
+                        description=full_description,
+                        category=category_text,
+                        age_min=age_min,
+                        age_max=age_max,
+                    ),
+                    **_hammer_price_kwargs(blob),
                 )
             )
 
     return rows
+
+
+def _hammer_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    blob = f" {' '.join((text or '').lower().split())} "
+    if " free " in blob:
+        return {"is_free": True, "free_verification_status": "confirmed"}
+    kwargs = price_classification_kwargs(text, default_is_free=True)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": True, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _extract_next_page_url(html: str, *, list_url: str) -> str | None:
@@ -261,6 +280,8 @@ def _extract_next_page_url(html: str, *, list_url: str) -> str | None:
 def _should_exclude_event(*, title: str, description: str | None, categories: list[str]) -> bool:
     title_blob = title.lower()
     blob = " ".join([title, description or "", " ".join(categories)]).lower()
+    if "826la@hammer" in title_blob and any(keyword in blob for keyword in ("write", "memoir", "essay")):
+        return True
     if any(keyword in blob for keyword in HARD_EXCLUDED_KEYWORDS):
         return True
     if any(keyword in blob for keyword in SOFT_EXCLUDED_KEYWORDS) and not any(

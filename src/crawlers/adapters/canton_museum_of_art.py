@@ -17,6 +17,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.adapters.oh_common import should_include_event
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -145,6 +146,9 @@ def _build_row(
         else ""
     )
     event_type = normalize_space((listing_item or {}).get("event_type"))
+    candidate_blob = f" {normalize_space(join_non_empty([title, event_type, skill_text, description_text]) or '').lower()} "
+    if " camp " in candidate_blob:
+        return None
     if not should_include_event(title=title, description=description_text, category=join_non_empty([event_type, skill_text])):
         return None
 
@@ -223,5 +227,12 @@ def _build_row(
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=full_description,
+            category=event_type,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         **price_classification_kwargs(full_description),
     )

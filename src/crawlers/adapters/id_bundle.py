@@ -22,6 +22,7 @@ except ImportError:  # pragma: no cover
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -614,11 +615,41 @@ def _parse_svmoa_events(payload: dict, *, venue: IdVenueConfig) -> list[Extracte
                 start_at=start_at,
                 end_at=end_at,
                 timezone=ID_TIMEZONE,
-                **price_classification_kwargs(" ".join(part for part in [description or "", detail_location or "", free_badge or ""] if part)),
+                audience_segment=infer_audience_segment(
+                    title=title,
+                    description=description,
+                    category=detail_category,
+                    age_min=age_min,
+                    age_max=age_max,
+                    default=_svmoa_default_audience(
+                        title=title,
+                        category=detail_category,
+                        description=description,
+                    ),
+                ),
+                **_svmoa_price_kwargs(" ".join(part for part in [description or "", detail_location or "", free_badge or ""] if part)),
             )
         )
 
     return rows
+
+
+def _svmoa_default_audience(*, title: str, category: str | None, description: str | None) -> str | None:
+    blob = _searchable_blob(" ".join(part for part in [title, category or "", description or ""] if part))
+    if " all ages " in blob:
+        return "all_ages"
+    if any(marker in blob for marker in (" family ", " families ", " youth families ", " youth family ")):
+        return "kids"
+    if " teen " in blob or " teens " in blob:
+        return "teens"
+    return None
+
+
+def _svmoa_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    kwargs = price_classification_kwargs(text, default_is_free=True)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": True, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _parse_tam_events(payload: dict, *, venue: IdVenueConfig) -> list[ExtractedActivity]:

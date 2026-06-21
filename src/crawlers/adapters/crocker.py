@@ -9,6 +9,8 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 CROCKER_EVENTS_URL = "https://www.crockerart.org/events"
@@ -47,6 +49,7 @@ EXCLUDED_CATEGORY_KEYWORDS = (
     "camp",
     "member event",
     "member",
+    "school + educator",
     "exhibition-related",
     "performance",
     "music",
@@ -98,7 +101,6 @@ ALLOWED_CATEGORIES = {
     "kids studio classes",
     "studio art classes",
     "talks + conversations",
-    "school + educator programs",
     "art + wellness",
 }
 FAMILY_ACTIVITY_CATEGORIES = {
@@ -312,7 +314,14 @@ def _build_row_from_item(
         start_at=start_at,
         end_at=None,
         timezone=LA_TIMEZONE,
-        free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=full_description,
+            category=category,
+            age_min=age_min,
+            age_max=age_max,
+        ),
+        **_crocker_price_kwargs(text_blob),
     )
 
 
@@ -398,11 +407,36 @@ def _parse_from_dom_fallback(
                 start_at=start_at,
                 end_at=None,
                 timezone=LA_TIMEZONE,
-                free_verification_status=("confirmed" if "free" in blob.lower() else "inferred"),
+                audience_segment=infer_audience_segment(
+                    title=title,
+                    description=blob,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
+                **_crocker_price_kwargs(blob),
             )
         )
 
     return rows
+
+
+def _crocker_price_kwargs(text: str | None) -> dict[str, bool | None | str]:
+    blob = f" {' '.join((text or '').lower().split())} "
+    if any(
+        marker in blob
+        for marker in (
+            " free with admission ",
+            " included with admission ",
+            " free for members ",
+        )
+    ):
+        return {"is_free": False, "free_verification_status": "confirmed"}
+    if " free " in blob:
+        return {"is_free": True, "free_verification_status": "confirmed"}
+    kwargs = price_classification_kwargs(text, default_is_free=False)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain":
+        return {"is_free": False, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _should_exclude_event(
@@ -428,6 +462,9 @@ def _should_exclude_event(
 
     if category and category.lower() in ALLOWED_CATEGORIES:
         return False
+
+    if "teacher soiree" in title_blob:
+        return True
 
     if "tour" in title_blob and not any(keyword in title_blob for keyword in ("talk", "lecture", "conversation")):
         return True

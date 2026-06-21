@@ -26,7 +26,8 @@ from src.models.activity import Activity, Source  # noqa: E402
 ID_SOURCE_URL_PREFIXES = get_id_source_prefixes()
 
 
-def clear_id_bundle_entries() -> dict[str, int]:
+def clear_id_bundle_entries(venues=None) -> dict[str, int]:
+    venues_to_clear = list(venues) if venues is not None else list(ID_VENUES)
     deleted_activity_tags = 0
     deleted_activities = 0
     deleted_ingestion_runs = 0
@@ -35,20 +36,20 @@ def clear_id_bundle_entries() -> dict[str, int]:
     with SessionLocal() as db:
         venue_ids = lookup_venue_ids(
             db,
-            [(venue.venue_name, venue.city, venue.state) for venue in ID_VENUES],
+            [(venue.venue_name, venue.city, venue.state) for venue in venues_to_clear],
         )
 
         source_ids = db.scalars(
             select(Source.id).where(
                 or_(
-                    Source.base_url.in_([venue.list_url for venue in ID_VENUES]),
-                    Source.name.like("id_%_events"),
-                    Source.name.in_([venue.source_name for venue in ID_VENUES]),
+                    Source.base_url.in_([venue.list_url for venue in venues_to_clear]),
+                    Source.name.in_([venue.source_name for venue in venues_to_clear]),
+                    *([Source.name.like("id_%_events")] if len(venues_to_clear) == len(ID_VENUES) else []),
                 )
             )
         ).all()
 
-        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in ID_SOURCE_URL_PREFIXES]
+        url_filters = [Activity.source_url.like(f"{prefix}%") for prefix in get_id_source_prefixes(venues_to_clear)]
         activity_filter = or_(*url_filters)
         if source_ids:
             activity_filter = or_(activity_filter, Activity.source_id.in_(source_ids))
@@ -108,7 +109,7 @@ async def main() -> None:
     selected_venues = list(ID_VENUES) if args.venue == "all" else [ID_VENUES_BY_SLUG[args.venue]]
 
     if args.clear and not args.commit:
-        deleted = clear_id_bundle_entries()
+        deleted = clear_id_bundle_entries(selected_venues)
         print(
             "Deleted ID bundle rows: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -128,7 +129,7 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_id_bundle_entries()
+        deleted = clear_id_bundle_entries(selected_venues)
         print(
             "Deleted ID bundle rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "

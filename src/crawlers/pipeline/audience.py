@@ -88,9 +88,15 @@ _GENERAL_PUBLIC_ACTIVITY_MARKERS = (
     " classes ",
     " course ",
     " courses ",
+    " conversation ",
+    " conversations ",
+    " discussion ",
+    " discussions ",
     " drawing ",
     " lecture ",
     " lectures ",
+    " panel ",
+    " panels ",
     " studio ",
     " talk ",
     " talks ",
@@ -154,6 +160,8 @@ def infer_audience_segment_from_age(*, age_min: int | None, age_max: int | None)
         return AUDIENCE_TEENS
     if age_min is not None and age_min >= 13 and (age_max is None or age_max <= 18):
         return AUDIENCE_TEENS
+    if age_min is not None and age_min <= 12 and (age_max is None or age_max > 13):
+        return AUDIENCE_ALL_AGES
     if age_min is not None and age_min <= 12 and age_max is not None and age_max <= 13:
         return AUDIENCE_KIDS
     if age_max is not None and age_max <= 12:

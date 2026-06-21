@@ -840,7 +840,14 @@ def _parse_greenville_detail(
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        **_price_kwargs(title, date_text, time_text, description),
+        audience_segment=_infer_columbia_audience(
+            title=title,
+            description=description,
+            category=None,
+            age_min=age_min,
+            age_max=age_max,
+        ),
+        **_price_kwargs(title, date_text, time_text, description, default_is_free=True),
     )
 
 
@@ -975,6 +982,13 @@ def _parse_myrtle_beach_detail(
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
+        audience_segment=_infer_columbia_audience(
+            title=title,
+            description=full_description,
+            category=None,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         **_price_kwargs(title, date_text, time_text, price_text, full_description),
     )
 
@@ -1126,16 +1140,19 @@ def _extract_meta_description(soup: BeautifulSoup) -> str:
     return ""
 
 
-def _price_kwargs(*parts: str | None) -> dict[str, bool | None | str]:
+def _price_kwargs(*parts: str | None, default_is_free: bool | None = None) -> dict[str, bool | None | str]:
     raw_text = join_non_empty(parts)
     normalized_text = normalize_space(raw_text)
     if not normalized_text:
-        return price_classification_kwargs(None, default_is_free=None)
+        return price_classification_kwargs(None, default_is_free=default_is_free)
 
     sanitized_text = re.sub(r"[^a-zA-Z0-9$]+", " ", normalized_text)
     sanitized_blob = _searchable_blob(sanitized_text)
-    default_is_free = True if " free " in sanitized_blob else None
-    return price_classification_kwargs(sanitized_text, default_is_free=default_is_free)
+    inferred_default = True if " free " in sanitized_blob else default_is_free
+    kwargs = price_classification_kwargs(sanitized_text, default_is_free=inferred_default)
+    if kwargs["is_free"] is None and kwargs["free_verification_status"] == "uncertain" and default_is_free is not None:
+        return {"is_free": default_is_free, "free_verification_status": "inferred"}
+    return kwargs
 
 
 def _parse_full_date_text(value: str | None) -> date | None:
