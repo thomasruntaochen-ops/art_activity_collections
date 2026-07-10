@@ -9,7 +9,7 @@ import type { RootStackParamList } from "../navigation/types";
 import { RANGE_LABELS, type RangeKey, useFilters } from "../store/filters";
 import { colors, fonts, radius, space } from "../theme";
 
-const RANGE_KEYS: RangeKey[] = ["upcoming", "today", "7d", "30d", "90d", "custom"];
+const RANGE_KEYS: RangeKey[] = ["upcoming", "today", "weekend", "7d", "30d", "90d", "custom"];
 const AUDIENCE_OPTIONS: { value: "" | AudienceSegment; label: string }[] = [
   { value: "", label: "All audiences" },
   { value: "kids", label: "Kids" },

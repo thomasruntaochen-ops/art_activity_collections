@@ -1,13 +1,17 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type { AudienceSegment } from "../lib/types";
 
 // Date presets offered in the Filters screen. "upcoming" is the default (from
-// now on, no end date); "custom" uses the user-picked customFrom/customTo dates.
-export type RangeKey = "upcoming" | "today" | "7d" | "30d" | "90d" | "custom";
+// now on, no end date); "weekend" covers Friday–Sunday of the current week;
+// "custom" uses the user-picked customFrom/customTo dates.
+export type RangeKey = "upcoming" | "today" | "weekend" | "7d" | "30d" | "90d" | "custom";
 
 export const RANGE_LABELS: Record<RangeKey, string> = {
   upcoming: "Upcoming",
   today: "Today",
+  weekend: "This weekend",
   "7d": "Next 7 days",
   "30d": "Next 30 days",
   "90d": "Next 3 months",
@@ -40,32 +44,12 @@ type FiltersState = {
 };
 
 // Shared filter state, read by the venue list, the detail screen, the map, and
-// the Filters screen alike (the native counterpart to the web explorer's filter
-// state living in one component).
-export const useFilters = create<FiltersState>((set) => ({
-  state: "",
-  city: "",
-  audience: "",
-  freeOnly: false,
-  rangeKey: "upcoming",
-  customFrom: null,
-  customTo: null,
-  userLocation: null,
-  radiusMiles: null,
-  // Changing state clears city, since the chosen city may not belong to it.
-  setState: (v) => set({ state: v, city: "" }),
-  setCity: (v) => set({ city: v }),
-  setAudience: (v) => set({ audience: v }),
-  setFreeOnly: (v) => set({ freeOnly: v }),
-  setRange: (v) => set({ rangeKey: v }),
-  // Picking a custom date also switches the active range to "custom".
-  setCustomFrom: (iso) => set({ customFrom: iso, rangeKey: "custom" }),
-  setCustomTo: (iso) => set({ customTo: iso, rangeKey: "custom" }),
-  setUserLocation: (loc) => set({ userLocation: loc }),
-  setRadiusMiles: (miles) => set({ radiusMiles: miles }),
-  clearNearMe: () => set({ radiusMiles: null }),
-  reset: () =>
-    set({
+// the Filters screen alike. The location-ish preferences (audience/state/city/
+// free-only) persist across launches so the app opens already personalized;
+// dates and near-me intentionally reset each launch.
+export const useFilters = create<FiltersState>()(
+  persist(
+    (set) => ({
       state: "",
       city: "",
       audience: "",
@@ -73,9 +57,44 @@ export const useFilters = create<FiltersState>((set) => ({
       rangeKey: "upcoming",
       customFrom: null,
       customTo: null,
+      userLocation: null,
       radiusMiles: null,
+      // Changing state clears city, since the chosen city may not belong to it.
+      setState: (v) => set({ state: v, city: "" }),
+      setCity: (v) => set({ city: v }),
+      setAudience: (v) => set({ audience: v }),
+      setFreeOnly: (v) => set({ freeOnly: v }),
+      setRange: (v) => set({ rangeKey: v }),
+      // Picking a custom date also switches the active range to "custom".
+      setCustomFrom: (iso) => set({ customFrom: iso, rangeKey: "custom" }),
+      setCustomTo: (iso) => set({ customTo: iso, rangeKey: "custom" }),
+      setUserLocation: (loc) => set({ userLocation: loc }),
+      setRadiusMiles: (miles) => set({ radiusMiles: miles }),
+      clearNearMe: () => set({ radiusMiles: null }),
+      reset: () =>
+        set({
+          state: "",
+          city: "",
+          audience: "",
+          freeOnly: false,
+          rangeKey: "upcoming",
+          customFrom: null,
+          customTo: null,
+          radiusMiles: null,
+        }),
     }),
-}));
+    {
+      name: "filters",
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (s) => ({
+        audience: s.audience,
+        state: s.state,
+        city: s.city,
+        freeOnly: s.freeOnly,
+      }),
+    },
+  ),
+);
 
 // Translate the active range into the API's date_from / date_to ISO strings.
 export function deriveDateRange(
@@ -108,6 +127,22 @@ export function deriveDateRange(
     const end = new Date(now);
     end.setHours(23, 59, 59, 999);
     return { date_from: iso(start), date_to: iso(end) };
+  }
+
+  if (rangeKey === "weekend") {
+    // Sunday that ends this weekend (getDay(): 0=Sun … 5=Fri, 6=Sat).
+    const day = now.getDay();
+    const sunday = new Date(now);
+    sunday.setDate(sunday.getDate() + (day === 0 ? 0 : 7 - day));
+    sunday.setHours(23, 59, 59, 999);
+    // Mon–Thu → start Friday 00:00; Fri/Sat/Sun → we're in the window, start now.
+    let start = now;
+    if (day >= 1 && day <= 4) {
+      start = new Date(now);
+      start.setDate(start.getDate() + (5 - day));
+      start.setHours(0, 0, 0, 0);
+    }
+    return { date_from: iso(start), date_to: iso(sunday) };
   }
 
   const days = rangeKey === "7d" ? 7 : rangeKey === "30d" ? 30 : rangeKey === "90d" ? 90 : 0;
