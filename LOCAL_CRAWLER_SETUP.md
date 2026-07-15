@@ -58,11 +58,11 @@ Once local runs are confirmed working, remove the `crawler` service from Railway
 
 | Batch | Venues | Schedule |
 |-------|--------|----------|
-| batch_a | 18 | Mon + Thu 2:00am |
-| batch_b | 18 | Mon + Thu 3:00am |
-| batch_c | 20 | Tue + Fri 2:00am |
-| batch_d | 72 | Wed + Sat 2:00am |
-| batch_e | 7  | Tue + Fri 3:00am |
+| batch_a | 18 | Mon + Thu 2:00pm |
+| batch_b | 18 | Mon + Thu 3:00pm |
+| batch_c | 20 | Tue + Fri 2:00pm |
+| batch_d | 72 | Wed + Sat 2:00pm |
+| batch_e | 7  | Tue + Fri 3:00pm |
 
 ## Managing launchd agents
 

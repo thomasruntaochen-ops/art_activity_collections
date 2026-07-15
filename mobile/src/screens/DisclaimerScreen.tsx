@@ -52,6 +52,10 @@ export function DisclaimerScreen() {
           <Text style={styles.lead}>{item.lead}</Text> {item.body}
         </Text>
       ))}
+      <Text style={styles.credit}>
+        Designed and developed by Thomas R Chen.{"\n"}© 2026 Thomas R Chen. All rights
+        reserved.
+      </Text>
     </ScrollView>
   );
 }
@@ -73,4 +77,11 @@ const styles = StyleSheet.create({
     marginBottom: space.md,
   },
   lead: { fontWeight: "600", color: colors.ink },
+  credit: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.muted,
+    marginTop: space.lg,
+  },
 });

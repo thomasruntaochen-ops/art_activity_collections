@@ -1,15 +1,21 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Art Museum Activities",
+    "slug": "art-museum-activities",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.thomasrchen.artmuseumactivities",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCalendarsFullAccessUsageDescription": "Lets you add museum activities you're interested in to your calendar."
+      }
     },
     "android": {
+      "package": "com.thomasrchen.artmuseumactivities",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +26,20 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Shows museums and art activities near your current location."
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Lets you add museum activities you're interested in to your calendar."
+        }
+      ]
+    ]
   }
 }
