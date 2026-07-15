@@ -1,5 +1,6 @@
-import { ScrollView, StyleSheet, Text } from "react-native";
+import { Linking, ScrollView, StyleSheet, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PRIVACY_POLICY_URL } from "../config";
 import { colors, fonts, space } from "../theme";
 
 // Full disclaimer, ported verbatim from the website footer (site → app).
@@ -52,6 +53,9 @@ export function DisclaimerScreen() {
           <Text style={styles.lead}>{item.lead}</Text> {item.body}
         </Text>
       ))}
+      <Text style={styles.privacyLink} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
+        Privacy Policy
+      </Text>
       <Text style={styles.credit}>
         Designed and developed by Thomas R Chen.{"\n"}© 2026 Thomas R Chen. All rights
         reserved.
@@ -77,6 +81,14 @@ const styles = StyleSheet.create({
     marginBottom: space.md,
   },
   lead: { fontWeight: "600", color: colors.ink },
+  privacyLink: {
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.ink,
+    textDecorationLine: "underline",
+    marginTop: space.md,
+  },
   credit: {
     fontFamily: fonts.sans,
     fontSize: 13,

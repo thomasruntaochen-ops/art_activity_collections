@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityTable } from "../components/activity-table";
 import { AppleMapsIcon, GoogleMapsIcon } from "../components/map-icons";
@@ -1158,6 +1159,10 @@ export default function HomePage() {
               </ul>
             </div>
           </details>
+          <p className="site-footer__links">
+            <Link href="/privacy">Privacy Policy</Link>
+            {" · "}Designed and developed by Thomas R Chen{" · "}&copy; 2026 Thomas R Chen
+          </p>
         </div>
       </footer>
     </main>

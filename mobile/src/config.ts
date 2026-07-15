@@ -14,3 +14,7 @@
 export const API_BASE_URL: string = "https://artactivityapi.up.railway.app";
 
 export const MEDIA_BASE_URL: string = "https://artactivity.up.railway.app";
+
+// Public privacy-policy page, linked from the Disclaimer screen and used in the
+// App Store Connect "Privacy Policy URL" field.
+export const PRIVACY_POLICY_URL: string = "https://artactivity.up.railway.app/privacy";
