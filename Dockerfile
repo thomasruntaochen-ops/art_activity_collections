@@ -1,0 +1,24 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml README.md /app/
+COPY src /app/src
+COPY scripts /app/scripts
+COPY db /app/db
+COPY config /app/config
+
+RUN python -m pip install --upgrade pip \
+    && python -m pip install ".[crawler]" \
+    && python -m playwright install --with-deps chromium
+
+CMD ["bash", "scripts/run_crawler_guarded.sh"]
