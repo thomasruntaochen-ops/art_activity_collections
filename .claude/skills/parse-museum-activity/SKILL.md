@@ -102,17 +102,16 @@ Pending means the museum entry has none of `parser_script`, `fail_implement`, or
   - open house
   - performance
   - music
-  - story
   - poem
   - poetry
   - meditation
   - mindfulness
-  - storytime
   - dinner
   - reception
   - jazz
   - orchestra
   - band
+  - tai chi
 - Prefer events clearly about:
   - talk
   - class

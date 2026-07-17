@@ -15,7 +15,10 @@ data/html/
 data/rawhtml/
 PackageInstall.md
 *.egg-info/
-.claude/
+.claude/*
+!.claude/skills/
 logs/
 debug/
 data/reports/
+event_url_test.md
+frontend/tsconfig.tsbuildinfo
