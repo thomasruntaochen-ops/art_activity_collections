@@ -9,6 +9,7 @@ import { AppleMapsIcon, GoogleMapsIcon } from "../components/map-icons";
 import { fetchActivities, fetchFilterOptions, fetchVenueSummaries } from "../lib/api";
 import { getVenueMedia } from "../lib/venue-media";
 import { haversineMiles, resolveVenueCoordinates } from "../lib/venue-map-data";
+import { stateName } from "../lib/states";
 import type { Activity, AudienceSegment, VenueSummary } from "../lib/types";
 
 type MapViewportMode = "fit" | "focus" | "usa";
@@ -788,7 +789,7 @@ export default function HomePage() {
               <option value="">All states</option>
               {stateOptions.map((state) => (
                 <option key={state} value={state}>
-                  {state}
+                  {stateName(state)}
                 </option>
               ))}
             </select>
