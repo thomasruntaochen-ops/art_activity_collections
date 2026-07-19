@@ -10,6 +10,7 @@ import { fetchActivities, fetchFilterOptions, fetchVenueSummaries } from "../lib
 import { getVenueMedia } from "../lib/venue-media";
 import { haversineMiles, resolveVenueCoordinates } from "../lib/venue-map-data";
 import { stateName } from "../lib/states";
+import { deriveDateRange, RANGE_KEYS, RANGE_LABELS, type RangeKey } from "../lib/date-range";
 import type { Activity, AudienceSegment, VenueSummary } from "../lib/types";
 
 type MapViewportMode = "fit" | "focus" | "usa";
@@ -53,12 +54,6 @@ function formatDateInput(value: Date): string {
   const month = `${value.getMonth() + 1}`.padStart(2, "0");
   const day = `${value.getDate()}`.padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function addMonths(value: Date, months: number): Date {
-  const next = new Date(value);
-  next.setMonth(next.getMonth() + months);
-  return next;
 }
 
 function toStartOfDayIso(value: string): string | undefined {
@@ -154,8 +149,13 @@ export default function HomePage() {
   const [ageFilter, setAgeFilter] = useState("");
   const [audienceFilter, setAudienceFilter] = useState<"" | AudienceSegment>("");
   const [dropInFilter, setDropInFilter] = useState("");
+  // Date model shared with the native app: a preset range ("upcoming" default)
+  // plus custom From/To dates used when rangeKey === "custom". The desktop
+  // From/To inputs edit the custom dates directly (switching the range to
+  // custom); the mobile filter sheet offers the app's preset chips.
+  const [rangeKey, setRangeKey] = useState<RangeKey>("upcoming");
   const [dateFrom, setDateFrom] = useState(() => formatDateInput(new Date()));
-  const [dateTo, setDateTo] = useState(() => formatDateInput(addMonths(new Date(), 1)));
+  const [dateTo, setDateTo] = useState("");
   const [freeOnly, setFreeOnly] = useState(false);
   const [selectedActivities, setSelectedActivities] = useState<Activity[]>([]);
   const [activityError, setActivityError] = useState("");
@@ -172,8 +172,44 @@ export default function HomePage() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState("");
   const detailRef = useRef<HTMLElement | null>(null);
-  const dateFromIso = useMemo(() => toStartOfDayIso(dateFrom), [dateFrom]);
-  const dateToIso = useMemo(() => toEndOfDayIso(dateTo), [dateTo]);
+  const { dateFromIso, dateToIso } = useMemo(() => {
+    if (rangeKey === "custom") {
+      return { dateFromIso: toStartOfDayIso(dateFrom), dateToIso: toEndOfDayIso(dateTo) };
+    }
+    const derived = deriveDateRange(rangeKey);
+    return { dateFromIso: derived.date_from, dateToIso: derived.date_to };
+  }, [rangeKey, dateFrom, dateTo]);
+
+  // Editing either desktop date input switches to the custom range so the
+  // typed dates take effect (mirrors the app, where picking a custom date
+  // activates the "Custom dates" preset).
+  const handleDateFromChange = useCallback((value: string) => {
+    setDateFrom(value);
+    setRangeKey("custom");
+  }, []);
+  const handleDateToChange = useCallback((value: string) => {
+    setDateTo(value);
+    setRangeKey("custom");
+  }, []);
+
+  // Plain-words description of the active date window (hidden for the default
+  // "upcoming"), same as the app's Explore screen status row.
+  const dateStatus = useMemo(() => {
+    if (rangeKey === "upcoming") return null;
+    const fmt = (iso?: string) =>
+      iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
+    const { date_from, date_to } = deriveDateRange(rangeKey, dateFrom, dateTo);
+    const from = fmt(date_from);
+    const to = fmt(date_to);
+    if (rangeKey === "today") return "Showing today only";
+    if (rangeKey === "weekend") return `Showing this weekend · ${from} – ${to}`;
+    if (rangeKey === "custom") {
+      if (from && to) return `Showing ${from} – ${to}`;
+      if (from) return `Showing from ${from}`;
+      return `Showing until ${to}`;
+    }
+    return `Showing ${RANGE_LABELS[rangeKey].toLowerCase()} · ${from} – ${to}`;
+  }, [rangeKey, dateFrom, dateTo]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -484,10 +520,17 @@ export default function HomePage() {
     setAgeFilter("");
     setDropInFilter("");
     setTableVenueName("");
+    setRangeKey("upcoming");
     setDateFrom(formatDateInput(new Date()));
-    setDateTo(formatDateInput(addMonths(new Date(), 1)));
+    setDateTo("");
     setLocationRange(null);
     setIsLocationPanelOpen(false);
+  }, []);
+
+  // Quick "This weekend" toggle in the mobile action row: tap to scope dates to
+  // the weekend, tap again to go back to the default upcoming range.
+  const handleWeekendToggle = useCallback(() => {
+    setRangeKey((current) => (current === "weekend" ? "upcoming" : "weekend"));
   }, []);
 
   // From a map popup: close the map, select the venue, and bring its card +
@@ -631,8 +674,14 @@ export default function HomePage() {
     () => (selectedVenue ? buildDirectionsTargets(selectedVenue) : null),
     [selectedVenue],
   );
+  // Non-default filters, shown as a badge on the Filters button (same counting
+  // as the app: a non-"upcoming" date range counts too).
   const advancedFilterCount =
-    (selectedState ? 1 : 0) + (selectedCity ? 1 : 0) + (audienceFilter ? 1 : 0) + (freeOnly ? 1 : 0);
+    (selectedState ? 1 : 0) +
+    (selectedCity ? 1 : 0) +
+    (audienceFilter ? 1 : 0) +
+    (freeOnly ? 1 : 0) +
+    (rangeKey !== "upcoming" ? 1 : 0);
   const activitySummary = useMemo(() => {
     const counts = {
       total: selectedActivities.length,
@@ -675,6 +724,8 @@ export default function HomePage() {
     >
       <header className="explorer-topbar">
         <div className="explorer-brand">Art Museum Activities Explorer</div>
+        {/* Mobile-only subtitle, matching the app's Explore header. */}
+        <p className="explorer-subtitle">Museums with active art programs</p>
         <div className="explorer-headersearch">
           {viewMode === "map" ? (
             <>
@@ -687,14 +738,16 @@ export default function HomePage() {
                   placeholder="Search museums or cities..."
                 />
               </label>
+              {/* Mobile-only Filters button beside the search box (app-style). */}
               <button
                 type="button"
-                className={`explorer-locate${locationRange ? " is-active" : ""}`}
-                onClick={handleLocateClick}
-                aria-label="Find museums near me"
-                title="Find museums near me"
+                className="explorer-headersearch__filters"
+                onClick={() => setIsFiltersOpen(true)}
               >
-                <span aria-hidden="true">◎</span>
+                Filters
+                {advancedFilterCount > 0 ? (
+                  <span className="filterbar__badge">{advancedFilterCount}</span>
+                ) : null}
               </button>
             </>
           ) : (
@@ -724,6 +777,41 @@ export default function HomePage() {
         </div>
         */}
       </header>
+
+      {/* Mobile-only quick actions under the search row, matching the app's
+          Explore screen: Map, Near me (opens the distance panel), and a
+          This-weekend date toggle. */}
+      <div className="explorer-actionrow">
+        <button type="button" className="explorer-action" onClick={() => setIsMapOpen(true)}>
+          <span aria-hidden="true">🗺</span> Map
+        </button>
+        <button
+          type="button"
+          className={`explorer-action${userLocation && locationRange ? " is-active" : ""}`}
+          onClick={handleLocateClick}
+        >
+          <span aria-hidden="true">◎</span>{" "}
+          {userLocation && locationRange ? `${locationRange} mi` : "Near me"}
+        </button>
+        <button
+          type="button"
+          className={`explorer-action${rangeKey === "weekend" ? " is-active" : ""}`}
+          onClick={handleWeekendToggle}
+        >
+          <span aria-hidden="true">📅</span> This weekend
+        </button>
+      </div>
+
+      {/* Mobile-only plain-words summary of a non-default date range, with a ✕
+          to jump back to "Upcoming". */}
+      {dateStatus ? (
+        <div className="explorer-datestatus">
+          <span>{dateStatus}</span>
+          <button type="button" onClick={() => setRangeKey("upcoming")} aria-label="Reset dates">
+            ✕
+          </button>
+        </div>
+      ) : null}
 
       {/* Inline "near me" panel: slides down under the search/locate row instead
           of opening a modal, so it pushes the content below it down rather than
@@ -783,6 +871,54 @@ export default function HomePage() {
         <div className="filters-advanced">
           <p className="filters-advanced__title">Filters</p>
 
+          {/* Mobile-only "When" presets, same choices as the app's Filters
+              screen. Desktop keeps the From/To date inputs instead. */}
+          <p className="filters-advanced__label">When</p>
+          <div className="filters-advanced__chips">
+            {RANGE_KEYS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={`filter-chip${rangeKey === key ? " is-active" : ""}`}
+                onClick={() => setRangeKey(key)}
+              >
+                {RANGE_LABELS[key]}
+              </button>
+            ))}
+          </div>
+
+          <label
+            className={`explorer-filterbar__control ctl-from${rangeKey === "custom" ? "" : " m-collapsed"}`}
+          >
+            <span>From</span>
+            <input type="date" value={dateFrom} onChange={(event) => handleDateFromChange(event.target.value)} />
+          </label>
+
+          <label
+            className={`explorer-filterbar__control ctl-to${rangeKey === "custom" ? "" : " m-collapsed"}`}
+          >
+            <span>To</span>
+            <input type="date" value={dateTo} onChange={(event) => handleDateToChange(event.target.value)} />
+          </label>
+
+          {/* Mobile-only audience chips (the app's picker); desktop keeps the
+              select below. */}
+          <p className="filters-advanced__label">Audience</p>
+          <div className="filters-advanced__chips">
+            {AUDIENCE_OPTIONS.map((option) => (
+              <button
+                key={option.value || "all"}
+                type="button"
+                className={`filter-chip${audienceFilter === option.value ? " is-active" : ""}`}
+                onClick={() => setAudienceFilter(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <p className="filters-advanced__label">Location</p>
+
           <label className="explorer-filterbar__control ctl-state">
             <span>State</span>
             <select value={selectedState} onChange={(event) => setSelectedState(event.target.value)}>
@@ -838,25 +974,6 @@ export default function HomePage() {
             Done
           </button>
         </div>
-
-        <label className="explorer-filterbar__control ctl-from">
-          <span>From</span>
-          <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
-        </label>
-
-        <label className="explorer-filterbar__control ctl-to">
-          <span>To</span>
-          <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
-        </label>
-
-        <button type="button" className="filterbar__sheet-trigger" onClick={() => setIsFiltersOpen(true)}>
-          Filters
-          {advancedFilterCount > 0 ? <span className="filterbar__badge">{advancedFilterCount}</span> : null}
-        </button>
-
-        <button type="button" className="filterbar__map-trigger" onClick={() => setIsMapOpen(true)}>
-          <span aria-hidden="true">🗺</span> Map view
-        </button>
       </section>
 
       {isFiltersOpen ? (
@@ -906,7 +1023,8 @@ export default function HomePage() {
                   <span className="venue-card__content">
                     <span className="venue-card__title">{venue.venue_name}</span>
                     <span className="venue-card__meta">
-                      {[venue.venue_city, venue.venue_state].filter(Boolean).join(", ") || "Location pending"}
+                      {[venue.venue_city, stateName(venue.venue_state)].filter(Boolean).join(", ") ||
+                        "Location pending"}
                     </span>
                     <span className="venue-card__count">{venue.activity_count} programs</span>
                   </span>

@@ -241,11 +241,17 @@ a {
   color: var(--gold-deep);
 }
 
-/* Mobile-only chrome: hidden on desktop, revealed in the <=980px media query. */
+/* Mobile-only chrome: hidden on desktop, revealed in the <=980px media query.
+   The subtitle / Filters button / action row / date status / chip groups
+   mirror the native app's Explore + Filters screens. */
 .filters-advanced__title,
 .filters-advanced__done,
-.filterbar__sheet-trigger,
-.filterbar__map-trigger,
+.filters-advanced__label,
+.filters-advanced__chips,
+.explorer-subtitle,
+.explorer-actionrow,
+.explorer-datestatus,
+.explorer-headersearch__filters,
 .explorer-map__close,
 .sheet-backdrop {
   display: none;
@@ -825,11 +831,6 @@ a {
   background: #f4f7fb;
   border-color: rgba(70, 109, 168, 0.26);
   transform: translateY(-1px);
-}
-
-/* Mobile-only control: hidden on desktop, revealed in the <=980px media query. */
-.explorer-locate {
-  display: none;
 }
 
 /* Directions button under the venue name: shown on both desktop and mobile. */
@@ -1461,17 +1462,27 @@ a {
     padding: 18px;
   }
 
+  /* App-style Explore header: serif brand, muted subtitle, then a search row
+     with the dark Filters button beside it. */
   .explorer-topbar {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 12px;
+    margin-bottom: 14px;
   }
 
   .explorer-brand {
-    font-size: 1.35rem;
+    font-size: 1.55rem;
     line-height: 1.1;
   }
 
-  /* Search box flexes; the locate button sits beside it on the same row. */
+  .explorer-subtitle {
+    display: block;
+    margin: -8px 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  /* Search box flexes; the Filters button sits beside it on the same row. */
   .explorer-headersearch {
     gap: 8px;
   }
@@ -1482,26 +1493,71 @@ a {
     min-width: 0;
   }
 
-  .explorer-locate {
+  .explorer-headersearch__filters {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     flex: 0 0 auto;
-    width: 48px;
-    height: 48px;
-    border: 1px solid var(--line);
+    min-height: 48px;
+    padding: 0 18px;
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.62);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-    color: var(--ink);
-    font-size: 1.3rem;
+    background: var(--ink);
+    color: #fff;
+    font-weight: 500;
     cursor: pointer;
   }
 
-  .explorer-locate.is-active {
-    border-color: rgba(26, 115, 232, 0.4);
-    background: rgba(26, 115, 232, 0.12);
-    color: #175ec2;
+  /* Quick actions row (Map / Near me / This weekend), as in the app. */
+  .explorer-actionrow {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .explorer-action {
+    flex: 1 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--paper-strong);
+    color: var(--ink);
+    font-size: 0.88rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .explorer-action.is-active {
+    border-color: var(--gold-deep);
+    background: var(--gold);
+    color: #fff;
+  }
+
+  /* Plain-words summary of a non-default date range, with a ✕ to reset. */
+  .explorer-datestatus {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 7px 12px;
+    border-radius: 10px;
+    background: rgba(200, 144, 49, 0.14);
+    color: var(--gold-deep);
+    font-size: 0.85rem;
+  }
+
+  .explorer-datestatus button {
+    background: none;
+    color: var(--gold-deep);
+    font-size: 0.9rem;
+    cursor: pointer;
   }
 
   /* Directions button + map-app links under the venue name. */
@@ -1534,13 +1590,18 @@ a {
     border-top: 1px solid var(--line);
   }
 
-  /* Keep the horizontal venue-card strip scrolling inside the viewport instead
-     of stretching the page (min-width:0 lets the flex/grid ancestors shrink). */
   .explorer-content,
   .explorer-sidebar,
   .explorer-sidebar__list {
     min-width: 0;
     max-width: 100%;
+  }
+
+  /* The header already says "Museums with active art programs", so drop the
+     sidebar heading on mobile (the "near me" status chip stays). */
+  .explorer-sidebar__heading h1,
+  .explorer-sidebar__heading > p {
+    display: none;
   }
 
   /* Smaller titles, tighter padding, and ~half-size cards so more fits. */
@@ -1568,18 +1629,36 @@ a {
     font-size: 0.95rem;
   }
 
+  /* App-style venue list: a vertical stack of full-width photo cards instead
+     of the desktop's horizontal strip. */
+  .explorer-sidebar__track {
+    flex-direction: column;
+    gap: 12px;
+    overflow: visible;
+    padding: 4px 0 8px;
+  }
+
   .explorer-sidebar__track > .venue-card {
-    flex: 0 0 120px;
-    width: 120px;
-    min-height: 92px;
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 168px;
   }
 
   .venue-card__content {
-    padding: 20px 10px 9px;
+    padding: 26px 16px 14px;
   }
 
   .venue-card__title {
-    font-size: 0.8rem;
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    font-size: 1.25rem;
+    font-weight: 500;
+  }
+
+  /* The desktop "floating bubble" animation reads oddly in a vertical list;
+     highlight the selected card in place instead. */
+  .explorer-sidebar__track > .venue-card.is-active {
+    animation: none;
+    transform: none;
   }
 
   .activity-listing__title {
@@ -1595,76 +1674,17 @@ a {
     grid-template-columns: 1fr;
   }
 
-  /* Filter bar: From/To stay visible (2-up); the rest move into a sheet.
-     minmax(0, 1fr) lets the tracks shrink below the date inputs' intrinsic
-     width so the two boxes never overflow and overlap at the column boundary. */
+  /* Every filter control lives in the sheet on mobile, so the filter bar's own
+     card chrome would render as an empty box — strip it. */
   .explorer-filterbar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    /* Same reason as .explorer-content: backdrop-filter would trap the fixed
-       filters sheet behind its backdrop (can't tap / type). */
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
-  .ctl-from,
-  .ctl-to {
-    order: 0;
-    /* Allow the control (and its date input) to shrink inside its grid track. */
-    min-width: 0;
-  }
-
-  /* Compact From/To boxes. */
-  .explorer-filterbar {
-    padding: 12px;
-    gap: 10px;
-  }
-
-  .ctl-from,
-  .ctl-to {
-    gap: 4px;
-  }
-
-  .ctl-from input,
-  .ctl-to input {
-    height: 38px;
-    padding: 0 10px;
-    font-size: 0.8rem;
-    width: 100%;
-    min-width: 0;
-    /* Native date inputs enforce an intrinsic min-width from their internal
-       fields, which ignores width:100% and pushes the two boxes past their
-       grid tracks (so they overlap). Dropping the native appearance lets them
-       actually shrink to the track width. */
-    -webkit-appearance: none;
-    appearance: none;
-  }
-
-  /* Keep the calendar picker button compact so it doesn't re-inflate the box. */
-  .ctl-from input::-webkit-calendar-picker-indicator,
-  .ctl-to input::-webkit-calendar-picker-indicator {
+    display: block;
     margin: 0;
     padding: 0;
-  }
-
-  .filterbar__sheet-trigger,
-  .filterbar__map-trigger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    min-height: 48px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.62);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-    color: var(--ink);
-    cursor: pointer;
-  }
-
-  .filterbar__map-trigger {
-    background: linear-gradient(135deg, rgba(200, 144, 49, 0.2), rgba(255, 255, 255, 0.82));
-    color: var(--gold-deep);
-    font-weight: 600;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .filterbar__badge {
@@ -1675,16 +1695,18 @@ a {
     height: 20px;
     padding: 0 6px;
     border-radius: 999px;
-    background: var(--gold-deep);
+    background: var(--gold);
     color: #fff;
     font-size: 0.72rem;
     font-weight: 700;
   }
 
-  /* Advanced filters become a bottom sheet. */
+  /* Advanced filters become a bottom sheet laid out like the app's Filters
+     screen: full-width sections in a 2-column grid so the custom From/To boxes
+     and the Clear all / Done footer can sit side by side. */
   .filters-advanced {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 14px;
     position: fixed;
     left: 0;
@@ -1699,6 +1721,11 @@ a {
     box-shadow: 0 -18px 44px rgba(58, 42, 24, 0.2);
     transform: translateY(100%);
     transition: transform 0.28s ease;
+  }
+
+  .filters-advanced > * {
+    grid-column: 1 / -1;
+    min-width: 0;
   }
 
   .explorer-shell.is-filters-open .filters-advanced {
@@ -1717,6 +1744,77 @@ a {
     font-size: 1.3rem;
   }
 
+  /* Section labels ("When" / "Audience" / "Location"), app-style. */
+  .filters-advanced__label {
+    display: block;
+    margin: 4px 0 -6px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .filters-advanced__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .filter-chip {
+    padding: 9px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper-strong);
+    color: var(--ink);
+    font-size: 0.88rem;
+    cursor: pointer;
+  }
+
+  .filter-chip.is-active {
+    border-color: var(--gold-deep);
+    background: var(--gold);
+    color: #fff;
+    font-weight: 500;
+  }
+
+  /* Audience is picked via chips on mobile; hide the desktop select. */
+  .filters-advanced .ctl-audience {
+    display: none;
+  }
+
+  /* Custom From/To sit side by side, shown only while "Custom dates" is on. */
+  .filters-advanced .ctl-from {
+    grid-column: 1;
+  }
+
+  .filters-advanced .ctl-to {
+    grid-column: 2;
+  }
+
+  .filters-advanced .m-collapsed {
+    display: none;
+  }
+
+  .ctl-from input,
+  .ctl-to input {
+    width: 100%;
+    min-width: 0;
+    /* Native date inputs enforce an intrinsic min-width from their internal
+       fields, which ignores width:100% and pushes the two boxes past their
+       grid tracks (so they overlap). Dropping the native appearance lets them
+       actually shrink to the track width. */
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Keep the calendar picker button compact so it doesn't re-inflate the box. */
+  .ctl-from input::-webkit-calendar-picker-indicator,
+  .ctl-to input::-webkit-calendar-picker-indicator {
+    margin: 0;
+    padding: 0;
+  }
+
   .filters-advanced .explorer-filterbar__control select,
   .filters-advanced .explorer-filterbar__control input {
     width: 100%;
@@ -1726,14 +1824,21 @@ a {
     width: 100%;
   }
 
+  /* App-style sheet footer: Clear all and Done side by side. */
+  .filters-advanced .filters-advanced__reset {
+    grid-column: 1;
+    margin-top: 4px;
+  }
+
   .filters-advanced__done {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    grid-column: 2;
     min-height: 48px;
     margin-top: 4px;
     border-radius: 14px;
-    background: var(--gold-deep);
+    background: var(--ink);
     color: #fff;
     font-weight: 600;
     cursor: pointer;
