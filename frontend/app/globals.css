@@ -243,7 +243,8 @@ a {
 
 /* Mobile-only chrome: hidden on desktop, revealed in the <=980px media query.
    The subtitle / Filters button / action row / date status / chip groups
-   mirror the native app's Explore + Filters screens. */
+   mirror the native app's Explore + Filters screens. (The "When" chip group
+   is the exception — see .filters-advanced__when below.) */
 .filters-advanced__title,
 .filters-advanced__done,
 .filters-advanced__label,
@@ -254,6 +255,56 @@ a {
 .explorer-headersearch__filters,
 .explorer-map__close,
 .sheet-backdrop {
+  display: none;
+}
+
+/* "When" date presets (shared with the app): shown on desktop as a full-width
+   row of chips in the filter bar, and inside the mobile sheet. */
+.filters-advanced__when {
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  order: 0;
+}
+
+.filters-advanced__when .filters-advanced__label {
+  display: block;
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.filters-advanced__when .filters-advanced__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chip {
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-strong);
+  color: var(--ink);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.filter-chip:hover {
+  border-color: var(--gold);
+}
+
+.filter-chip.is-active {
+  border-color: var(--gold-deep);
+  background: var(--gold);
+  color: #fff;
+  font-weight: 500;
+}
+
+/* The custom From/To inputs render only while "Custom dates" is selected. */
+.explorer-filterbar .is-collapsed {
   display: none;
 }
 
@@ -1746,23 +1797,6 @@ a {
     gap: 8px;
   }
 
-  .filter-chip {
-    padding: 9px 14px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: var(--paper-strong);
-    color: var(--ink);
-    font-size: 0.88rem;
-    cursor: pointer;
-  }
-
-  .filter-chip.is-active {
-    border-color: var(--gold-deep);
-    background: var(--gold);
-    color: #fff;
-    font-weight: 500;
-  }
-
   /* Audience is picked via chips on mobile; hide the desktop select. */
   .filters-advanced .ctl-audience {
     display: none;
@@ -1777,11 +1811,7 @@ a {
     grid-column: 2;
   }
 
-  .filters-advanced .m-collapsed {
-    display: none;
-  }
-
-  .ctl-from input,
+.ctl-from input,
   .ctl-to input {
     width: 100%;
     min-width: 0;

@@ -871,31 +871,34 @@ export default function HomePage() {
         <div className="filters-advanced">
           <p className="filters-advanced__title">Filters</p>
 
-          {/* Mobile-only "When" presets, same choices as the app's Filters
-              screen. Desktop keeps the From/To date inputs instead. */}
-          <p className="filters-advanced__label">When</p>
-          <div className="filters-advanced__chips">
-            {RANGE_KEYS.map((key) => (
-              <button
-                key={key}
-                type="button"
-                className={`filter-chip${rangeKey === key ? " is-active" : ""}`}
-                onClick={() => setRangeKey(key)}
-              >
-                {RANGE_LABELS[key]}
-              </button>
-            ))}
+          {/* "When" presets, same choices as the app's Filters screen — shown
+              in the desktop filter bar and the mobile sheet alike. The custom
+              From/To inputs appear only while "Custom dates" is selected. */}
+          <div className="filters-advanced__when">
+            <p className="filters-advanced__label">When</p>
+            <div className="filters-advanced__chips">
+              {RANGE_KEYS.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`filter-chip${rangeKey === key ? " is-active" : ""}`}
+                  onClick={() => setRangeKey(key)}
+                >
+                  {RANGE_LABELS[key]}
+                </button>
+              ))}
+            </div>
           </div>
 
           <label
-            className={`explorer-filterbar__control ctl-from${rangeKey === "custom" ? "" : " m-collapsed"}`}
+            className={`explorer-filterbar__control ctl-from${rangeKey === "custom" ? "" : " is-collapsed"}`}
           >
             <span>From</span>
             <input type="date" value={dateFrom} onChange={(event) => handleDateFromChange(event.target.value)} />
           </label>
 
           <label
-            className={`explorer-filterbar__control ctl-to${rangeKey === "custom" ? "" : " m-collapsed"}`}
+            className={`explorer-filterbar__control ctl-to${rangeKey === "custom" ? "" : " is-collapsed"}`}
           >
             <span>To</span>
             <input type="date" value={dateTo} onChange={(event) => handleDateToChange(event.target.value)} />
