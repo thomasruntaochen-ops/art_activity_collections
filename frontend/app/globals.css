@@ -1590,6 +1590,8 @@ a {
     border-top: 1px solid var(--line);
   }
 
+  /* Keep the horizontal venue-card strip scrolling inside the viewport instead
+     of stretching the page (min-width:0 lets the flex/grid ancestors shrink). */
   .explorer-content,
   .explorer-sidebar,
   .explorer-sidebar__list {
@@ -1629,36 +1631,19 @@ a {
     font-size: 0.95rem;
   }
 
-  /* App-style venue list: a vertical stack of full-width photo cards instead
-     of the desktop's horizontal strip. */
-  .explorer-sidebar__track {
-    flex-direction: column;
-    gap: 12px;
-    overflow: visible;
-    padding: 4px 0 8px;
-  }
-
+  /* Compact cards so the horizontal strip fits more museums per swipe. */
   .explorer-sidebar__track > .venue-card {
-    flex: 0 0 auto;
-    width: 100%;
-    min-height: 168px;
+    flex: 0 0 120px;
+    width: 120px;
+    min-height: 92px;
   }
 
   .venue-card__content {
-    padding: 26px 16px 14px;
+    padding: 20px 10px 9px;
   }
 
   .venue-card__title {
-    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-    font-size: 1.25rem;
-    font-weight: 500;
-  }
-
-  /* The desktop "floating bubble" animation reads oddly in a vertical list;
-     highlight the selected card in place instead. */
-  .explorer-sidebar__track > .venue-card.is-active {
-    animation: none;
-    transform: none;
+    font-size: 0.8rem;
   }
 
   .activity-listing__title {
