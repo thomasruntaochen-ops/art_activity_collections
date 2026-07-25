@@ -3,6 +3,7 @@ import argparse
 import glob
 import os
 import shlex
+import signal
 import subprocess
 import sys
 import tomllib
@@ -12,6 +13,10 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "crawler_venues.toml"
+# Per-venue wall-clock cap so one slow site (e.g. a Playwright retry loop on a
+# challenge/403 page) can't stall the whole run. 0 disables. Override globally
+# with CRAWLER_VENUE_TIMEOUT / --venue-timeout, or per venue via `timeout_seconds`.
+DEFAULT_VENUE_TIMEOUT = 900
 
 
 def _load_config(config_path: Path) -> list[dict[str, Any]]:
@@ -59,7 +64,40 @@ def _should_run_venue(item: dict[str, Any], rawhtml_base_url: str) -> tuple[bool
     return False, "RAWHTML_BASE_URL is empty and no local cache matched"
 
 
-def _run_venue(*, python_bin: str, item: dict[str, Any]) -> int:
+def _venue_timeout(item: dict[str, Any], default: int) -> int:
+    """Per-venue wall-clock cap in seconds; falls back to the batch default."""
+    raw = item.get("timeout_seconds", default)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        print(f"[crawler-batch] Venue={item.get('venue')} has invalid timeout_seconds={raw!r}; using {default}s")
+        return default
+
+
+def _terminate_group(proc: subprocess.Popen) -> None:
+    """SIGTERM then SIGKILL the child's whole process group.
+
+    Parsers launch Playwright, which spawns a node driver + chromium as child
+    processes. Killing only the direct child (proc.kill()) orphans the browser
+    and can leave the stdout pipe held open, so we signal the entire group.
+    """
+    try:
+        pgid = os.getpgid(proc.pid)
+    except ProcessLookupError:
+        return
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(pgid, sig)
+        except ProcessLookupError:
+            return
+        try:
+            proc.wait(timeout=10)
+            return
+        except subprocess.TimeoutExpired:
+            continue  # escalate SIGTERM -> SIGKILL
+
+
+def _run_venue(*, python_bin: str, item: dict[str, Any], timeout: int | None) -> int:
     venue = str(item["venue"])
     script_rel = str(item["parser_script_name"])
     args = [str(arg) for arg in item.get("args", ["--commit"])]
@@ -73,12 +111,20 @@ def _run_venue(*, python_bin: str, item: dict[str, Any]) -> int:
     cmd = [python_bin, str(script_path), *args]
     printable = " ".join(shlex.quote(part) for part in cmd)
     print(f"[crawler-batch] Running venue={venue}: {printable}")
-    result = subprocess.run(cmd, cwd=str(PROJECT_ROOT))
-    if result.returncode != 0:
-        print(f"[crawler-batch] Venue={venue} failed with exit code {result.returncode}")
+    # start_new_session=True gives the child its own process group so a timeout
+    # can kill it *and* any Playwright/chromium processes it spawned.
+    proc = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), start_new_session=True)
+    try:
+        returncode = proc.wait(timeout=timeout if timeout and timeout > 0 else None)
+    except subprocess.TimeoutExpired:
+        print(f"[crawler-batch] Venue={venue} exceeded {timeout}s timeout; terminating process group")
+        _terminate_group(proc)
+        return 124
+    if returncode != 0:
+        print(f"[crawler-batch] Venue={venue} failed with exit code {returncode}")
     else:
         print(f"[crawler-batch] Venue={venue} completed")
-    return result.returncode
+    return returncode
 
 
 def main() -> int:
@@ -111,6 +157,12 @@ def main() -> int:
         default=os.getenv("CRAWLER_FAIL_FAST", "").strip().lower() == "true",
         help="Abort the batch on the first venue failure. Defaults to CRAWLER_FAIL_FAST env.",
     )
+    parser.add_argument(
+        "--venue-timeout",
+        type=int,
+        default=int(os.getenv("CRAWLER_VENUE_TIMEOUT") or DEFAULT_VENUE_TIMEOUT),
+        help="Per-venue wall-clock timeout in seconds (0 disables). Defaults to CRAWLER_VENUE_TIMEOUT env or 900.",
+    )
     args = parser.parse_args()
 
     config_path = Path(args.config)
@@ -141,6 +193,7 @@ def main() -> int:
         print(f"[crawler-batch] Batch filter active: batch_id={batch_id}")
     else:
         print("[crawler-batch] No batch filter; running all enabled venues")
+    print(f"[crawler-batch] Per-venue timeout: {args.venue_timeout}s (0=disabled)")
 
     if not selected:
         print("[crawler-batch] No venues selected; exiting")
@@ -161,7 +214,9 @@ def main() -> int:
             continue
         print(f"[crawler-batch] Venue={venue} selected: {reason}")
 
-        exit_code = _run_venue(python_bin=args.python_bin, item=item)
+        exit_code = _run_venue(
+            python_bin=args.python_bin, item=item, timeout=_venue_timeout(item, args.venue_timeout)
+        )
         if exit_code != 0:
             failed_venues.append((venue, exit_code))
             if args.fail_fast:
