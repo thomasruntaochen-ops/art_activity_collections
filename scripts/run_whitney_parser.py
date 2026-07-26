@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.crawlers.adapters.whitney import (  # noqa: E402
+    WHITNEY_FACET_TARGETS,
     WHITNEY_TALKS_READINGS_URL,
     WHITNEY_WORKSHOPS_URL,
     fetch_whitney_events_page,
@@ -243,9 +244,12 @@ async def main() -> None:
     if args.url or args.input_html:
         target_definitions = [("whitney_custom", args.url or args.workshops_url, args.input_html)]
     else:
+        overrides = {
+            "whitney_workshops": args.workshops_url,
+            "whitney_talks_readings": args.talks_url,
+        }
         target_definitions = [
-            ("whitney_workshops", args.workshops_url, None),
-            ("whitney_talks_readings", args.talks_url, None),
+            (name, overrides.get(name, url), None) for name, url in WHITNEY_FACET_TARGETS
         ]
 
     summary = await run_targets(

@@ -14,11 +14,30 @@ from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
-WHITNEY_WORKSHOPS_URL = "https://whitney.org/events?tags[]=discussions_and_workshops"
-WHITNEY_TALKS_READINGS_URL = "https://whitney.org/events?tags[]=talks_and_readings"
-WHITNEY_TEEN_WORKSHOPS_URL = WHITNEY_WORKSHOPS_URL
-WHITNEY_LEGACY_TEEN_WORKSHOPS_URL = (
-    "https://whitney.org/events?tags[]=courses_and_workshops&tags[]=teen_events"
+WHITNEY_EVENTS_URL = "https://whitney.org/events"
+
+
+def whitney_facet_url(tag: str) -> str:
+    return f"{WHITNEY_EVENTS_URL}?tags[]={tag}"
+
+
+WHITNEY_WORKSHOPS_URL = whitney_facet_url("discussions_and_workshops")
+WHITNEY_TALKS_READINGS_URL = whitney_facet_url("talks_and_readings")
+WHITNEY_FAMILY_PROGRAMS_URL = whitney_facet_url("family_programs")
+WHITNEY_TEEN_EVENTS_URL = whitney_facet_url("teen_events")
+WHITNEY_FREE_SECOND_SUNDAYS_URL = whitney_facet_url("free_second_sundays")
+
+# whitney.org/events exposes ~24 tag facets and a request returns only the one
+# asked for. Crawling just the two adult-leaning facets left the museum's whole
+# family and all-ages programme invisible — Open Studio, All Ages Artmaking and
+# the free-admission Sunday events never appeared. Keep the kids/teens facets
+# alongside the original two; overlapping rows dedupe on (url, title, start).
+WHITNEY_FACET_TARGETS: tuple[tuple[str, str], ...] = (
+    ("whitney_workshops", WHITNEY_WORKSHOPS_URL),
+    ("whitney_talks_readings", WHITNEY_TALKS_READINGS_URL),
+    ("whitney_family_programs", WHITNEY_FAMILY_PROGRAMS_URL),
+    ("whitney_teen_events", WHITNEY_TEEN_EVENTS_URL),
+    ("whitney_free_second_sundays", WHITNEY_FREE_SECOND_SUNDAYS_URL),
 )
 
 NY_TIMEZONE = "America/New_York"
@@ -28,6 +47,8 @@ WHITNEY_STATE = "NY"
 WHITNEY_DEFAULT_LOCATION = "New York, NY"
 WHITNEY_EVENT_PATH_RE = re.compile(r"/events/[^\s?#]+", re.IGNORECASE)
 ACTIVITY_MARKERS = (
+    " art making ",
+    " artmaking ",
     " class ",
     " classes ",
     " conversation ",
@@ -40,6 +61,9 @@ ACTIVITY_MARKERS = (
     " lecture ",
     " lectures ",
     " seminar ",
+    " sketch ",
+    " sketches ",
+    " sketching ",
     " studio ",
     " talk ",
     " talks ",
@@ -71,6 +95,12 @@ TIME_RANGE_RE = re.compile(
     re.IGNORECASE,
 )
 TIME_SINGLE_RE = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?|am|pm)\b", re.IGNORECASE)
+TRAILING_DATE_RE = re.compile(
+    r"\s+(?:(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day,?\s*)?"
+    r"(?:January|February|March|April|May|June|July|August|September|October|November|December)"
+    r"\s+\d{1,2},\s*\d{4}\b.*$",
+    re.IGNORECASE,
+)
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -204,6 +234,7 @@ def _build_row_from_event_obj(*, event_obj: dict, list_url: str) -> ExtractedAct
     ).strip()
     if not title or is_irrelevant_item_text(title):
         return None
+    title = _clean_whitney_title(title)
 
     source_url = str(
         event_obj.get("url")
@@ -297,6 +328,7 @@ def _parse_from_dom_fallback(html: str, *, list_url: str) -> list[ExtractedActiv
         title = _normalize_space(anchor.get_text(" ", strip=True))
         if not title or is_irrelevant_item_text(title):
             continue
+        title = _clean_whitney_title(title)
 
         container = anchor.find_parent(["article", "li", "section", "div"]) or anchor
         blob = _normalize_space(container.get_text(" ", strip=True))
@@ -527,8 +559,20 @@ def _parse_age_range(
     return None, None
 
 
+# Facets that describe admission or access rather than who a programme is for.
+# Defaulting these to "adults" mislabelled all-ages art making, so let the
+# event's own text decide the segment instead.
+NON_AUDIENCE_FACETS = (
+    "access_programs",
+    "free_friday_nights",
+    "free_second_sundays",
+)
+
+
 def _default_segment_from_url(url: str) -> str | None:
     lowered = url.lower()
+    if any(facet in lowered for facet in NON_AUDIENCE_FACETS):
+        return None
     if "teen_events" in lowered or "teen" in lowered:
         return "teens"
     if "family" in lowered or "famil" in lowered or "kids" in lowered:
@@ -551,6 +595,18 @@ def _should_include_event(*, title: str, description: str | None, list_url: str)
     if any(marker in blob for marker in EXCLUDED_MARKERS) and not any(marker in blob for marker in ACTIVITY_MARKERS):
         return False
     return any(marker in blob for marker in ACTIVITY_MARKERS)
+
+
+def _clean_whitney_title(title: str) -> str:
+    """Strip the date/time phrase the listing anchor appends to the title.
+
+    A card's link text runs the name straight into its schedule, e.g. "Open
+    Studio 2026 Saturday, August 1, 2026 11 am-3 pm". The schedule already
+    lives in start_at, so leaving it in the title just makes every occurrence
+    of a recurring program read as a different event.
+    """
+    cleaned = TRAILING_DATE_RE.sub("", title).strip(" ,-–—")
+    return cleaned or title
 
 
 def _normalize_space(text: str) -> str:
