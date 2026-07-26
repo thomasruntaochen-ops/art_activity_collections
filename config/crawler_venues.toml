@@ -33,6 +33,15 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+venue = "guggenheim"
+state = "NY"
+enabled = true
+parser_script_name = "scripts/run_guggenheim_parser.py"
+batch_id = "batch_c"
+use_base_url = false
+args = ["--commit"]
+
+[[venues]]
 venue = "buffalo_akg"
 state = "NY"
 enabled = true

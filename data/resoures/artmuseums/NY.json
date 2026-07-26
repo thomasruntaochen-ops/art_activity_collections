@@ -67,9 +67,9 @@
   "Solomon R. Guggenheim Museum": {
     "city": "New York",
     "event_links": [
-      "https://www.guggenheim.org/calendar/day?q=conversations-and-talks,courses-and-workshops,for-kids-teens-and-family"
+      "https://www.guggenheim.org/calendar"
     ],
-    "fail_implement": "Provided calendar URL now returns HTTP 404 and page source does not expose stable upcoming event data (no JSON-LD event payload or public events feed) suitable for reliable parser extraction."
+    "parser_script": "scripts/run_guggenheim_parser.py"
   },
   "The Frick Collection": {
     "city": "New York",
