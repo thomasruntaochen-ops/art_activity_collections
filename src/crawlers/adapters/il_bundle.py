@@ -156,6 +156,12 @@ DEFAULT_PAID_ADMISSION_SLUGS = {
     "art_institute_of_chicago",
     "mca_chicago",
 }
+ARTIC_REJECT_TITLE_MARKERS = (
+    # Generic docent tours ride along on artic.edu's General Public facet, which
+    # is crawled for its drop-in art making. They are adult-oriented and were
+    # never in this venue's listing, so keep them out.
+    "gallery tour",
+)
 SMART_REJECT_TITLE_MARKERS = (
     "chicago expo: south side night",
     "study at the smart",
@@ -220,6 +226,9 @@ class IlVenueConfig:
     discovery_mode: str
     default_location: str
     discovery_url: str | None = None
+    # Extra listing URLs merged into the same venue's discovery pass. Used where
+    # one facet of a calendar does not surface every qualifying program.
+    discovery_urls: tuple[str, ...] = ()
 
 
 IL_VENUES: tuple[IlVenueConfig, ...] = (
@@ -232,6 +241,16 @@ IL_VENUES: tuple[IlVenueConfig, ...] = (
         list_url="https://www.artic.edu/events",
         discovery_mode="artic_html",
         discovery_url="https://www.artic.edu/events?audience=1",
+        # audience=1 is the "Families" facet only, which hides teen programs
+        # (Summer Teen Hangs, Teen Open Studios) and general-public art making
+        # (Drop-In Art Making). Merge the three facets that carry kids/teens
+        # programming; _should_keep_event drops the adult gallery tours that
+        # ride along on the General Public facet.
+        discovery_urls=(
+            "https://www.artic.edu/events?audience=1",  # Families
+            "https://www.artic.edu/events?audience=4",  # Teens
+            "https://www.artic.edu/events?audience=3",  # General Public
+        ),
         default_location="Art Institute of Chicago, Chicago, IL",
     ),
     IlVenueConfig(
@@ -491,25 +510,101 @@ async def _load_artic_payload(
     *,
     client: httpx.AsyncClient,
 ) -> dict:
-    html = await fetch_html(venue.discovery_url or venue.list_url, client=client, use_playwright_fallback=True)
-    soup = BeautifulSoup(html, "html.parser")
+    # artic.edu groups its calendar into one `li.m-date-listing` block per open
+    # day, and repeats a recurring program's card under every day it runs. The
+    # card's own `<time datetime>` is stale on repeats (it always echoes the
+    # first occurrence), so the date must come from the day header and only the
+    # clock time from the card. Days the museum is closed are simply absent,
+    # which is what keeps "Daily (Closed Tuesdays)" honest.
+    discovery_urls = venue.discovery_urls or (venue.discovery_url or venue.list_url,)
     items: list[dict[str, str | None]] = []
-    seen: set[str] = set()
+    seen: set[tuple[str, str]] = set()
 
-    for card in soup.select("a.m-listing__link[href]"):
-        href = _normalize_url(card.get("href"), venue.list_url)
-        if not href or href in seen:
-            continue
-        seen.add(href)
-        items.append(
-            {
-                "source_url": href,
-                "card_text": _normalize_space(card.get_text(" ", strip=True)),
-            }
-        )
+    for discovery_url in discovery_urls:
+        html = await fetch_html(discovery_url, client=client, use_playwright_fallback=True)
+        soup = BeautifulSoup(html, "html.parser")
 
-    detail_html_by_url = await _fetch_many_html([item["source_url"] for item in items if item.get("source_url")], client=client)
+        for day_block in soup.select("li.m-date-listing"):
+            day_date = _parse_artic_day_header(day_block.select_one("h3.day"))
+            if day_date is None:
+                continue
+
+            for listing in day_block.select("li.m-listing"):
+                card = listing.select_one("a.m-listing__link[href]")
+                href = _normalize_url(card.get("href"), venue.list_url) if card else None
+                if not href:
+                    continue
+
+                start_time = _parse_artic_clock(listing.select_one("time[itemprop='startDate']"))
+                if start_time is None:
+                    continue
+                end_time = _parse_artic_clock(listing.select_one("time[itemprop='endDate']"))
+
+                start_at = datetime.combine(day_date, start_time)
+                key = (href, start_at.isoformat())
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                end_at = datetime.combine(day_date, end_time) if end_time else None
+                if end_at is not None and end_at <= start_at:
+                    end_at = None
+
+                items.append(
+                    {
+                        "source_url": href,
+                        "card_text": _normalize_space(listing.get_text(" ", strip=True)),
+                        "start_at": start_at.isoformat(),
+                        "end_at": end_at.isoformat() if end_at else None,
+                    }
+                )
+
+    detail_urls = list(dict.fromkeys(item["source_url"] for item in items if item.get("source_url")))
+    detail_html_by_url = await _fetch_many_html(detail_urls, client=client)
     return {"items": items, "detail_html_by_url": detail_html_by_url}
+
+
+def _parse_artic_day_header(header: object) -> date | None:
+    """Read a `26 / Jul / Sun` day header into a date.
+
+    The markup carries no year, so anchor on today (the calendar always starts
+    at the current day) and roll forward when the month wraps past December.
+    """
+    if header is None or not hasattr(header, "select_one"):
+        return None
+    day_text = _normalize_space(_node_text(header.select_one(".day__date")))
+    month_text = _normalize_space(_node_text(header.select_one(".day__month")))
+    if not day_text or not month_text:
+        return None
+    if not day_text.isdigit():
+        return None
+
+    month = MONTH_LOOKUP.get(month_text[:3].lower())
+    if month is None:
+        return None
+
+    today = datetime.now(ZoneInfo(IL_TIMEZONE)).date()
+    year = today.year if month >= today.month else today.year + 1
+    try:
+        return date(year, month, int(day_text))
+    except ValueError:
+        return None
+
+
+def _parse_artic_clock(node: object) -> time | None:
+    """Take only the clock time from a listing's `<time datetime>` attribute.
+
+    The date half is unreliable on repeated occurrences, so it is discarded.
+    """
+    if node is None or not hasattr(node, "get"):
+        return None
+    raw = _normalize_space(node.get("datetime"))
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw).time()
+    except ValueError:
+        return None
 
 
 async def _load_block_payload(
@@ -774,17 +869,24 @@ def _parse_artic_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracte
                 _normalize_space(soup.title.get_text(" ", strip=True) if soup.title else None),
             )
         )
-        if not title:
+        if not title or _should_reject_artic_event(title=title):
             continue
 
         meta = _parse_json_object(_node_text(soup.select_one("#page-meta-data"))) or {}
-        event_date = _parse_iso_date(meta.get("date"))
-        parsed_range = _parse_time_range_on_date(meta.get("time"), event_date) if event_date else None
-        if parsed_range is None:
-            parsed_range = _parse_explicit_datetime_range(_normalize_space(_node_text(soup.select_one("p.date"))))
-        if parsed_range is None:
-            continue
-        start_at, end_at = parsed_range
+        # Prefer the per-occurrence datetime the listing supplied. The detail
+        # page's #page-meta-data only ever names a single date, so relying on it
+        # collapsed recurring programs to one row (always "today", which the
+        # API's upcoming filter then hid for the rest of the day).
+        start_at = _parse_iso_datetime(item.get("start_at"))
+        end_at = _parse_iso_datetime(item.get("end_at"))
+        if start_at is None:
+            event_date = _parse_iso_date(meta.get("date"))
+            parsed_range = _parse_time_range_on_date(meta.get("time"), event_date) if event_date else None
+            if parsed_range is None:
+                parsed_range = _parse_explicit_datetime_range(_normalize_space(_node_text(soup.select_one("p.date"))))
+            if parsed_range is None:
+                continue
+            start_at, end_at = parsed_range
 
         description = _first_non_empty(
             _normalize_space(_node_text(soup.select_one(".o-article__body"))),
@@ -1533,6 +1635,11 @@ def _should_keep_event(text: str | None) -> bool:
     if soft_reject:
         return False
     return _contains_any(blob, WEAK_INCLUDE_PATTERNS)
+
+
+def _should_reject_artic_event(*, title: str | None) -> bool:
+    normalized_title = (title or "").strip().lower()
+    return any(marker in normalized_title for marker in ARTIC_REJECT_TITLE_MARKERS)
 
 
 def _should_reject_smart_event(*, title: str | None, text: str | None) -> bool:
