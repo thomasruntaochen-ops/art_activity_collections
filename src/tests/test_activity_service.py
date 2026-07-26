@@ -1,4 +1,6 @@
 from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -114,6 +116,87 @@ def test_list_activities_filters_audience_and_keeps_paid_adults_when_not_free_on
 
     assert [activity.title for activity in adult_results] == ["Adult Drawing Workshop"]
     assert free_adult_results == []
+
+
+def test_list_activities_date_from_keeps_todays_local_time_activities() -> None:
+    """A UTC ``date_from`` must not hide activities still to come locally.
+
+    ``start_at`` is naive wall-clock time in the venue's timezone while clients
+    send ``date_from`` as a UTC instant, so a Chicago museum's 11:00 program
+    used to disappear from "Upcoming" once UTC passed 11:00 — five hours before
+    it actually started.
+    """
+    engine = create_engine("sqlite:///:memory:")
+    TestingSessionLocal = sessionmaker(bind=engine)
+    Base.metadata.create_all(engine)
+
+    day = datetime(2026, 7, 26)
+    stamp = datetime(2026, 7, 20, 12, 0)
+
+    def make_activity(slug: str, title: str, start_at: datetime, end_at: datetime | None) -> Activity:
+        return Activity(
+            source_id=source.id,
+            source_url=f"https://example.org/{slug}",
+            title=title,
+            audience_segment=AudienceSegment.all_ages,
+            is_free=True,
+            free_verification_status=FreeVerificationStatus.confirmed,
+            drop_in=True,
+            registration_required=False,
+            start_at=start_at,
+            end_at=end_at,
+            timezone="America/Chicago",
+            venue_id=venue.id,
+            status=ActivityStatus.active,
+            first_seen_at=stamp,
+            last_seen_at=stamp,
+            updated_at=stamp,
+        )
+
+    with TestingSessionLocal() as db:
+        source = Source(
+            name="example_source",
+            base_url="https://example.org",
+            adapter_type="static_html",
+            crawl_frequency="daily",
+            active=True,
+        )
+        venue = Venue(name="Example Museum", city="Chicago", state="IL")
+        db.add_all([source, venue])
+        db.flush()
+        db.add_all(
+            [
+                make_activity("today", "Today 11am", day.replace(hour=11), day.replace(hour=15)),
+                make_activity("tomorrow", "Tomorrow 11am", day.replace(hour=11) + timedelta(days=1), None),
+                make_activity("yesterday", "Yesterday 11am", day.replace(hour=11) - timedelta(days=1), None),
+            ]
+        )
+        db.commit()
+
+        def titles(date_from: datetime, date_to: datetime | None = None) -> set[str]:
+            results = list_activities(
+                db,
+                age=None,
+                drop_in=None,
+                venue=None,
+                city=None,
+                state=None,
+                date_from=date_from,
+                date_to=date_to,
+                free_only=False,
+                audience=None,
+            )
+            return {activity.title for activity in results}
+
+        # 10:39 in Chicago is 15:39 UTC — past the stored 11:00 wall clock.
+        upcoming = datetime(2026, 7, 26, 15, 39, tzinfo=timezone.utc)
+        assert titles(upcoming) == {"Today 11am", "Tomorrow 11am"}
+
+        # The "Today" preset must still exclude yesterday rather than widening.
+        assert titles(
+            datetime(2026, 7, 26, 5, 0, tzinfo=timezone.utc),
+            datetime(2026, 7, 27, 4, 59, tzinfo=timezone.utc),
+        ) == {"Today 11am"}
 
 
 def test_list_activities_teens_and_adults_filters_include_teens_adults() -> None:

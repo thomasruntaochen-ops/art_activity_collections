@@ -1,4 +1,5 @@
 from datetime import datetime
+from datetime import timezone
 
 from collections.abc import Sequence
 
@@ -6,6 +7,31 @@ from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from src.models.activity import Activity, AudienceSegment, Venue
+
+
+def _to_naive(value: datetime | None) -> datetime | None:
+    """Drop the offset so an aware input compares cleanly against naive columns."""
+    if value is None or value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _floor_to_day(value: datetime | None) -> datetime | None:
+    """Turn a client's ``date_from`` instant into a naive start-of-day cutoff.
+
+    ``Activity.start_at`` holds naive wall-clock time in the venue's own
+    timezone, but clients send ``date_from`` as a UTC instant (the app and web
+    explorer both derive it from ``new Date().toISOString()``). Comparing the
+    two directly dropped every activity whose local start hour had already
+    passed in UTC — a 4-10 hour blind spot that widened the further west the
+    venue sat, so a museum's 11am program disappeared from "Upcoming" for the
+    rest of the day. Flooring to midnight reduces the comparison to a date,
+    which is the granularity the two sides genuinely agree on.
+    """
+    value = _to_naive(value)
+    if value is None:
+        return None
+    return value.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def _audience_segments(value: str | None) -> list[AudienceSegment]:
@@ -64,10 +90,14 @@ def list_activities(
         filters.append(Venue.city == city.strip())
     if state:
         filters.append(Venue.state == state.strip().upper())
-    if date_from is not None:
-        filters.append(Activity.start_at >= date_from)
-    if date_to is not None:
-        filters.append(Activity.start_at <= date_to)
+    lower_bound = _floor_to_day(date_from)
+    upper_bound = _to_naive(date_to)
+    if lower_bound is not None:
+        # Match on the interval, not just the start, so a program already under
+        # way stays listed instead of vanishing the moment it begins.
+        filters.append(func.coalesce(Activity.end_at, Activity.start_at) >= lower_bound)
+    if upper_bound is not None:
+        filters.append(Activity.start_at <= upper_bound)
 
     if filters:
         stmt = stmt.where(*filters)
@@ -213,10 +243,14 @@ def list_venue_summaries(
         conditions.append(Venue.state == state.strip().upper())
     if city:
         conditions.append(Venue.city == city.strip())
-    if date_from is not None:
-        conditions.append(Activity.start_at >= date_from)
-    if date_to is not None:
-        conditions.append(Activity.start_at <= date_to)
+    # Same cutoff as list_activities, so venue cards and counts cannot disagree
+    # with the activity list they drill into.
+    lower_bound = _floor_to_day(date_from)
+    upper_bound = _to_naive(date_to)
+    if lower_bound is not None:
+        conditions.append(func.coalesce(Activity.end_at, Activity.start_at) >= lower_bound)
+    if upper_bound is not None:
+        conditions.append(Activity.start_at <= upper_bound)
 
     stmt = (
         select(
