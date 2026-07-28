@@ -105,6 +105,14 @@ EXCLUDE_MARKERS = (
 )
 
 
+def _retry_delay(response: httpx.Response, base_backoff_seconds: float, attempt: int) -> float:
+    """Exponential backoff, but honour an explicit Retry-After when given."""
+    retry_after = (response.headers.get("Retry-After") or "").strip()
+    if retry_after.isdigit():
+        return min(float(retry_after), 120.0)
+    return base_backoff_seconds * (2 ** (attempt - 1))
+
+
 async def fetch_html(
     url: str,
     *,
@@ -112,10 +120,14 @@ async def fetch_html(
     client: httpx.AsyncClient | None = None,
     max_attempts: int = 5,
     base_backoff_seconds: float = 2.0,
+    user_agent: str | None = None,
+    retry_statuses: tuple[int, ...] = (429, 500, 502, 503, 504),
 ) -> str:
     headers = dict(DEFAULT_HEADERS)
     if referer:
         headers["Referer"] = referer
+    if user_agent:
+        headers["User-Agent"] = user_agent
 
     owns_client = client is None
     if client is None:
@@ -136,8 +148,8 @@ async def fetch_html(
             if response.status_code < 400:
                 return response.text
 
-            if response.status_code in (429, 500, 502, 503, 504) and attempt < max_attempts:
-                await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
+            if response.status_code in retry_statuses and attempt < max_attempts:
+                await asyncio.sleep(_retry_delay(response, base_backoff_seconds, attempt))
                 continue
 
             response.raise_for_status()

@@ -354,9 +354,16 @@ def _parse_production_response(response: httpx.Response) -> list[dict]:
         raise RuntimeError(f"Unexpected Nelson-Atkins content type: {content_type or 'unknown'}")
 
     data = response.json()
-    if not isinstance(data, list):
-        raise RuntimeError("Nelson-Atkins production API returned an unexpected payload shape.")
-    return data
+    if isinstance(data, list):
+        return data
+    # The feed now wraps the same records in {"productions": [...]}; it used to
+    # return the bare list. Accept either so a wrapper change cannot masquerade
+    # as a fetch failure again.
+    if isinstance(data, dict):
+        productions = data.get("productions")
+        if isinstance(productions, list):
+            return productions
+    raise RuntimeError("Nelson-Atkins production API returned an unexpected payload shape.")
 
 
 def _should_include_event(*, normalized_production_title: str, title: str, text_blob: str) -> bool:

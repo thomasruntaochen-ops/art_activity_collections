@@ -30,6 +30,11 @@ from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 TRIBE_API_DATE_FORMAT = "%Y-%m-%d"
+
+# events.uvm.edu serves its Localist widget to script consumers but answers 403
+# to anything sending a browser User-Agent, so this endpoint alone identifies
+# itself plainly instead of imitating Chrome.
+LOCALIST_WIDGET_USER_AGENT = "art-activity-collections/1.0 (+museum events crawler)"
 VT_TZ = ZoneInfo(NY_TIMEZONE)
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -366,7 +371,12 @@ async def _load_venue_payload(
     if venue.mode == "fleming_localist":
         if venue.widget_url is None:
             raise ValueError(f"Missing VT widget_url for {venue.slug}")
-        widget_js = await fetch_html(venue.widget_url, client=client, referer=venue.list_url)
+        widget_js = await fetch_html(
+            venue.widget_url,
+            client=client,
+            referer=venue.list_url,
+            user_agent=LOCALIST_WIDGET_USER_AGENT,
+        )
         detail_urls = _extract_fleming_detail_urls(widget_js, venue=venue)
         details = await _fetch_detail_pages(detail_urls, client=client, referer=venue.list_url)
         return {"widget_js": widget_js, "details": details}

@@ -152,6 +152,9 @@ class FlTribeVenueConfig:
     state: str
     list_url: str
     api_url: str
+    # Listing page carrying schema.org Event JSON-LD, used when the site's REST
+    # API is unavailable.
+    jsonld_url: str | None = None
 
 
 FL_TRIBE_VENUES: tuple[FlTribeVenueConfig, ...] = (
@@ -172,6 +175,10 @@ FL_TRIBE_VENUES: tuple[FlTribeVenueConfig, ...] = (
         state="FL",
         list_url="https://harn.ufl.edu/calendar/",
         api_url="https://harn.ufl.edu/wp-json/tribe/events/v1/events",
+        # harn.ufl.edu now answers its whole WP REST API with
+        # {"code":"rest_login_required"}, so the calendar's JSON-LD is the only
+        # machine-readable listing left.
+        jsonld_url="https://harn.ufl.edu/calendar/",
     ),
     FlTribeVenueConfig(
         slug="tampa",
@@ -267,6 +274,90 @@ async def fetch_tribe_events_page(
     raise RuntimeError("Unable to fetch FL tribe events endpoint after retries")
 
 
+async def fetch_tribe_events_from_jsonld(
+    url: str,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict]:
+    """Read schema.org Event JSON-LD off a listing page.
+
+    Returned in the same shape the Tribe REST API uses so the existing row
+    builder can consume it unchanged.
+    """
+    owns_client = client is None
+    if client is None:
+        client = httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS)
+    try:
+        response = await client.get(url)
+        response.raise_for_status()
+        html = response.text
+    finally:
+        if owns_client:
+            await client.aclose()
+
+    soup = BeautifulSoup(html, "html.parser")
+    events: list[dict] = []
+    seen: set[str] = set()
+
+    for script in soup.select('script[type="application/ld+json"]'):
+        try:
+            data = json.loads(script.string or script.get_text() or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        for node in data if isinstance(data, list) else [data]:
+            if not isinstance(node, dict) or "Event" not in str(node.get("@type") or ""):
+                continue
+            converted = _jsonld_event_to_tribe(node)
+            if converted is None or converted["url"] in seen:
+                continue
+            seen.add(converted["url"])
+            events.append(converted)
+
+    return events
+
+
+def _jsonld_event_to_tribe(node: dict) -> dict | None:
+    source_url = _normalize_space(node.get("url"))
+    title = _normalize_space(node.get("name"))
+    if not source_url or not title:
+        return None
+
+    location = node.get("location") if isinstance(node.get("location"), dict) else {}
+    address = location.get("address") if isinstance(location.get("address"), dict) else {}
+    offers = node.get("offers") if isinstance(node.get("offers"), dict) else {}
+
+    return {
+        "title": title,
+        "url": source_url,
+        "start_date": _iso_to_tribe_datetime(node.get("startDate")),
+        "end_date": _iso_to_tribe_datetime(node.get("endDate")),
+        "description": node.get("description") or "",
+        "excerpt": "",
+        "cost": _normalize_space(offers.get("price")) if offers else "",
+        "categories": [],
+        "venue": {
+            "venue": _normalize_space(location.get("name")),
+            "city": _normalize_space(address.get("addressLocality")),
+            "state": _normalize_space(address.get("addressRegion")),
+        },
+    }
+
+
+def _iso_to_tribe_datetime(value: object) -> str | None:
+    """Turn "2026-07-30T18:00:00-05:00" into the API's "2026-07-30 18:00:00".
+
+    The offset is dropped rather than converted: activities are stored as naive
+    wall-clock time in the venue's own timezone.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip())
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+
+
 async def load_fl_tribe_bundle_payload(
     *,
     venues: list[FlTribeVenueConfig] | tuple[FlTribeVenueConfig, ...] | None = None,
@@ -291,9 +382,21 @@ async def load_fl_tribe_bundle_payload(
                     events.extend(payload.get("events") or [])
                     next_url = payload.get("next_rest_url")
             except Exception as exc:
-                errors_by_slug[venue.slug] = str(exc)
-                print(f"[fl-tribe-fetch] venue={venue.slug} failed: {exc}")
-                continue
+                if venue.jsonld_url:
+                    try:
+                        events = await fetch_tribe_events_from_jsonld(venue.jsonld_url, client=client)
+                        print(
+                            f"[fl-tribe-fetch] venue={venue.slug} REST unavailable "
+                            f"({exc}); read {len(events)} events from JSON-LD"
+                        )
+                    except Exception as fallback_exc:
+                        errors_by_slug[venue.slug] = str(fallback_exc)
+                        print(f"[fl-tribe-fetch] venue={venue.slug} JSON-LD fallback failed: {fallback_exc}")
+                        continue
+                else:
+                    errors_by_slug[venue.slug] = str(exc)
+                    print(f"[fl-tribe-fetch] venue={venue.slug} failed: {exc}")
+                    continue
             events_by_slug[venue.slug] = events
 
     return {"events_by_slug": events_by_slug, "errors_by_slug": errors_by_slug}

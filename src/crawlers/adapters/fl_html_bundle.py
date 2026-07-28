@@ -12,6 +12,11 @@ import httpx
 from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
+try:
+    from playwright.async_api import async_playwright
+except ImportError:  # pragma: no cover
+    async_playwright = None
+
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
@@ -261,6 +266,11 @@ async def fetch_html(
                 await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
                 continue
 
+            # pamm.org sits behind a WAF that refuses plain HTTP clients whatever
+            # headers they send, but serves the same page to a real browser.
+            if response.status_code in (403, 401) and async_playwright is not None:
+                return await fetch_html_playwright(url)
+
             response.raise_for_status()
     finally:
         if owns_client:
@@ -269,6 +279,25 @@ async def fetch_html(
     if last_exception is not None:
         raise RuntimeError(f"Unable to fetch HTML: {url}") from last_exception
     raise RuntimeError(f"Unable to fetch HTML after retries: {url}")
+
+
+async def fetch_html_playwright(url: str, *, timeout_ms: int = 60000) -> str:
+    if async_playwright is None:  # pragma: no cover
+        raise RuntimeError("Playwright is not installed.")
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True)
+        page = await browser.new_page(
+            user_agent=DEFAULT_HEADERS["User-Agent"],
+            locale="en-US",
+            timezone_id=NY_TIMEZONE,
+        )
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            await page.wait_for_timeout(3000)
+            return await page.content()
+        finally:
+            await browser.close()
 
 
 async def load_fl_html_bundle_payload(
@@ -286,9 +315,15 @@ async def load_fl_html_bundle_payload(
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         for venue in selected:
             listing_pages: list[dict] = []
-            for list_url in venue.list_urls:
-                html = await fetch_html(list_url, client=client)
-                listing_pages.append({"url": list_url, "html": html})
+            try:
+                for list_url in venue.list_urls:
+                    html = await fetch_html(list_url, client=client)
+                    listing_pages.append({"url": list_url, "html": html})
+            except Exception as exc:  # noqa: BLE001
+                # One unreachable venue used to abort the whole bundle, losing the
+                # other four museums' events along with it.
+                print(f"[fl-html-fetch] skipped venue={venue.slug}: {exc}")
+                continue
 
             detail_items: list[dict] = []
             if venue.slug in {"ica_miami", "moca_nomi", "pamm"}:

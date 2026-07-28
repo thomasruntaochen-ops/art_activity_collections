@@ -15,6 +15,11 @@ SLAM_EVENTS_URL = "https://www.slam.org/events/"
 SLAM_EVENTS_API_URL = "https://www.slam.org/wp-json/tribe/events/v1/events"
 
 MO_TIMEZONE = "America/Chicago"
+# slam.org's rate limiter holds its refusal for minutes, not seconds, so the
+# 403 backoff is measured in minutes and capped to stay inside the crawler's
+# 900s per-venue timeout.
+RATE_LIMIT_BACKOFF_SECONDS = 60.0
+RATE_LIMIT_BACKOFF_CAP_SECONDS = 180.0
 SLAM_VENUE_NAME = "Saint Louis Art Museum"
 SLAM_CITY = "St. Louis"
 SLAM_STATE = "MO"
@@ -119,6 +124,16 @@ async def fetch_slam_events_page(
 
             if response.status_code in (429, 500, 502, 503, 504) and attempt < max_attempts:
                 await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
+                continue
+
+            # slam.org sits behind a rate limiter that answers 403 (not 429) for
+            # a spell after a burst, including on its own home page. The same
+            # request succeeds once traffic is spaced out, so back off and retry
+            # rather than treating it as a hard refusal.
+            if response.status_code == 403 and attempt < max_attempts:
+                wait_seconds = min(RATE_LIMIT_BACKOFF_SECONDS * attempt, RATE_LIMIT_BACKOFF_CAP_SECONDS)
+                print(f"[slam-fetch] rate-limited (403), retrying after {wait_seconds:.0f}s")
+                await asyncio.sleep(wait_seconds)
                 continue
 
             response.raise_for_status()

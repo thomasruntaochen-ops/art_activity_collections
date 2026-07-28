@@ -16,6 +16,11 @@ from src.crawlers.pipeline.types import ExtractedActivity
 SDMART_EVENTS_URL = "https://www.sdmart.org/events/"
 
 LA_TIMEZONE = "America/Los_Angeles"
+# sdmart.org's rate limiter holds its refusal for minutes, not seconds, so the
+# 403 backoff is measured in minutes and capped to stay inside the crawler's
+# 900s per-venue timeout.
+RATE_LIMIT_BACKOFF_SECONDS = 60.0
+RATE_LIMIT_BACKOFF_CAP_SECONDS = 180.0
 SDMART_VENUE_NAME = "The San Diego Museum of Art"
 SDMART_CITY = "San Diego"
 SDMART_STATE = "CA"
@@ -106,6 +111,15 @@ async def fetch_sdmart_events_page(
                     f"[sdmart-fetch] transient status={response.status_code}, "
                     f"retrying after {wait_seconds:.1f}s"
                 )
+                await asyncio.sleep(wait_seconds)
+                continue
+
+            # sdmart.org rate-limits with 403 rather than 429, and holds the
+            # refusal across the whole domain for a spell after a burst. The
+            # same request succeeds once spaced out, so back off and retry.
+            if response.status_code == 403 and attempt < max_attempts:
+                wait_seconds = min(RATE_LIMIT_BACKOFF_SECONDS * attempt, RATE_LIMIT_BACKOFF_CAP_SECONDS)
+                print(f"[sdmart-fetch] rate-limited (403), retrying after {wait_seconds:.1f}s")
                 await asyncio.sleep(wait_seconds)
                 continue
 

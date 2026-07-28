@@ -9,6 +9,11 @@ import httpx
 from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
+try:
+    from playwright.async_api import async_playwright
+except ImportError:  # pragma: no cover
+    async_playwright = None
+
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
@@ -138,6 +143,11 @@ async def fetch_tribe_events_page(
                 await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
                 continue
 
+            # hirshhorn.si.edu answers 403 to plain HTTP clients regardless of
+            # headers, but serves the same JSON to a real browser.
+            if response.status_code in (401, 403) and async_playwright is not None:
+                return await fetch_tribe_events_playwright(url)
+
             response.raise_for_status()
     finally:
         if owns_client:
@@ -146,6 +156,33 @@ async def fetch_tribe_events_page(
     if last_exception is not None:
         raise RuntimeError(f"Unable to fetch DC tribe events endpoint: {url}") from last_exception
     raise RuntimeError(f"Unable to fetch DC tribe events endpoint after retries: {url}")
+
+
+async def fetch_tribe_events_playwright(url: str, *, timeout_ms: int = 60000) -> dict:
+    """Read a JSON endpoint through a browser when the WAF blocks HTTP clients.
+
+    The response body is served as text inside a <pre>, so it is read from the
+    rendered document rather than from the network response.
+    """
+    if async_playwright is None:  # pragma: no cover
+        raise RuntimeError("Playwright is not installed.")
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True)
+        page = await browser.new_page(user_agent=DEFAULT_HEADERS["User-Agent"], locale="en-US")
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            body = await page.inner_text("body")
+        finally:
+            await browser.close()
+
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"DC tribe endpoint returned non-JSON via browser: url={url}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"DC tribe endpoint returned an unexpected payload: url={url}")
+    return payload
 
 
 async def load_dc_tribe_bundle_payload(
