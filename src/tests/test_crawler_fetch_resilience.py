@@ -87,3 +87,52 @@ def test_uvm_widget_does_not_claim_to_be_a_browser() -> None:
     """events.uvm.edu answers 403 to browser User-Agents on this endpoint."""
     assert "Mozilla" not in LOCALIST_WIDGET_USER_AGENT
     assert "art-activity-collections" in LOCALIST_WIDGET_USER_AGENT
+
+
+def test_oh_common_includes_family_audience_words() -> None:
+    """A programme a museum files under "Families" must not need a format word.
+
+    Several Ohio-family venues went to zero rows because INCLUDE_MARKERS held
+    only formats ("workshop", "class"), so an event whose blurb never used one
+    was dropped even when its own category said Families.
+    """
+    from src.crawlers.adapters.oh_common import should_include_event
+
+    assert should_include_event(
+        title="Art on The Rise: Wellness & Art",
+        description="Art on the Rise takes center stage on Art Climb, the museum's outdoor sculpture stairway.",
+        category="Families | Special Events",
+    )
+    assert should_include_event(
+        title="REC Reads",
+        description="Bring your toddler or preschooler for a morning of art.",
+        category="Families | Special Events",
+    )
+    # Adult tours stay out.
+    assert not should_include_event(
+        title="Public Tours",
+        description="Tours highlight the museum's world-class collection.",
+        category="Adults/General | Tours",
+    )
+
+
+def test_dayton_repairs_end_times_written_without_a_meridiem() -> None:
+    """The calendar feed ends a 3:00 pm session at "04:30"."""
+    from datetime import date as _date, datetime as _datetime
+
+    from src.crawlers.adapters.dayton_art_institute import _build_row_from_jsonld
+
+    row = _build_row_from_jsonld(
+        {
+            "name": "Family Open Studio",
+            "url": "/do-see/calendar/2026/08/01/family-open-studio",
+            "startDate": "2026-08-01T15:00:00-04:00",
+            "endDate": "2026-08-01T04:30:00-04:00",
+            "description": "Drop-in art making for families.",
+        },
+        today=_date(2026, 7, 30),
+    )
+
+    assert row is not None
+    assert row.start_at == _datetime(2026, 8, 1, 15, 0)
+    assert row.end_at == _datetime(2026, 8, 1, 16, 30)

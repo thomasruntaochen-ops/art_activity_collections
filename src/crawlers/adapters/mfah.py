@@ -61,16 +61,10 @@ MFAH_TIME_RANGE_RE = re.compile(
     r"(?P<start>\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))\s*[—–-]\s*(?P<end>\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))"
 )
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
-PLAYWRIGHT_LAUNCH_ARGS = (
-    "--disable-blink-features=AutomationControlled",
-    "--no-sandbox",
-    "--disable-dev-shm-usage",
-)
-PLAYWRIGHT_INIT_SCRIPT = """
-Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-Object.defineProperty(navigator, 'platform', {get: () => 'MacIntel'});
-Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
-"""
+# The automation-hiding launch flags and navigator patches that used to be set
+# here made things worse, not better: Cloudflare fingerprints exactly those
+# tells, and a plain browser gets admitted far more often than a "stealthed"
+# one. Left out deliberately — do not reintroduce them.
 CHALLENGE_MARKERS = (
     "attention required!",
     "sorry, you have been blocked",
@@ -78,59 +72,81 @@ CHALLENGE_MARKERS = (
 )
 
 
-async def load_mfah_payload(base_url: str = MFAH_EVENTS_URL) -> dict[str, object]:
+async def load_mfah_payload(
+    base_url: str = MFAH_EVENTS_URL,
+    *,
+    max_browser_attempts: int = 5,
+) -> dict[str, object]:
+    """Fetch the MFAH calendar, retrying with a fresh browser on a challenge.
+
+    mfah.org is behind Cloudflare, which either admits a visit outright or
+    serves a "Just a moment..." interstitial that never clears in headless
+    Chromium. Retrying inside one context keeps whatever verdict that context
+    was given, so each attempt gets a brand new browser instead.
+    """
     if async_playwright is None:
         raise RuntimeError(
             "Playwright is not installed. Install crawler extras and Chromium with "
             "`pip install -e .[crawler]` then `playwright install chromium`."
         )
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True, args=list(PLAYWRIGHT_LAUNCH_ARGS))
-        context = await browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/122.0.0.0 Safari/537.36"
-            ),
-            locale="en-US",
-            timezone_id=MFAH_TIMEZONE,
-            viewport={"width": 1365, "height": 900},
-            screen={"width": 1365, "height": 900},
-        )
-        await context.add_init_script(PLAYWRIGHT_INIT_SCRIPT)
-
-        try:
-            listing_html = await _fetch_mfah_page_playwright(
-                context=context,
-                url=base_url,
-                wait_ms=7000,
+    last_error: Exception | None = None
+    for attempt in range(1, max_browser_attempts + 1):
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
+            context = await browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+                locale="en-US",
+                timezone_id=MFAH_TIMEZONE,
             )
-            detail_pages: dict[str, str] = {}
-            for entry in _discover_mfah_listing_entries(listing_html, list_url=base_url):
-                if not _should_keep_mfah_event(
-                    title=entry["title"],
-                    kind=entry["kind"],
-                    detail_text=None,
-                ):
-                    continue
+            try:
                 try:
-                    await asyncio.sleep(0.75)
-                    detail_pages[entry["source_url"]] = await _fetch_mfah_page_playwright(
+                    listing_html = await _fetch_mfah_page_playwright(
                         context=context,
-                        url=entry["source_url"],
-                        wait_ms=6000,
+                        url=base_url,
+                        wait_ms=7000,
+                        max_attempts=1,
                     )
                 except Exception as exc:
-                    print(f"[mfah-fetch] detail fetch skipped for {entry['source_url']}: {exc}")
-            return {
-                "listing_url": base_url,
-                "listing_html": listing_html,
-                "detail_pages": detail_pages,
-            }
-        finally:
-            await context.close()
-            await browser.close()
+                    last_error = exc
+                    print(f"[mfah-fetch] browser attempt {attempt}/{max_browser_attempts} challenged")
+                    continue
+
+                detail_pages: dict[str, str] = {}
+                for entry in _discover_mfah_listing_entries(listing_html, list_url=base_url):
+                    if not _should_keep_mfah_event(
+                        title=entry["title"],
+                        kind=entry["kind"],
+                        detail_text=None,
+                    ):
+                        continue
+                    try:
+                        await asyncio.sleep(0.75)
+                        detail_pages[entry["source_url"]] = await _fetch_mfah_page_playwright(
+                            context=context,
+                            url=entry["source_url"],
+                            wait_ms=6000,
+                        )
+                    except Exception as exc:
+                        print(f"[mfah-fetch] detail fetch skipped for {entry['source_url']}: {exc}")
+                return {
+                    "listing_url": base_url,
+                    "listing_html": listing_html,
+                    "detail_pages": detail_pages,
+                }
+            finally:
+                await context.close()
+                await browser.close()
+
+        await asyncio.sleep(3.0 * attempt)
+
+    raise RuntimeError(
+        f"MFAH returned a Cloudflare challenge on all {max_browser_attempts} browser attempts."
+    ) from last_error
 
 
 async def _fetch_mfah_page_playwright(

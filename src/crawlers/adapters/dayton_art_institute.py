@@ -2,6 +2,7 @@ import json
 import re
 from datetime import date
 from datetime import datetime
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
@@ -24,7 +25,12 @@ from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 
-DAYTON_EVENTS_URL = "https://www.daytonartinstitute.org/upcoming-events/calendar/"
+# The museum rebuilt its site: /upcoming-events/calendar/ now redirects to
+# /do-see/calendar and the old Modern Events Calendar markup is gone entirely,
+# so the previous DOM scrape silently matched nothing. Each month page ships a
+# schema.org ItemList of Events, which is a sturdier source than the markup.
+DAYTON_EVENTS_URL = "https://www.daytonartinstitute.org/do-see/calendar"
+DAYTON_MONTHS_AHEAD = 3
 DAYTON_VENUE_NAME = "Dayton Art Institute"
 DAYTON_CITY = "Dayton"
 DAYTON_STATE = "OH"
@@ -41,34 +47,72 @@ LABEL_PATTERNS = {
 }
 
 
-async def load_dayton_art_institute_payload() -> dict:
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
-        listing_html = await fetch_html(DAYTON_EVENTS_URL, client=client)
-        listing_items = _extract_listing_items(listing_html)
-        detail_pages: dict[str, str] = {}
-        for detail_url in listing_items:
-            detail_pages[detail_url] = await fetch_html(detail_url, referer=DAYTON_EVENTS_URL, client=client)
+def _month_urls(today: date, months_ahead: int) -> list[str]:
+    urls: list[str] = []
+    year, month = today.year, today.month
+    for _ in range(max(months_ahead, 1)):
+        urls.append(f"{DAYTON_EVENTS_URL}/{year:04d}/{month:02d}")
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+    return urls
 
-    return {
-        "listing_items": listing_items,
-        "detail_pages": detail_pages,
-    }
+
+async def load_dayton_art_institute_payload() -> dict:
+    today = datetime.now(ZoneInfo(NY_TIMEZONE)).date()
+    events: list[dict] = []
+    seen_urls: set[str] = set()
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
+        for month_url in _month_urls(today, DAYTON_MONTHS_AHEAD):
+            try:
+                html = await fetch_html(month_url, client=client)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[dayton-fetch] skipped {month_url}: {exc}")
+                continue
+            for event in _extract_jsonld_events(html):
+                url = event.get("url") or ""
+                key = f"{url}|{event.get('startDate')}"
+                if key in seen_urls:
+                    continue
+                seen_urls.add(key)
+                events.append(event)
+
+    return {"events": events}
+
+
+def _extract_jsonld_events(html: str) -> list[dict]:
+    """Pull Event objects out of the month page's schema.org ItemList."""
+    soup = BeautifulSoup(html, "html.parser")
+    events: list[dict] = []
+
+    for script in soup.select('script[type="application/ld+json"]'):
+        try:
+            data = json.loads(script.string or script.get_text() or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        for node in data if isinstance(data, list) else [data]:
+            if not isinstance(node, dict):
+                continue
+            if node.get("@type") == "ItemList":
+                for element in node.get("itemListElement") or []:
+                    item = element.get("item") if isinstance(element, dict) else None
+                    if isinstance(item, dict) and "Event" in str(item.get("@type") or ""):
+                        events.append(item)
+            elif "Event" in str(node.get("@type") or ""):
+                events.append(node)
+
+    return events
 
 
 def parse_dayton_art_institute_payload(payload: dict) -> list[ExtractedActivity]:
-    listing_items = payload.get("listing_items") or {}
-    detail_pages = payload.get("detail_pages") or {}
     today = datetime.now(ZoneInfo(NY_TIMEZONE)).date()
 
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
-    for detail_url, html in detail_pages.items():
-        row = _build_row(
-            html,
-            detail_url=detail_url,
-            listing_item=listing_items.get(detail_url),
-            today=today,
-        )
+    for event in payload.get("events") or []:
+        row = _build_row_from_jsonld(event, today=today)
         if row is None:
             continue
         key = (row.source_url, row.title, row.start_at)
@@ -79,6 +123,55 @@ def parse_dayton_art_institute_payload(payload: dict) -> list[ExtractedActivity]
 
     rows.sort(key=lambda row: (row.start_at, row.title))
     return rows
+
+
+def _build_row_from_jsonld(event: dict, *, today: date) -> ExtractedActivity | None:
+    title = normalize_space(event.get("name"))
+    source_url = absolute_url(DAYTON_EVENTS_URL, event.get("url"))
+    if not title or not source_url:
+        return None
+    if not _listing_title_is_candidate(title):
+        return None
+
+    start_at = _parse_iso_datetime(event.get("startDate"))
+    if start_at is None or start_at.date() < today:
+        return None
+    end_at = _parse_iso_datetime(event.get("endDate"))
+    if end_at is not None and end_at <= start_at:
+        # The feed writes some afternoon end times without the PM, so a 3:00 pm
+        # session ends at "04:30". Shift by twelve hours when that lands after
+        # the start; drop the value when it still makes no sense.
+        shifted = end_at + timedelta(hours=12)
+        end_at = shifted if shifted > start_at else None
+
+    description = normalize_space(event.get("description")) or None
+    blob = join_non_empty([title, description])
+    age_min, age_max = parse_age_range(blob or "")
+
+    return ExtractedActivity(
+        source_url=source_url,
+        title=title,
+        description=description,
+        venue_name=DAYTON_VENUE_NAME,
+        location_text=DAYTON_LOCATION,
+        city=DAYTON_CITY,
+        state=DAYTON_STATE,
+        activity_type=infer_activity_type(blob or title),
+        age_min=age_min,
+        age_max=age_max,
+        audience_segment=infer_audience_segment(
+            title=title,
+            description=description,
+            age_min=age_min,
+            age_max=age_max,
+        ),
+        drop_in="drop-in" in (blob or "").lower() or "drop in" in (blob or "").lower(),
+        registration_required=None,
+        start_at=start_at.replace(tzinfo=None),
+        end_at=end_at.replace(tzinfo=None) if end_at else None,
+        timezone=NY_TIMEZONE,
+        **_dayton_price_kwargs(blob),
+    )
 
 
 class DaytonArtInstituteAdapter(BaseSourceAdapter):

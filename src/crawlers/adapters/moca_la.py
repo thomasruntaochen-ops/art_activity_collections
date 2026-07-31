@@ -11,7 +11,11 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
 from src.crawlers.pipeline.types import ExtractedActivity
 
-MOCA_PROGRAMS_URL = "https://www.moca.org/programs?category=25"
+# The old ?category=25 facet now matches nothing at all, so the parser saw an
+# empty page rather than a filtered one and could never surface a programme.
+# The unfiltered listing carries the same card markup; EXCLUDED_PRIMARY_KEYWORDS
+# does the filtering.
+MOCA_PROGRAMS_URL = "https://www.moca.org/programs"
 MOCA_TOGETHER_THURSDAYS_URL = "https://www.moca.org/together-thursdays"
 
 LA_TIMEZONE = "America/Los_Angeles"

@@ -191,6 +191,10 @@ GREGG_WIDGET_URL = (
 )
 REYNOLDA_YOUTH_URL = "https://reynolda.org/youth-family-events/"
 
+# Well inside the crawler's 900s per-venue budget, so a stalled museum leaves
+# time for the remaining ones instead of taking the whole bundle down with it.
+NC_VENUE_TIMEOUT_SECONDS = 180.0
+
 
 @dataclass(frozen=True, slots=True)
 class NcHtmlVenueConfig:
@@ -344,81 +348,112 @@ async def load_nc_html_bundle_payload(
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         for venue in selected:
-            if venue.slug == "reynolda":
-                list_html = await fetch_html(REYNOLDA_YOUTH_URL, client=client)
-            else:
-                list_html = await fetch_html(
-                    venue.list_url,
-                    client=client,
-                    use_playwright_fallback=venue.use_playwright_fallback,
+            try:
+                await asyncio.wait_for(
+                    _load_venue(
+                        venue,
+                        client=client,
+                        payload=payload,
+                        max_links_per_venue=max_links_per_venue,
+                    ),
+                    timeout=NC_VENUE_TIMEOUT_SECONDS,
                 )
-
-            if venue.slug == "bechtler":
-                payload[venue.slug] = {"list_html": list_html}
-                continue
-
-            if venue.slug == "hickory":
-                payload[venue.slug] = {"list_html": list_html}
-                continue
-
-            if venue.slug == "gregg":
-                widget_js = await fetch_html(GREGG_WIDGET_URL, client=client)
-                detail_pages: dict[str, str] = {}
-                for detail_url in _extract_gregg_detail_urls(widget_js)[:max_links_per_venue]:
-                    try:
-                        detail_pages[detail_url] = await fetch_html(detail_url, client=client)
-                    except Exception as exc:
-                        print(f"[nc-html-fetch] gregg detail failed url={detail_url}: {exc}")
-                payload[venue.slug] = {
-                    "list_html": list_html,
-                    "widget_js": widget_js,
-                    "detail_pages": detail_pages,
-                }
-                continue
-
-            if venue.slug == "reynolda":
-                list_blobs = _extract_reynolda_list_blobs(list_html)
-                detail_pages: dict[str, str] = {}
-                for detail_url in list(list_blobs)[:max_links_per_venue]:
-                    try:
-                        detail_pages[detail_url] = await fetch_html(detail_url, client=client)
-                    except Exception as exc:
-                        print(f"[nc-html-fetch] reynolda detail failed url={detail_url}: {exc}")
-                payload[venue.slug] = {
-                    "list_html": list_html,
-                    "list_blobs": list_blobs,
-                    "detail_pages": detail_pages,
-                }
-                continue
-
-            list_pages = [list_html]
-            if venue.slug == "ncma":
-                for page_url in _extract_ncma_pagination_urls(list_html, venue.list_url):
-                    try:
-                        list_pages.append(await fetch_html(page_url, client=client))
-                    except Exception as exc:
-                        print(f"[nc-html-fetch] ncma page failed url={page_url}: {exc}")
-
-            detail_urls: list[str] = []
-            list_blobs: dict[str, str] = {}
-            for page_html in list_pages:
-                detail_urls.extend(_extract_detail_urls(venue.slug, page_html, venue.list_url))
-                if venue.slug == "ncma":
-                    list_blobs.update(_extract_ncma_list_blobs(page_html, venue.list_url))
-            detail_pages = {}
-            for detail_url in list(dict.fromkeys(detail_urls))[:max_links_per_venue]:
-                try:
-                    detail_pages[detail_url] = await fetch_html(detail_url, client=client)
-                except Exception as exc:
-                    print(f"[nc-html-fetch] detail failed slug={venue.slug} url={detail_url}: {exc}")
-
-            payload[venue.slug] = {
-                "list_html": "\n".join(list_pages),
-                "detail_pages": detail_pages,
-                "list_blobs": list_blobs,
-            }
+            except asyncio.TimeoutError:
+                # A venue that stops responding used to consume the crawler's
+                # whole 900s budget and take the other five down with it: each
+                # of up to 120 detail fetches burns its own 30s timeout plus
+                # retries. Give up on the slow venue, keep the rest.
+                print(
+                    f"[nc-html-fetch] venue={venue.slug} exceeded "
+                    f"{NC_VENUE_TIMEOUT_SECONDS}s; skipping"
+                )
+            except Exception as exc:  # noqa: BLE001
+                print(f"[nc-html-fetch] venue={venue.slug} failed: {exc}")
 
     return payload
+
+
+async def _load_venue(
+    venue: NcHtmlVenueConfig,
+    *,
+    client: httpx.AsyncClient,
+    payload: dict[str, dict],
+    max_links_per_venue: int,
+) -> None:
+    if venue.slug == "reynolda":
+        list_html = await fetch_html(REYNOLDA_YOUTH_URL, client=client)
+    else:
+        list_html = await fetch_html(
+            venue.list_url,
+            client=client,
+            use_playwright_fallback=venue.use_playwright_fallback,
+        )
+
+    if venue.slug == "bechtler":
+        payload[venue.slug] = {"list_html": list_html}
+        return
+
+    if venue.slug == "hickory":
+        payload[venue.slug] = {"list_html": list_html}
+        return
+
+    if venue.slug == "gregg":
+        widget_js = await fetch_html(GREGG_WIDGET_URL, client=client)
+        detail_pages: dict[str, str] = {}
+        for detail_url in _extract_gregg_detail_urls(widget_js)[:max_links_per_venue]:
+            try:
+                detail_pages[detail_url] = await fetch_html(detail_url, client=client)
+            except Exception as exc:
+                print(f"[nc-html-fetch] gregg detail failed url={detail_url}: {exc}")
+        payload[venue.slug] = {
+            "list_html": list_html,
+            "widget_js": widget_js,
+            "detail_pages": detail_pages,
+        }
+        return
+
+    if venue.slug == "reynolda":
+        list_blobs = _extract_reynolda_list_blobs(list_html)
+        detail_pages: dict[str, str] = {}
+        for detail_url in list(list_blobs)[:max_links_per_venue]:
+            try:
+                detail_pages[detail_url] = await fetch_html(detail_url, client=client)
+            except Exception as exc:
+                print(f"[nc-html-fetch] reynolda detail failed url={detail_url}: {exc}")
+        payload[venue.slug] = {
+            "list_html": list_html,
+            "list_blobs": list_blobs,
+            "detail_pages": detail_pages,
+        }
+        return
+
+    list_pages = [list_html]
+    if venue.slug == "ncma":
+        for page_url in _extract_ncma_pagination_urls(list_html, venue.list_url):
+            try:
+                list_pages.append(await fetch_html(page_url, client=client))
+            except Exception as exc:
+                print(f"[nc-html-fetch] ncma page failed url={page_url}: {exc}")
+
+    detail_urls: list[str] = []
+    list_blobs: dict[str, str] = {}
+    for page_html in list_pages:
+        detail_urls.extend(_extract_detail_urls(venue.slug, page_html, venue.list_url))
+        if venue.slug == "ncma":
+            list_blobs.update(_extract_ncma_list_blobs(page_html, venue.list_url))
+    detail_pages = {}
+    for detail_url in list(dict.fromkeys(detail_urls))[:max_links_per_venue]:
+        try:
+            detail_pages[detail_url] = await fetch_html(detail_url, client=client)
+        except Exception as exc:
+            print(f"[nc-html-fetch] detail failed slug={venue.slug} url={detail_url}: {exc}")
+
+    payload[venue.slug] = {
+        "list_html": "\n".join(list_pages),
+        "detail_pages": detail_pages,
+        "list_blobs": list_blobs,
+    }
+
 
 
 def parse_nc_html_events(payload: dict, *, venue: NcHtmlVenueConfig) -> list[ExtractedActivity]:

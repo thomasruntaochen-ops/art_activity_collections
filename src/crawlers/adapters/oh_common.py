@@ -44,6 +44,21 @@ AGE_RANGE_RE = re.compile(r"\bages?\s*:?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\
 AGE_PLUS_RE = re.compile(r"\bages?\s*:?\s*(\d{1,2})\+\b", re.IGNORECASE)
 
 INCLUDE_MARKERS = (
+    # Audience words. Their absence meant a programme a museum itself files
+    # under "Families" was dropped unless its blurb happened to use a format
+    # word like "workshop" — which is how several venues went to zero rows.
+    "all ages",
+    "children",
+    "families",
+    "family",
+    "kids",
+    "preschool",
+    "teen",
+    "teens",
+    "toddler",
+    "toddlers",
+    "youth",
+    # Programme formats.
     "activity",
     "activities",
     "art making",
