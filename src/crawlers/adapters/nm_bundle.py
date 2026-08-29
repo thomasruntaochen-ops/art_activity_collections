@@ -155,8 +155,13 @@ SITE_FUTURE_CARD_RE = re.compile(
     r"(?:\s*,\s*(?P<time>.+?))?\s+(?P<place>SITE SANTA FE.*?)(?:\s+READ MORE)?$"
 )
 NMART_LOCATION_SPLIT_RE = re.compile(
-    r"\b(?:Join us|We invite|Celebrate|Come|When|Tickets are|Admission is|Light snacks|Refreshments|Bring the whole family)\b"
+    r"\b(?:Join|We invite|Celebrate|Come|When|Tickets|Reserve|Register|Admission is"
+    r"|Light snacks|Refreshments|Bring the whole family)\b"
 )
+# Real nmart locations are short room/building labels ("Other", "Vladem
+# Contemporary"). Anything longer means the split phrases above missed the start
+# of the description and it bled into the location.
+NMART_LOCATION_MAX_CHARS = 120
 
 
 @dataclass(frozen=True, slots=True)
@@ -690,6 +695,8 @@ def _extract_nmart_location(article_text: str) -> str | None:
     split_match = NMART_LOCATION_SPLIT_RE.search(tail)
     location = tail[:split_match.start()] if split_match else tail
     location = _normalize_space(location)
+    if len(location) > NMART_LOCATION_MAX_CHARS:
+        return None
     return location or None
 
 

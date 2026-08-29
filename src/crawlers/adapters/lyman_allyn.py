@@ -9,6 +9,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.adapters.fetch_utils import gather_pages
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -141,12 +142,16 @@ async def load_lyman_allyn_payload() -> dict:
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         listing_html = await fetch_lyman_allyn_page(LYMAN_ALLYN_EVENTS_URL, client=client)
         detail_urls = _extract_detail_urls(listing_html)
-        detail_pages = await asyncio.gather(*(fetch_lyman_allyn_page(url, client=client) for url in detail_urls))
+        detail_pages = await gather_pages(
+            detail_urls,
+            lambda url: fetch_lyman_allyn_page(url, client=client),
+            label="lyman-allyn-fetch",
+        )
 
     return {
         "listing_url": LYMAN_ALLYN_EVENTS_URL,
         "listing_html": listing_html,
-        "detail_pages": {url: html for url, html in zip(detail_urls, detail_pages, strict=True)},
+        "detail_pages": detail_pages,
     }
 
 
@@ -217,12 +222,16 @@ class LymanAllynEventsAdapter(BaseSourceAdapter):
     async def parse(self, payload: str) -> list[ExtractedActivity]:
         detail_urls = _extract_detail_urls(payload)
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
-            detail_pages = await asyncio.gather(*(fetch_lyman_allyn_page(url, client=client) for url in detail_urls))
+            detail_pages = await gather_pages(
+                detail_urls,
+                lambda url: fetch_lyman_allyn_page(url, client=client),
+                label="lyman-allyn-fetch",
+            )
         return parse_lyman_allyn_payload(
             {
                 "listing_url": LYMAN_ALLYN_EVENTS_URL,
                 "listing_html": payload,
-                "detail_pages": {url: html for url, html in zip(detail_urls, detail_pages, strict=True)},
+                "detail_pages": detail_pages,
             }
         )
 

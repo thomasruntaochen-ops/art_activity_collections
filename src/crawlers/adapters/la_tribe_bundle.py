@@ -149,6 +149,7 @@ class LaTribeVenueConfig:
     state: str
     list_url: str
     api_url: str
+    enabled: bool = True
 
 
 LA_TRIBE_VENUES: tuple[LaTribeVenueConfig, ...] = (
@@ -179,6 +180,10 @@ LA_TRIBE_VENUES: tuple[LaTribeVenueConfig, ...] = (
         list_url="https://hilliardartmuseum.org/events/",
         api_url="https://hilliardartmuseum.org/wp-json/tribe/events/v1/events",
     ),
+    # Disabled 2026-08-28: rwnaf.org dropped The Events Calendar plugin, so the
+    # tribe REST namespace 404s permanently (/wp-json/ lists no tribe routes).
+    # The site still publishes /events/ as HTML, so this needs an HTML parser
+    # rather than a new API URL. Left here so re-enabling is a one-line change.
     LaTribeVenueConfig(
         slug="rwnorton",
         source_name="rw_norton_events",
@@ -187,6 +192,7 @@ LA_TRIBE_VENUES: tuple[LaTribeVenueConfig, ...] = (
         state="LA",
         list_url="https://rwnaf.org/events/",
         api_url="https://rwnaf.org/wp-json/tribe/events/v1/events",
+        enabled=False,
     ),
 )
 

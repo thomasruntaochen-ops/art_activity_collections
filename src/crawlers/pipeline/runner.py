@@ -62,11 +62,31 @@ def _to_audience_segment(item: ExtractedActivity) -> AudienceSegment:
         return AudienceSegment.unknown
 
 
+# Matches activities.location_text / venues.address VARCHAR(512) in db/schema.sql.
+_LOCATION_TEXT_MAX_CHARS = 512
+
+
 def _normalize_optional_text(value: str | None) -> str | None:
     if value is None:
         return None
     trimmed = value.strip()
     return trimmed or None
+
+
+def _clamp_location_text(value: str | None) -> str | None:
+    """Keep location_text within the activities.location_text column width.
+
+    A parser that leaks description text into the location field would otherwise
+    raise DataError 1406 and abort the whole venue's commit, not just its row.
+    """
+    text = _normalize_optional_text(value)
+    if text is None or len(text) <= _LOCATION_TEXT_MAX_CHARS:
+        return text
+    print(
+        f"[upsert] Truncated oversized location_text ({len(text)} chars) to "
+        f"{_LOCATION_TEXT_MAX_CHARS}: {text[:80]!r}..."
+    )
+    return text[:_LOCATION_TEXT_MAX_CHARS]
 
 
 def _normalize_state(value: str | None) -> str | None:
@@ -206,6 +226,8 @@ def upsert_extracted_activities_with_stats(
     """Upsert extracted activity rows and return deduped inputs plus write stats."""
     normalized = [normalize_extracted_activity_datetimes(item) for item in extracted]
     deduped = list({(a.source_url, a.title, a.start_at): a for a in normalized}.values())
+    for item in deduped:
+        item.location_text = _clamp_location_text(item.location_text)
 
     # In production, drop activities too far in the future (> 3 months).
     if os.getenv("APP_ENV") == "production":

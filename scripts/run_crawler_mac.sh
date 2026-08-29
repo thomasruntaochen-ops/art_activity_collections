@@ -26,7 +26,9 @@ set +a
 
 export CRAWLER_CONFIG_PATH="$PROJECT_DIR/config/crawler_venues.toml"
 export RAWHTML_BASE_URL="https://pub-442b944fa7de402c96d47a99c9e857ee.r2.dev"
-export CRAWLER_ALERT_WEBHOOK_URL="https://hooks.zapier.com/hooks/catch/26720878/uxujrnk"
+# Alert webhook disabled: the Zapier catch hook required a paid plan and 404'd
+# on every delivery. Zero-row alerts are appended to logs/crawler_alerts.jsonl.
+export CRAWLER_ALERT_WEBHOOK_URL=""
 export APP_ENV="production"
 export LOG_LEVEL="INFO"
 # Unbuffer Python stdout so run_crawler_batch.py's orchestration lines

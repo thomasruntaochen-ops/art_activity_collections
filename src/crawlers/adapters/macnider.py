@@ -11,6 +11,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.adapters.fetch_utils import fetch_page_or_none
 from src.crawlers.adapters.oh_common import DEFAULT_HEADERS
 from src.crawlers.adapters.oh_common import AGE_PLUS_RE
 from src.crawlers.adapters.oh_common import AGE_RANGE_RE
@@ -57,7 +58,13 @@ async def load_macnider_payload() -> dict:
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         for category_url in MACNIDER_CATEGORY_URLS:
-            category_html = await fetch_html(category_url, referer=MACNIDER_CALENDAR_URL, client=client)
+            category_html = await fetch_page_or_none(
+                lambda: fetch_html(category_url, referer=MACNIDER_CALENDAR_URL, client=client),
+                url=category_url,
+                label="macnider-fetch",
+            )
+            if category_html is None:
+                continue
             soup = BeautifulSoup(category_html, "html.parser")
             for product in soup.select("li.product"):
                 link = product.select_one("a.woocommerce-LoopProduct-link[href]")
@@ -74,7 +81,13 @@ async def load_macnider_payload() -> dict:
                     continue
                 seen_urls.add(source_url)
 
-                detail_html = await fetch_html(source_url, referer=category_url, client=client)
+                detail_html = await fetch_page_or_none(
+                    lambda: fetch_html(source_url, referer=category_url, client=client),
+                    url=source_url,
+                    label="macnider-fetch",
+                )
+                if detail_html is None:
+                    continue
                 items.append(
                     {
                         "source_url": source_url,

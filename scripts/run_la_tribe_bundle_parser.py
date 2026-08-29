@@ -42,7 +42,8 @@ def clear_la_tribe_entries(venues=None) -> dict[str, int]:
     deleted_activities = 0
     deleted_ingestion_runs = 0
     deleted_sources = 0
-    selected_venues = list(venues) if venues is not None else list(LA_TRIBE_VENUES)
+    enabled_venues = [venue for venue in LA_TRIBE_VENUES if venue.enabled]
+    selected_venues = list(venues) if venues is not None else list(enabled_venues)
     source_url_prefixes = _source_url_prefixes_for_venues(selected_venues)
 
     with SessionLocal() as db:
@@ -56,7 +57,8 @@ def clear_la_tribe_entries(venues=None) -> dict[str, int]:
             Source.name.in_([venue.source_name for venue in selected_venues]),
             Source.adapter_type.in_([venue.source_name for venue in selected_venues]),
         ]
-        if len(selected_venues) == len(LA_TRIBE_VENUES):
+        # Broad sweep only when clearing the whole default set, not a subset.
+        if len(selected_venues) == len(enabled_venues):
             source_conditions.append(Source.name.like("la_tribe_%"))
 
         source_ids = db.scalars(select(Source.id).where(or_(*source_conditions))).all()
@@ -130,7 +132,7 @@ async def main() -> None:
     args = parser.parse_args()
 
     selected_venues = (
-        list(LA_TRIBE_VENUES)
+        [venue for venue in LA_TRIBE_VENUES if venue.enabled]
         if args.venue == "all"
         else [LA_TRIBE_VENUES_BY_SLUG[args.venue]]
     )
