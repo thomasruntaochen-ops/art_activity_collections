@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import infer_price_classification
@@ -270,7 +271,9 @@ def _extract_listing_entries(html: str) -> list[dict]:
     entries: list[dict] = []
     seen: set[str] = set()
 
-    for anchor in soup.select("ul.uc-events-list a.uc-event-link[href]"):
+    candidate_blocks = soup.select("ul.uc-events-list a.uc-event-link[href]")
+    record_candidate_count(len(candidate_blocks))
+    for anchor in candidate_blocks:
         source_url = urljoin(BENTON_CALENDAR_URL, (anchor.get("href") or "").strip())
         title = _normalize_space(anchor.get_text(" ", strip=True))
         if not source_url or not title or source_url in seen:

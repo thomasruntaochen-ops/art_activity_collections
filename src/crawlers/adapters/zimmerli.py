@@ -7,6 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -160,7 +161,9 @@ def parse_zimmerli_events_html(html: str, *, list_url: str) -> list[ExtractedAct
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
 
-    for card in soup.select("div.c--component.c--event-card"):
+    candidate_blocks = soup.select("div.c--component.c--event-card")
+    record_candidate_count(len(candidate_blocks))
+    for card in candidate_blocks:
         anchor = card.select_one("div.f--sub-title a[href]")
         if anchor is None:
             continue

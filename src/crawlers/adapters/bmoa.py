@@ -10,6 +10,7 @@ from bs4 import Tag
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.types import ExtractedActivity
 
 BMOA_EVENTS_URL = "https://www.bmoa.org/events"
@@ -161,7 +162,9 @@ def parse_bmoa_events_html(
     seen: set[tuple[str, str, datetime]] = set()
     current_date = (now or datetime.now()).date()
 
-    for paragraph in soup.select("div.sqs-html-content p"):
+    candidate_blocks = soup.select("div.sqs-html-content p")
+    record_candidate_count(len(candidate_blocks))
+    for paragraph in candidate_blocks:
         strong = paragraph.find("strong")
         if strong is None:
             continue

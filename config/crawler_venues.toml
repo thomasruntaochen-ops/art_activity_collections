@@ -959,10 +959,15 @@ batch_id = "batch_d"
 use_base_url = false
 args = ["--commit"]
 
+# Disabled 2026-08-28: zanesvilleart.org/calendar/ no longer publishes dated
+# events. It is now a hub linking to program categories (Art Classes, Material
+# Exploration, ...) with no dates anywhere in the page, and the site exposes no
+# Squarespace events collection (/events, /programs etc. all 404 on ?format=json).
+# Re-enable if they restore a real calendar; the parser needs rewriting either way.
 [[venues]]
 venue = "zanesville_museum_of_art"
 state = "OH"
-enabled = true
+enabled = false
 parser_script_name = "scripts/run_zanesville_museum_of_art_parser.py"
 batch_id = "batch_e"
 use_base_url = false

@@ -82,11 +82,35 @@ def abort_commit_on_empty_parse(
     parsed_count: int,
     source_url: str | None = None,
     details: dict[str, Any] | None = None,
-) -> None:
+    candidates_found: int | None = None,
+) -> bool:
+    """Decide whether a commit may proceed, alerting when an empty parse looks broken.
+
+    Returns True when the caller should commit, False when it should skip the
+    commit quietly. Raises SystemExit(2) — as it always has — when an empty parse
+    looks like a broken parser.
+
+    `candidates_found` is how many candidate events the parser saw *before*
+    filtering. When it is positive, keeping zero rows just means the venue has
+    nothing matching our audience criteria right now, which is normal and not
+    worth an alert. When it is 0, or when the parser did not report at all, we
+    fall back to alerting: the parser may well be dead.
+    """
     if not commit_requested or parsed_count > 0:
-        return
+        return True
+
+    if candidates_found is not None and candidates_found > 0:
+        print(
+            f"[{parser_name}] 0 rows kept from {candidates_found} candidate events; "
+            "nothing matches the audience filters right now. Skipping commit "
+            "(no alert: the parser is reading the page fine).",
+            file=sys.stderr,
+        )
+        return False
 
     context: dict[str, Any] = {"parser": parser_name, "parsed_count": parsed_count}
+    if candidates_found is not None:
+        context["candidates_found"] = candidates_found
     if source_url:
         context["source_url"] = source_url
     if details:

@@ -11,6 +11,7 @@ from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_datetime_range
 from src.crawlers.adapters.oh_common import should_include_event
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -32,7 +33,9 @@ def parse_akron_art_museum_payload(html: str) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
 
-    for item in soup.select("div.me-event-list-item"):
+    candidate_blocks = soup.select("div.me-event-list-item")
+    record_candidate_count(len(candidate_blocks))
+    for item in candidate_blocks:
         link = item.select_one("a.me-event-list-item__link[href]")
         title = normalize_space(item.select_one("h2.me-event-list-item__title").get_text(" ", strip=True) if item.select_one("h2.me-event-list-item__title") else "")
         date_block = item.select_one(".me-event-list-item__text-column > p")

@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -255,7 +256,9 @@ def _parse_listing_page(html: str, page_url: str) -> list[dict]:
     cards: list[dict] = []
     seen_urls: set[str] = set()
 
-    for article in soup.select("article"):
+    candidate_blocks = soup.select("article")
+    record_candidate_count(len(candidate_blocks))
+    for article in candidate_blocks:
         link = article.select_one('a[href*="/events/event/"]')
         title_node = article.select_one("h1")
         time_node = article.select_one("p.text-1p4.font-semibold")

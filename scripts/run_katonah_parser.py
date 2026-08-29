@@ -11,8 +11,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.crawlers.adapters.katonah import KATONAH_EVENTS_URL  # noqa: E402
-from src.crawlers.adapters.katonah import fetch_katonah_events_page  # noqa: E402
-from src.crawlers.adapters.katonah import parse_katonah_events_html  # noqa: E402
+from src.crawlers.adapters.katonah import fetch_katonah_events_payload  # noqa: E402
+from src.crawlers.adapters.katonah import parse_katonah_events_payload  # noqa: E402
 from src.crawlers.pipeline.script_runner import EmptyCommitGuard  # noqa: E402
 from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
 from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
@@ -142,8 +142,8 @@ async def main() -> None:
             TargetRunSpec(
                 name="katonah",
                 source_url=args.url,
-                load_payload=lambda: fetch_katonah_events_page(args.url),
-                parse_payload=lambda payload: parse_katonah_events_html(payload, list_url=args.url),
+                load_payload=lambda: fetch_katonah_events_payload(),
+                parse_payload=lambda payload: parse_katonah_events_payload(payload, list_url=args.url),
                 parser_name="run_katonah_parser",
                 adapter_type="katonah_events",
                 parsed_label="Katonah rows",

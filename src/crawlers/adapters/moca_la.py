@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.types import ExtractedActivity
 
 # The old ?category=25 facet now matches nothing at all, so the parser saw an
@@ -150,7 +151,12 @@ def parse_moca_programs_html(
     seen: set[tuple[str, str, datetime]] = set()
     page_year = _infer_page_year(soup=soup, list_url=list_url, fallback_year=current.year)
 
-    for card in soup.select("div.container-min-height.block-off-white"):
+    # MOCA rebuilt on Next.js/CSS-modules: class names carry a per-build hash
+    # (EventSquare-module-scss-module__<hash>__root), so match the stable
+    # component-name prefix rather than the full class.
+    candidate_blocks = soup.select('a[class*="EventSquare"]')
+    record_candidate_count(len(candidate_blocks))
+    for card in candidate_blocks:
         row = _build_row_from_card(card=card, list_url=list_url, current_date=current_date, page_year=page_year)
         if row is None:
             continue
@@ -170,18 +176,20 @@ def _build_row_from_card(
     current_date,
     page_year: int,
 ) -> ExtractedActivity | None:
-    link = card.select_one("h3 a[href]") or card.select_one("article a[href]")
+    # The card is itself the anchor; title and date live in nested nodes whose
+    # class names also carry the per-build hash.
+    link = card if card.has_attr("href") else card.select_one("a[href]")
     if link is None:
         return None
 
-    title = _normalize_text(link)
+    title = _normalize_text(card.select_one('[class*="__title"]')) or _normalize_text(link)
     if not title or is_irrelevant_item_text(title):
         return None
 
-    category_blob = _normalize_text(card.select_one(".label-heading .label.gray"))
-    description = _normalize_text(card.select_one(".copy-secondary"))
-    location_name = _normalize_text(card.select_one("a.circle-link"))
-    schedule_text = _extract_schedule_text(card)
+    category_blob = None
+    description = None
+    location_name = None
+    schedule_text = _normalize_text(card.select_one('[class*="dateTime"]'))
     if not schedule_text:
         return None
 
@@ -193,7 +201,7 @@ def _build_row_from_card(
     if not any(keyword in text_blob for keyword in INCLUDED_KEYWORDS):
         return None
 
-    start_at = _parse_schedule(schedule_text, page_year=page_year)
+    start_at = _parse_card_schedule(schedule_text) or _parse_schedule(schedule_text, page_year=page_year)
     if start_at is None or start_at.date() < current_date:
         return None
 
@@ -245,6 +253,37 @@ def _infer_page_year(*, soup: BeautifulSoup, list_url: str, fallback_year: int) 
 def _extract_schedule_text(card) -> str | None:
     node = card.select_one(".left .label") or card.select_one(".label-heading.fw .fr.label")
     return _normalize_text(node)
+
+
+CARD_DATE_RE = re.compile(
+    r"(?P<month>[A-Za-z]{3,9})\.?\s+(?P<day>\d{1,2})"
+    r"(?:\s*[\u2013\u2014-]\s*\d{1,2})?"      # "Sept 18-20" -> take the first day
+    r",?\s*(?P<year>\d{4})"
+    r"(?P<rest>.*)$"
+)
+
+
+def _parse_card_schedule(value: str) -> datetime | None:
+    """Parse the card's dateTime line, which now carries an explicit year."""
+    match = CARD_DATE_RE.search(value or "")
+    if match is None:
+        return None
+    # The site writes "Sept"/"Sept." where %b wants "Sep".
+    month_name = match.group("month")[:3].title()
+    try:
+        base = datetime.strptime(
+            f"{month_name} {match.group('day')} {match.group('year')}", "%b %d %Y"
+        )
+    except ValueError:
+        return None
+
+    time_match = TIME_SINGLE_RE.search(match.group("rest") or "")
+    if time_match is None:
+        return base
+    hour = int(time_match.group("hour")) % 12
+    if time_match.group("meridiem").lower() == "pm":
+        hour += 12
+    return base.replace(hour=hour, minute=int(time_match.group("minute") or 0))
 
 
 def _parse_schedule(value: str, *, page_year: int) -> datetime | None:

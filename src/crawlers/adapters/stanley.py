@@ -14,6 +14,7 @@ from src.crawlers.adapters.oh_common import fetch_html
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -85,7 +86,9 @@ def parse_stanley_payload(payload: dict) -> list[ExtractedActivity]:
 
     for html in payload.get("pages", []):
         soup = BeautifulSoup(html, "html.parser")
-        for card in soup.select(".card"):
+        candidate_blocks = soup.select(".card")
+        record_candidate_count(len(candidate_blocks))
+        for card in candidate_blocks:
             row = _build_row(card)
             if row is None:
                 continue

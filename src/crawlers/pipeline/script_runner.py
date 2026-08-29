@@ -8,6 +8,8 @@ from typing import Awaitable
 from typing import Callable
 
 from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse
+from src.crawlers.pipeline.candidates import get_candidate_count
+from src.crawlers.pipeline.candidates import reset_candidate_count
 from src.crawlers.pipeline.datetime_utils import normalize_extracted_activity_datetimes
 from src.crawlers.pipeline.runner import UpsertStats
 from src.crawlers.pipeline.runner import prune_expired_activities
@@ -51,6 +53,7 @@ class TargetRunOutcome:
     parsed: list[ExtractedActivity]
     written: list[ExtractedActivity]
     stats: UpsertStats | None
+    candidates: int | None = None
 
 
 @dataclass(slots=True)
@@ -74,6 +77,12 @@ class RunTargetsSummary:
         return sum(outcome.stats.unchanged for outcome in self.outcomes if outcome.stats is not None)
 
 
+def _total_candidates(outcomes: list["TargetRunOutcome"]) -> int | None:
+    """Sum reported candidates; None when no target reported any."""
+    reported = [o.candidates for o in outcomes if o.candidates is not None]
+    return sum(reported) if reported else None
+
+
 async def run_targets(
     *,
     targets: list[TargetRunSpec],
@@ -84,8 +93,13 @@ async def run_targets(
     outcomes: list[TargetRunOutcome] = []
 
     for target in targets:
+        # Reset before loading, not just before parsing: several adapters walk the
+        # listing pages during fetch (dixon, benton) and record their candidate
+        # counts there. Resetting after the load would discard those.
+        reset_candidate_count()
         payload = await target.load_payload()
         parsed = [normalize_extracted_activity_datetimes(row) for row in target.parse_payload(payload)]
+        candidates = get_candidate_count()
 
         print(f"Parsed {len(parsed)} {target.parsed_label}")
         for row in parsed:
@@ -104,29 +118,40 @@ async def run_targets(
                 parsed=parsed,
                 written=written,
                 stats=stats,
+                candidates=candidates,
             )
         )
 
     if commit:
+        committable = outcomes
         if empty_commit_guard is not None:
-            abort_commit_on_empty_parse(
+            may_commit = abort_commit_on_empty_parse(
                 parser_name=empty_commit_guard.parser_name,
                 commit_requested=True,
                 parsed_count=sum(len(outcome.parsed) for outcome in outcomes),
                 source_url=empty_commit_guard.source_url,
                 details=empty_commit_guard.details,
+                candidates_found=_total_candidates(outcomes),
             )
+            if not may_commit:
+                committable = []
         else:
-            for outcome in outcomes:
-                abort_commit_on_empty_parse(
+            # Per-target: a quiet target is skipped on its own, so it can never
+            # stop a sibling target that did parse rows from committing.
+            committable = [
+                outcome
+                for outcome in outcomes
+                if abort_commit_on_empty_parse(
                     parser_name=outcome.spec.parser_name,
                     commit_requested=True,
                     parsed_count=len(outcome.parsed),
                     source_url=outcome.spec.source_url,
                     details=outcome.spec.empty_parse_details,
+                    candidates_found=outcome.candidates,
                 )
+            ]
 
-        for outcome in outcomes:
+        for outcome in committable:
             if outcome.spec.before_commit is not None:
                 outcome.spec.before_commit()
             outcome.written, outcome.stats = upsert_extracted_activities_with_stats(

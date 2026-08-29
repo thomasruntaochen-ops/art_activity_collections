@@ -1,4 +1,5 @@
 import asyncio
+import json
 import re
 from datetime import datetime
 from urllib.parse import parse_qs
@@ -10,10 +11,16 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 
 KATONAH_EVENTS_URL = "https://www.katonahmuseum.org/events/"
+# The /events/ page renders its calendar client-side (Vue); the static HTML has
+# no event markup at all. This is the endpoint that page POSTs to, one month at
+# a time, returning JSON keyed by day-of-month.
+KATONAH_EVENTS_API_URL = "https://www.katonahmuseum.org/events/controller.php"
+KATONAH_MONTHS_AHEAD = 3
 
 NY_TIMEZONE = "America/New_York"
 KATONAH_VENUE_NAME = "Katonah Museum of Art"
@@ -109,6 +116,137 @@ async def fetch_katonah_events_page(
     raise RuntimeError("Unable to fetch Katonah events page after retries")
 
 
+async def fetch_katonah_events_payload(
+    *,
+    months_ahead: int = KATONAH_MONTHS_AHEAD,
+    now: datetime | None = None,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict]:
+    """Collect raw event dicts for the current month plus the next `months_ahead`."""
+    current = (now or datetime.now(ZoneInfo(NY_TIMEZONE))).date()
+    owns_client = client is None
+    if client is None:
+        client = httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS)
+
+    events: list[dict] = []
+    try:
+        for offset in range(months_ahead + 1):
+            month = current.month + offset
+            year = current.year + (month - 1) // 12
+            month = (month - 1) % 12 + 1
+            response = await client.post(
+                KATONAH_EVENTS_API_URL,
+                data={"month": month, "year": year},
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if payload.get("error"):
+                continue
+            # `events` is keyed by day-of-month, each value a list of events.
+            for day_events in (payload.get("events") or {}).values():
+                events.extend(day_events or [])
+    finally:
+        if owns_client:
+            await client.aclose()
+
+    return events
+
+
+def parse_katonah_events_payload(
+    events: list[dict],
+    *,
+    list_url: str = KATONAH_EVENTS_URL,
+) -> list[ExtractedActivity]:
+    today = datetime.now(ZoneInfo(NY_TIMEZONE)).date()
+    rows: list[ExtractedActivity] = []
+    seen: set[tuple[str, str, datetime]] = set()
+
+    record_candidate_count(len(events))
+    for event in events:
+        if event.get("visibility") not in (None, "", "public"):
+            continue
+        if event.get("cancelled_at") or event.get("deleted_at"):
+            continue
+
+        title = _normalize_space(event.get("title"))
+        start_at = _parse_api_datetime(event.get("start_date"))
+        if not title or start_at is None or start_at.date() < today:
+            continue
+
+        end_at = _parse_api_datetime(event.get("end_date"))
+        source_url = urljoin(list_url, f"?eid={event.get('id')}")
+
+        description = _normalize_space(
+            _strip_html(event.get("full_description") or event.get("short_description"))
+        )
+        cost = _normalize_space(event.get("event_cost"))
+        # Filter on the title (plus subtitle) only. The API exposes full event
+        # descriptions the old HTML listing never had, and nearly every one of
+        # them mentions "admission"/"exhibition" in boilerplate, which would
+        # exclude genuine family programmes like "Saturday Open Studio".
+        title_blob = " ".join(
+            part for part in [title, _normalize_space(event.get("subtitle"))] if part
+        ).lower()
+        if _should_exclude_event(title_blob):
+            continue
+        if not _should_include_event(title_blob):
+            continue
+        text_blob = " ".join(part for part in [title, description, cost] if part).lower()
+
+        key = (_event_identity(source_url), title, start_at)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        is_free, free_status = infer_price_classification(cost or text_blob)
+        rows.append(
+            ExtractedActivity(
+                source_url=source_url,
+                title=title,
+                description=description or None,
+                venue_name=KATONAH_VENUE_NAME,
+                location_text=_normalize_space(
+                    event.get("location_override") or event.get("location")
+                )
+                or KATONAH_DEFAULT_LOCATION,
+                city=KATONAH_CITY,
+                state=KATONAH_STATE,
+                activity_type=_infer_activity_type(text_blob),
+                age_min=None,
+                age_max=None,
+                drop_in=("drop-in" in text_blob or "drop in" in text_blob),
+                registration_required=bool(_normalize_space(event.get("registration_link"))),
+                start_at=start_at,
+                end_at=end_at,
+                timezone=NY_TIMEZONE,
+                is_free=is_free,
+                free_verification_status=free_status,
+            )
+        )
+
+    rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
+    return rows
+
+
+def _parse_api_datetime(value: str | None) -> datetime | None:
+    text = _normalize_space(value)
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _strip_html(value: str | None) -> str:
+    if not value:
+        return ""
+    return BeautifulSoup(value, "html.parser").get_text(" ", strip=True)
+
+
 class KatonahEventsAdapter(BaseSourceAdapter):
     source_name = "katonah_events"
 
@@ -116,11 +254,11 @@ class KatonahEventsAdapter(BaseSourceAdapter):
         self.url = url
 
     async def fetch(self) -> list[str]:
-        html = await fetch_katonah_events_page(self.url)
-        return [html]
+        events = await fetch_katonah_events_payload()
+        return [json.dumps(events)]
 
     async def parse(self, payload: str) -> list[ExtractedActivity]:
-        return parse_katonah_events_html(payload, list_url=self.url)
+        return parse_katonah_events_payload(json.loads(payload), list_url=self.url)
 
 
 def parse_katonah_events_html(html: str, *, list_url: str) -> list[ExtractedActivity]:
