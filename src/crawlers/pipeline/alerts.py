@@ -83,6 +83,7 @@ def abort_commit_on_empty_parse(
     source_url: str | None = None,
     details: dict[str, Any] | None = None,
     candidates_found: int | None = None,
+    listing_recognized: bool = False,
 ) -> bool:
     """Decide whether a commit may proceed, alerting when an empty parse looks broken.
 
@@ -94,7 +95,9 @@ def abort_commit_on_empty_parse(
     filtering. When it is positive, keeping zero rows just means the venue has
     nothing matching our audience criteria right now, which is normal and not
     worth an alert. When it is 0, or when the parser did not report at all, we
-    fall back to alerting: the parser may well be dead.
+    fall back to alerting: the parser may well be dead — unless the parser set
+    `listing_recognized`, which asserts it found its listing container and that
+    the container was genuinely empty (a venue between seasons, say).
     """
     if not commit_requested or parsed_count > 0:
         return True
@@ -108,9 +111,18 @@ def abort_commit_on_empty_parse(
         )
         return False
 
+    if listing_recognized:
+        print(
+            f"[{parser_name}] listing container found but empty; the venue is not "
+            "publishing events right now. Skipping commit (no alert).",
+            file=sys.stderr,
+        )
+        return False
+
     context: dict[str, Any] = {"parser": parser_name, "parsed_count": parsed_count}
     if candidates_found is not None:
         context["candidates_found"] = candidates_found
+    context["listing_recognized"] = listing_recognized
     if source_url:
         context["source_url"] = source_url
     if details:

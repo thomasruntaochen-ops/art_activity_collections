@@ -9,6 +9,7 @@ from typing import Callable
 
 from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse
 from src.crawlers.pipeline.candidates import get_candidate_count
+from src.crawlers.pipeline.candidates import listing_was_recognized
 from src.crawlers.pipeline.candidates import reset_candidate_count
 from src.crawlers.pipeline.datetime_utils import normalize_extracted_activity_datetimes
 from src.crawlers.pipeline.runner import UpsertStats
@@ -54,6 +55,7 @@ class TargetRunOutcome:
     written: list[ExtractedActivity]
     stats: UpsertStats | None
     candidates: int | None = None
+    listing_recognized: bool = False
 
 
 @dataclass(slots=True)
@@ -100,6 +102,7 @@ async def run_targets(
         payload = await target.load_payload()
         parsed = [normalize_extracted_activity_datetimes(row) for row in target.parse_payload(payload)]
         candidates = get_candidate_count()
+        listing_recognized = listing_was_recognized()
 
         print(f"Parsed {len(parsed)} {target.parsed_label}")
         for row in parsed:
@@ -119,6 +122,7 @@ async def run_targets(
                 written=written,
                 stats=stats,
                 candidates=candidates,
+                listing_recognized=listing_recognized,
             )
         )
 
@@ -132,6 +136,7 @@ async def run_targets(
                 source_url=empty_commit_guard.source_url,
                 details=empty_commit_guard.details,
                 candidates_found=_total_candidates(outcomes),
+                listing_recognized=any(o.listing_recognized for o in outcomes),
             )
             if not may_commit:
                 committable = []
@@ -148,8 +153,24 @@ async def run_targets(
                     source_url=outcome.spec.source_url,
                     details=outcome.spec.empty_parse_details,
                     candidates_found=outcome.candidates,
+                    listing_recognized=outcome.listing_recognized,
                 )
             ]
+
+        # A skipped outcome still needs stats, or the 18 runner scripts that print
+        # a write summary hit `assert outcome.stats is not None` and die with an
+        # AssertionError. Zeroes are the honest answer: nothing was written.
+        committable_ids = {id(outcome) for outcome in committable}
+        for outcome in outcomes:
+            if id(outcome) not in committable_ids:
+                outcome.written = []
+                outcome.stats = UpsertStats(
+                    input_rows=len(outcome.parsed),
+                    deduped_rows=len(outcome.parsed),
+                    inserted=0,
+                    updated=0,
+                    unchanged=0,
+                )
 
         for outcome in committable:
             if outcome.spec.before_commit is not None:

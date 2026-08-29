@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import infer_activity_type
+from src.crawlers.pipeline.candidates import record_listing_recognized
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -119,6 +120,10 @@ def parse_fresno_workshops_html(
     main = soup.find("main")
     if main is None:
         return []
+
+    # The page structure is intact; the museum simply announces new workshops
+    # seasonally, so an empty list here is a real answer rather than breakage.
+    record_listing_recognized()
 
     current_date = (now or datetime.now()).date()
 

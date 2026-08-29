@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -134,7 +135,9 @@ def parse_danforth_payload(payload: dict) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
 
-    for source_url, html in payload.get("detail_pages", {}).items():
+    detail_pages = payload.get("detail_pages", {})
+    record_candidate_count(len(detail_pages))
+    for source_url, html in detail_pages.items():
         row = _build_row_from_detail_page(source_url=source_url, html=html)
         if row is None:
             continue

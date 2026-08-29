@@ -9,6 +9,7 @@ from urllib.request import Request
 from urllib.request import urlopen
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -210,6 +211,7 @@ def parse_blanton_payload(payload: dict[str, object]) -> list[ExtractedActivity]
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
 
+    record_candidate_count(len(detail_pages))
     for source_url, html in detail_pages.items():
         if not isinstance(source_url, str) or not isinstance(html, str):
             continue

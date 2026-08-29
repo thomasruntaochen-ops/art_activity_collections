@@ -124,3 +124,26 @@ def test_counts_do_not_leak_between_targets(writes) -> None:
         )
 
     assert exc.value.code == 2
+
+
+def test_skipped_outcome_still_carries_stats(writes) -> None:
+    """18 runner scripts do `assert outcome.stats is not None` after run_targets.
+
+    Before the guard returned a verdict, an empty parse raised out of run_targets
+    and those scripts never ran. Now they do, so a skipped outcome needs stats or
+    they die with an AssertionError instead of exiting cleanly.
+    """
+    summary = asyncio.run(run_targets(targets=[_spec("quiet", _quiet)], commit=True))
+
+    outcome = summary.outcomes[0]
+    assert writes == []
+    assert outcome.stats is not None
+    assert outcome.stats.inserted == 0
+    assert outcome.stats.written_rows == 0
+    assert outcome.written == []
+
+
+def test_committed_outcome_keeps_real_stats(writes) -> None:
+    summary = asyncio.run(run_targets(targets=[_spec("productive", _productive)], commit=True))
+
+    assert summary.outcomes[0].stats.inserted == 1

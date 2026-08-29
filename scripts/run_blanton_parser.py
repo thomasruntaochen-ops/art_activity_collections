@@ -226,15 +226,23 @@ async def main() -> None:
 
     if args.commit:
         from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse  # noqa: E402
+        from src.crawlers.pipeline.candidates import get_candidate_count  # noqa: E402
+        from src.crawlers.pipeline.candidates import listing_was_recognized  # noqa: E402
         from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats  # noqa: E402
 
-        abort_commit_on_empty_parse(
+        # This script commits directly rather than through run_targets, so it has
+        # to pass the parser's own reporting to the guard itself.
+        may_commit = abort_commit_on_empty_parse(
             parser_name="blanton",
             commit_requested=True,
             parsed_count=len(parsed),
             source_url=args.url,
             details={"cache_dir": str(args.cache_dir)},
+            candidates_found=get_candidate_count(),
+            listing_recognized=listing_was_recognized(),
         )
+        if not may_commit:
+            return
         if args.clear:
             deleted = clear_blanton_entries()
             print(

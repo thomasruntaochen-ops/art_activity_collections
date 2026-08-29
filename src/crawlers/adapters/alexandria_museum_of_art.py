@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import parse_age_range
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -107,7 +108,9 @@ def parse_alexandria_museum_of_art_payload(payload: dict) -> list[ExtractedActiv
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
 
-    for card in payload.get("cards") or []:
+    cards = payload.get("cards") or []
+    record_candidate_count(len(cards))
+    for card in cards:
         row = _build_row(card)
         if row is None:
             continue

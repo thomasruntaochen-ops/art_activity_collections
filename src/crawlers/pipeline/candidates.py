@@ -24,12 +24,36 @@ one venue and runs its targets sequentially, so a plain global is safe here;
 """
 
 _candidate_count: int | None = None
+_listing_recognized: bool = False
 
 
 def reset_candidate_count() -> None:
-    """Clear the count. Called before each target so counts never leak between them."""
-    global _candidate_count
+    """Clear all reporting. Called before each target so signals never leak between them."""
+    global _candidate_count, _listing_recognized
     _candidate_count = None
+    _listing_recognized = False
+
+
+def record_listing_recognized() -> None:
+    """Assert the parser located its listing container, whatever it held.
+
+    Some venues legitimately publish an empty listing — Fresno's workshops page
+    currently says new workshops will be announced later in the season, so zero
+    candidates is the honest answer rather than a symptom of breakage. A parser
+    that can positively confirm its container is intact calls this, and the
+    guard then treats zero candidates as a quiet calendar instead of a failure.
+
+    Only call this after actually finding the container. Parsers whose container
+    *is* the item selector should not call it: for them zero items genuinely does
+    mean the page changed underneath us, and that should still raise.
+    """
+    global _listing_recognized
+    _listing_recognized = True
+
+
+def listing_was_recognized() -> bool:
+    """Whether the parser confirmed its listing container this run."""
+    return _listing_recognized
 
 
 def record_candidate_count(count: int) -> None:

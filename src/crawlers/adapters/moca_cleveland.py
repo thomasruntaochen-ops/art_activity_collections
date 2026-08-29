@@ -12,6 +12,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
 from src.crawlers.adapters.oh_common import should_include_event
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -41,6 +42,7 @@ def parse_moca_cleveland_payload(html: str) -> list[ExtractedActivity]:
     seen: set[tuple[str, str, datetime]] = set()
     today = datetime.now().date()
 
+    record_candidate_count(len(records))
     for item in records.values():
         row = _build_row(item)
         if row is None or row.start_at.date() < today:
