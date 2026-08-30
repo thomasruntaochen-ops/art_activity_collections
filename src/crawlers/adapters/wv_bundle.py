@@ -26,6 +26,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
@@ -607,8 +608,17 @@ def _parse_stifel_events(payload: dict, *, venue: WvVenueConfig) -> list[Extract
     today = date.today()
     activities: list[ExtractedActivity] = []
 
-    for accordion in soup.select("div.wpb_accordion"):
+    # WPBakery replaced div.wpb_accordion with div.vc_tta-accordion and wrapped it
+    # in div.vc_tta-container, which moved the summary text column from the
+    # accordion's own previous sibling to the container's. Accept both layouts.
+    accordions = soup.select("div.wpb_accordion, div.vc_tta-accordion")
+    record_candidate_count(len(accordions))
+    for accordion in accordions:
         summary_block = accordion.find_previous_sibling("div", class_="wpb_text_column")
+        if summary_block is None and accordion.parent is not None:
+            summary_block = accordion.parent.find_previous_sibling(
+                "div", class_="wpb_text_column"
+            )
         if summary_block is None:
             continue
 

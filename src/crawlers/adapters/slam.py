@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime
 from decimal import Decimal
 
@@ -99,6 +100,7 @@ SOFT_EXCLUDES = (
 async def fetch_slam_events_page(
     url: str,
     *,
+    as_text: bool = False,
     client: httpx.AsyncClient | None = None,
     max_attempts: int = 5,
     base_backoff_seconds: float = 2.0,
@@ -120,7 +122,7 @@ async def fetch_slam_events_page(
                 break
 
             if response.status_code < 400:
-                return response.json()
+                return response.text if as_text else response.json()
 
             if response.status_code in (429, 500, 502, 503, 504) and attempt < max_attempts:
                 await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
@@ -147,21 +149,82 @@ async def fetch_slam_events_page(
 
 
 async def load_slam_payload(*, page_limit: int | None = None, per_page: int = 50, start_date: str | None = None) -> dict:
-    today = start_date or datetime.now(ZoneInfo(MO_TIMEZONE)).date().isoformat()
-    events: list[dict] = []
-    next_url = f"{SLAM_EVENTS_API_URL}?per_page={per_page}&page=1&start_date={today}"
-    pages_seen = 0
+    """Read events from the public /events/ page rather than the REST API.
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
-        while next_url:
-            if page_limit is not None and pages_seen >= max(page_limit, 1):
-                break
-            payload = await fetch_slam_events_page(next_url, client=client)
-            pages_seen += 1
-            events.extend(payload.get("events") or [])
-            next_url = payload.get("next_rest_url")
+    slam.org answers 403 for every /wp-json/ route, including the namespace
+    root, while the HTML events page is served normally and embeds schema.org
+    Event JSON-LD covering the same listings. Spaced probes showed the split
+    clearly: /events/ returned 200 and /wp-json/ 403 ninety seconds apart, so
+    this is not just the IP rate limiting (which also answers 403, and which the
+    retry backoff above still handles).
 
-    return {"events": events}
+    Reading one HTML page instead of walking paginated API requests also means
+    far fewer requests to a host that throttles aggressively.
+    """
+    html = await fetch_slam_events_page(SLAM_EVENTS_URL, as_text=True)
+    return {"events": _extract_jsonld_events(html)}
+
+
+def _extract_jsonld_events(html: str) -> list[dict]:
+    """Pull schema.org Events out of the page and shape them like API rows."""
+    soup = BeautifulSoup(html, "html.parser")
+    found: list[dict] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            if "Event" in str(node.get("@type", "")):
+                found.append(node)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    for block in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        try:
+            walk(json.loads(block.string or block.get_text() or ""))
+        except (ValueError, TypeError):
+            continue
+
+    return [_jsonld_to_event_obj(node) for node in found]
+
+
+def _jsonld_to_event_obj(node: dict) -> dict:
+    """Map a schema.org Event onto the Tribe API shape _build_row expects."""
+    location = node.get("location")
+    venue: dict[str, object] = {}
+    if isinstance(location, dict):
+        address = location.get("address")
+        if isinstance(address, dict):
+            venue = {
+                "venue": location.get("name"),
+                "address": address.get("streetAddress"),
+                "city": address.get("addressLocality"),
+                "state": address.get("addressRegion"),
+                "zip": address.get("postalCode"),
+            }
+        else:
+            venue = {"venue": location.get("name"), "address": address}
+
+    offers = node.get("offers")
+    if isinstance(offers, list):
+        offers = offers[0] if offers else None
+    cost = ""
+    if isinstance(offers, dict) and offers.get("price") is not None:
+        cost = str(offers.get("price"))
+
+    return {
+        "title": node.get("name"),
+        "url": node.get("url"),
+        "start_date": node.get("startDate"),
+        "end_date": node.get("endDate"),
+        "description": node.get("description"),
+        "excerpt": None,
+        "categories": [],
+        "venue": venue,
+        "cost": cost,
+        "cost_details": None,
+    }
 
 
 def parse_slam_payload(payload: dict) -> list[ExtractedActivity]:
@@ -383,7 +446,20 @@ def _parse_datetime(value: object) -> datetime | None:
 def _html_to_text(value: object) -> str:
     if not isinstance(value, str):
         return ""
-    return _normalize_space(BeautifulSoup(value, "html.parser").get_text(" ", strip=True))
+    # The JSON-LD escapes its markup ("Free Fridays&mdash;&lt;em&gt;Title&lt;/em&gt;"),
+    # so a single pass only decodes the entities and leaves literal <em> tags in
+    # the text. Strip repeatedly until the result stops changing.
+    text = BeautifulSoup(value, "html.parser").get_text(" ", strip=True)
+    for _ in range(2):
+        # Later passes act on what was a single text node. Join without a
+        # separator (" " would give "Fridays— Title") and without stripping
+        # fragments (strip=True would glue "…Verona</em> with" into "Veronawith");
+        # _normalize_space collapses whatever is left.
+        stripped = BeautifulSoup(text, "html.parser").get_text("", strip=False)
+        if stripped == text:
+            break
+        text = stripped
+    return _normalize_space(text)
 
 
 def _normalize_space(value: object) -> str:

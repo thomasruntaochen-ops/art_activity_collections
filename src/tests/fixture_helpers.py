@@ -1,4 +1,6 @@
 from collections.abc import Iterable
+from datetime import datetime
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -32,3 +34,18 @@ def assert_activity_smoke_rows(rows: Iterable[ExtractedActivity]) -> list[Extrac
         seen.add(key)
 
     return materialized
+
+
+def future_datetime(days: int = 30, *, hour: int = 10, minute: int = 0) -> datetime:
+    """Return a datetime far enough ahead of today to survive parser date filters.
+
+    Parsers drop events that already started, so fixtures need dates that move
+    with the clock instead of a hardcoded calendar day that rots into the past.
+    """
+    moment = datetime.now() + timedelta(days=days)
+    return moment.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+
+def future_datetime_text(days: int = 30, *, hour: int = 10, minute: int = 0) -> str:
+    """Return :func:`future_datetime` as the ``YYYY-MM-DD HH:MM:SS`` text feeds use."""
+    return future_datetime(days, hour=hour, minute=minute).strftime("%Y-%m-%d %H:%M:%S")

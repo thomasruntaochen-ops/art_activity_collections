@@ -1,28 +1,35 @@
 from __future__ import annotations
 
 from src.crawlers.adapters.columbus_museum_of_art import parse_columbus_museum_of_art_payload
+from src.tests.fixture_helpers import future_datetime
 
 
 def _card(
     *,
     title: str,
     source_url: str,
-    month: str = "Jul",
-    day: str = "10",
+    days: int = 30,
     time_text: str = "10:00 AM-11:00 AM",
     summary: str = "Artmaking activity.",
     tags: list[str] | None = None,
 ) -> dict:
+    listing_day = future_datetime(days)
     return {
         "title": title,
         "source_url": source_url,
-        "month_text": month,
-        "day_text": day,
-        "weekday_text": "Friday",
+        "month_text": f"{listing_day:%b}",
+        "day_text": str(listing_day.day),
+        "weekday_text": f"{listing_day:%A}",
         "time_text": time_text,
         "summary": summary,
         "tags": tags or [],
     }
+
+
+def _detail_date_time(days: int, time_text: str) -> str:
+    """Render the detail-page date line the way the site does, e.g. "Saturday, July 11 | 10:00 AM-1:00 PM"."""
+    listing_day = future_datetime(days)
+    return f"{listing_day:%A}, {listing_day:%B} {listing_day.day} | {time_text}"
 
 
 def _detail(title: str, date_time: str, body: str) -> str:
@@ -47,39 +54,36 @@ def test_columbus_infers_audience_and_price_for_kept_rows() -> None:
                 _card(
                     title="Open Studio",
                     source_url=open_studio_url,
-                    month="Jul",
-                    day="11",
+                    days=30,
                     tags=["Youth & Families", "Artmaking"],
                 ),
                 _card(
                     title="Teen Studio",
                     source_url=teen_url,
-                    month="Jul",
-                    day="16",
+                    days=35,
                     tags=["Free", "Teens", "Artmaking"],
                 ),
                 _card(
                     title="Wednesdays@2: Curator Talk",
                     source_url=talk_url,
-                    month="Jul",
-                    day="22",
+                    days=41,
                     tags=["Exhibition-Inspired Talks & Conversations"],
                 ),
             ],
             "detail_pages": {
                 open_studio_url: _detail(
                     "Open Studio",
-                    "Saturday, July 11 | 10:00 AM-1:00 PM",
+                    _detail_date_time(30, "10:00 AM-1:00 PM"),
                     "Individuals of all ages are welcome for artmaking. Included with museum admission.",
                 ),
                 teen_url: _detail(
                     "Teen Studio",
-                    "Thursday, July 16 | 5:00-7:00 PM",
+                    _detail_date_time(35, "5:00-7:00 PM"),
                     "Free art-based workshop for teens ages 13-19.",
                 ),
                 talk_url: _detail(
                     "Wednesdays@2: Curator Talk",
-                    "Wednesday, July 22 | 2:00-3:00 PM",
+                    _detail_date_time(41, "2:00-3:00 PM"),
                     "A lecture on the exhibition. Registration is free for members and $10 for nonmembers.",
                 ),
             },
@@ -99,7 +103,7 @@ def test_columbus_rejects_summer_art_breaks_and_music_rows() -> None:
             "cards": [
                 _card(
                     title="Summer Art Breaks",
-                    source_url="https://www.columbusmuseum.org/events/event/6174528/date/2026-07-01",
+                    source_url=f"https://www.columbusmuseum.org/events/event/6174528/date/{future_datetime():%Y-%m-%d}",
                     tags=["Youth & Families", "Artmaking"],
                 ),
                 _card(

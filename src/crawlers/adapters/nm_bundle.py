@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -555,6 +556,7 @@ def _parse_sitesf_events(payload: dict, *, venue: NmVenueConfig) -> list[Extract
     detail_pages = payload.get("detail_pages") or {}
     rows: list[ExtractedActivity] = []
 
+    record_candidate_count(len(cards))
     for card in cards:
         source_url = card["source_url"]
         title = card["title"]
@@ -649,7 +651,11 @@ def _extract_nmart_cards(html: str, list_url: str) -> dict[str, str]:
 def _extract_sitesf_future_cards(html: str, list_url: str) -> list[dict[str, str]]:
     soup = BeautifulSoup(html, "html.parser")
     cards: list[dict[str, str]] = []
-    for card in soup.select("[class*=FutureEvents_content]"):
+    # sitesantafe.org rebuilt on CSS-modules: the class is now
+    # "FutureEvents-module-scss-module__<hash>__content", so the old
+    # "FutureEvents_content" substring never matches. Match the component name
+    # and the element role separately so a rebuilt hash cannot break it again.
+    for card in soup.select('[class*="FutureEvents"][class*="__content"]'):
         card_text = _normalize_space(card.get_text(" ", strip=True))
         if not card_text:
             continue

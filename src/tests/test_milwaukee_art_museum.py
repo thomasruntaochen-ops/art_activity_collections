@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.crawlers.adapters.milwaukee_art_museum import parse_milwaukee_art_museum_payload
+from src.tests.fixture_helpers import future_datetime_text
 
 
 def _event(
@@ -14,8 +15,8 @@ def _event(
     return {
         "title": title,
         "url": f"https://mam.org/events/event/{event_slug}/",
-        "start_date": "2026-07-08 10:00:00",
-        "end_date": "2026-07-08 11:00:00",
+        "start_date": future_datetime_text(),
+        "end_date": future_datetime_text(hour=11),
         "excerpt": "",
         "description": description,
         "cost": {"values": []},

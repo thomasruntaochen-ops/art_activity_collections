@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from src.crawlers.adapters.ga_tribe_bundle import GA_TRIBE_VENUES_BY_SLUG
 from src.crawlers.adapters.ga_tribe_bundle import parse_ga_tribe_events
+from src.tests.fixture_helpers import future_datetime_text
 
 
 TELFAIR = GA_TRIBE_VENUES_BY_SLUG["telfair"]
@@ -19,8 +20,8 @@ def _event(
     return {
         "title": title,
         "url": f"https://www.telfair.org/event/{slug}/",
-        "start_date": "2026-07-08 10:00:00",
-        "end_date": "2026-07-08 11:00:00",
+        "start_date": future_datetime_text(),
+        "end_date": future_datetime_text(hour=11),
         "description": description,
         "excerpt": "",
         "cost": "",

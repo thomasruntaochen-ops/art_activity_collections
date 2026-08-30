@@ -14,6 +14,8 @@ def test_crocker_fixture_smoke() -> None:
         )
     )
 
-    assert len(rows) == 29
+    assert len(rows) == 28
     assert rows[0].title == "Wee Wednesday"
     assert rows[0].start_at == datetime(2026, 3, 11, 10, 30)
+    # School + educator programs are aimed at teachers, not families, so they stay out.
+    assert "Teacher Workshop" not in {row.title for row in rows}

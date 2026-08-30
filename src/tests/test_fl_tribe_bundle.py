@@ -1,7 +1,7 @@
-from datetime import datetime
-
 from src.crawlers.adapters.fl_tribe_bundle import FL_TRIBE_VENUES_BY_SLUG
 from src.crawlers.adapters.fl_tribe_bundle import parse_fl_tribe_events
+from src.tests.fixture_helpers import future_datetime
+from src.tests.fixture_helpers import future_datetime_text
 
 
 def _event(
@@ -12,13 +12,14 @@ def _event(
     description: str = "",
     cost: str = "",
     values: list[str] | None = None,
-    start_date: str = "2026-07-12 10:00:00",
+    days: int = 30,
+    hour: int = 10,
 ) -> dict:
     return {
         "title": title,
         "url": f"https://example.org/{slug}/",
-        "start_date": start_date,
-        "end_date": "2026-07-12 12:00:00",
+        "start_date": future_datetime_text(days, hour=hour),
+        "end_date": future_datetime_text(days, hour=hour + 2),
         "description": description,
         "excerpt": "",
         "cost": cost,
@@ -43,7 +44,7 @@ def test_fl_tribe_decodes_titles_and_marks_admission_required_programs_not_free(
                 title="Sketching in the Galleries",
                 slug="sketching",
                 description="Drawing supplies available for artists of all ages. FREE with admission.",
-                start_date="2026-07-13 10:00:00",
+                days=31,
             ),
         ],
         venue=FL_TRIBE_VENUES_BY_SLUG["orlando"],
@@ -100,19 +101,22 @@ def test_fl_tribe_bass_audience_and_known_paid_program_categories() -> None:
                 title="Teen Studio Art Intensive",
                 slug="teen-intensive",
                 categories=["Teen Studio Art Intensive"],
-                start_date="2026-07-13 09:00:00",
+                days=31,
+                hour=9,
             ),
             _event(
                 title="Workshops @ The Bass | Mirrors",
                 slug="workshop",
                 categories=["Workshops at The Bass"],
-                start_date="2026-07-14 14:00:00",
+                days=32,
+                hour=14,
             ),
             _event(
                 title="Family Day | Fold & Flow",
                 slug="family-day",
                 categories=["Family Day"],
-                start_date="2026-07-15 14:00:00",
+                days=33,
+                hour=14,
             ),
         ],
         venue=FL_TRIBE_VENUES_BY_SLUG["bass"],
@@ -136,14 +140,14 @@ def test_fl_tribe_preserves_future_datetimes() -> None:
         venue=FL_TRIBE_VENUES_BY_SLUG["tampa"],
     )
 
-    assert rows[0].start_at == datetime(2026, 7, 12, 10, 0)
+    assert rows[0].start_at == future_datetime()
 
 
 def test_fl_tribe_dedupes_same_title_and_time_across_occurrence_urls() -> None:
     rows = parse_fl_tribe_events(
         [
             _event(title="Glazing Party", slug="glazing-party-4", categories=["Adults", "Studio Art Class"]),
-            _event(title="Glazing Party", slug="glazing-party-5/2026-07-12", categories=["Adults", "Studio Art Class"]),
+            _event(title="Glazing Party", slug=f"glazing-party-5/{future_datetime():%Y-%m-%d}", categories=["Adults", "Studio Art Class"]),
         ],
         venue=FL_TRIBE_VENUES_BY_SLUG["tampa"],
     )

@@ -65,7 +65,8 @@ def test_mocact_parser_keeps_paid_class_and_conversation() -> None:
 
     assert len(rows) == 3
     assert rows[0].title == "Art Adventures"
-    assert rows[0].audience_segment == "kids"
+    # "Ages 4+" has no upper bound, so the shared age rule reads it as open to every age.
+    assert rows[0].audience_segment == "all_ages"
     assert rows[0].is_free is False
     assert rows[0].free_verification_status == "confirmed"
     assert rows[0].registration_required is True

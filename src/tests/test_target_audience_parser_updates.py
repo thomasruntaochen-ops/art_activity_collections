@@ -112,6 +112,7 @@ def test_newark_sets_family_audience_and_inferred_non_free_default() -> None:
 
 
 def test_new_bedford_sets_audience_and_excludes_movement_performance() -> None:
+    # An open-ended "Ages 7+" welcomes grown-ups too; only a capped range is kids-only.
     assert (
         infer_new_bedford_audience(
             title="Creative Canvas Club: Painting for Kids",
@@ -119,6 +120,16 @@ def test_new_bedford_sets_audience_and_excludes_movement_performance() -> None:
             source_url="https://newbedfordart.org/canvas-club/",
             age_min=7,
             age_max=None,
+        )
+        == "all_ages"
+    )
+    assert (
+        infer_new_bedford_audience(
+            title="Creative Canvas Club: Painting for Kids",
+            description="Ages 7-12",
+            source_url="https://newbedfordart.org/canvas-club/",
+            age_min=7,
+            age_max=12,
         )
         == "kids"
     )

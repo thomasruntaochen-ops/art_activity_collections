@@ -1,6 +1,5 @@
-from datetime import datetime
-
 from src.crawlers.adapters.ica_boston import parse_ica_boston_calendar_payload
+from src.tests.fixture_helpers import future_datetime
 
 
 def _detail_html(title: str, description: str, price: str = "") -> str:
@@ -18,31 +17,31 @@ def _payload() -> dict:
             "title": "Perpetual Gratitude",
             "source_url": "https://www.icaboston.org/events/perpetual-gratitude/",
             "categories": ["Art Making"],
-            "date_entries": [(datetime(2026, 7, 11, 12, 0), None)],
+            "date_entries": [(future_datetime(30, hour=12), None)],
         },
         {
             "title": "Play Date: Free Family Art Day",
             "source_url": "https://www.icaboston.org/events/play-date-free-family-art-day/",
             "categories": ["ICA Kids", "Art Making"],
-            "date_entries": [(datetime(2026, 7, 12, 10, 0), None)],
+            "date_entries": [(future_datetime(31, hour=10), None)],
         },
         {
             "title": "Art-Making After Dark",
             "source_url": "https://www.icaboston.org/events/art-making-after-dark/",
             "categories": ["Art Making"],
-            "date_entries": [(datetime(2026, 7, 16, 18, 0), None)],
+            "date_entries": [(future_datetime(35, hour=18), None)],
         },
         {
             "title": "Gallery Talk: Curator Conversation",
             "source_url": "https://www.icaboston.org/events/gallery-talk/",
             "categories": ["Talks"],
-            "date_entries": [(datetime(2026, 7, 19, 14, 0), None)],
+            "date_entries": [(future_datetime(38, hour=14), None)],
         },
         {
             "title": "We Create The World: A Juneteenth Celebration",
             "source_url": "https://www.icaboston.org/events/we-create-the-world/",
             "categories": ["Art Making"],
-            "date_entries": [(datetime(2026, 7, 20, 14, 0), None)],
+            "date_entries": [(future_datetime(39, hour=14), None)],
         },
     ]
     return {

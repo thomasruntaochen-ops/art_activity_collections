@@ -21,6 +21,8 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.candidates import record_listing_recognized
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -698,7 +700,13 @@ def _parse_mmam_events(payload: dict, *, venue: MnVenueConfig) -> list[Extracted
 
 def _parse_mmaa_events(payload: dict, *, venue: MnVenueConfig) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
-    for page in payload.get("pages") or []:
+    pages = payload.get("pages") or []
+    if pages:
+        # The Tribe API answered; it just reports total=0 when MMAA has nothing
+        # upcoming, which is a real answer rather than a broken feed.
+        record_listing_recognized()
+        record_candidate_count(sum(len(page.get("events") or []) for page in pages))
+    for page in pages:
         for event in page.get("events") or []:
             row = _build_mmaa_row(event, venue=venue)
             if row is not None:

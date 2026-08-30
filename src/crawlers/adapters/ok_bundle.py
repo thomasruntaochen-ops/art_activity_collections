@@ -24,6 +24,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_age_range
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.adapters.oh_common import parse_time_range
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
@@ -157,7 +158,7 @@ GILCREASE_UNCREASE_TITLE = "Uncrease"
 GILCREASE_OCCURRENCE_RE = re.compile(
     r"(?P<date>[A-Za-z]+\s+\d{1,2},\s+\d{4})\s*,\s*"
     r"(?P<time>\d{1,2}:\d{2}\s*[APap][.]?M[.]?)\s*,\s*"
-    r"(?P<subtitle>.*?)\s*,\s*Register",
+    r"(?P<subtitle>.*?)\s*,\s*(?:Register|Purchase)",
     re.IGNORECASE,
 )
 GILCREASE_UNCREASE_OCCURRENCE_RE = re.compile(
@@ -165,9 +166,12 @@ GILCREASE_UNCREASE_OCCURRENCE_RE = re.compile(
     r"(?P<time>\d{1,2}:\d{2}\s*[APap][.]?M[.]?)\s*,\s*,\s*Register",
     re.IGNORECASE,
 )
+# Season, year and the exact class name all change each term ("2026 Spring /
+# After School Art Ceramic Class" became "2026 Fall / After School Art Class"),
+# so capture them instead of hardcoding one term's wording.
 MGMOA_CLASS_RE = re.compile(
-    r"2026 Spring Class Schedule\s+"
-    r"(?P<title>After School Art Ceramic Class)\s+"
+    r"(?P<year>\d{4})\s+(?:Spring|Summer|Fall|Autumn|Winter)\s+Class Schedule\s+"
+    r"(?P<title>After School Art[\w ]*?Class)\s+"
     r"(?P<body>.*?)"
     r"Week 1 \|\s+(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2}):.*?"
     r"Times:\s+(?P<time>.*?)\s+"
@@ -468,6 +472,11 @@ def _parse_gilcrease(
     if not body_text:
         return []
 
+    # Count every dated occurrence on the calendar, not just the two named
+    # programmes sliced out below: those come and go each season, so the whole
+    # calendar is the right "did the page render" signal.
+    record_candidate_count(len(GILCREASE_OCCURRENCE_RE.findall(body_text)))
+
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
 
@@ -565,7 +574,9 @@ def _parse_mgmoa(
     if not match:
         return []
 
-    event_date = parse_date_text(f"{match.group('month')} {match.group('day')}, 2026")
+    event_date = parse_date_text(
+        f"{match.group('month')} {match.group('day')}, {match.group('year')}"
+    )
     if event_date is None or event_date < current_date:
         return []
     start_at, end_at = parse_time_range(base_date=event_date, time_text=match.group("time"))

@@ -590,10 +590,16 @@ batch_id = "batch_d"
 use_base_url = false
 args = ["--commit"]
 
+# Disabled 2026-08-29: artmuseum.princeton.edu sits behind a Cloudflare
+# "managed" bot challenge (cf-mitigated: challenge, "Just a moment..."), which
+# covers the whole domain including /robots.txt and every feed path we tried
+# (/feed, /rss.xml, .ics). Reaching it would mean defeating a bot-detection
+# challenge, so this is a policy stop, not a technical one: re-enable if the
+# museum grants access or publishes a feed outside the challenge.
 [[venues]]
 venue = "princeton"
 state = "NJ"
-enabled = true
+enabled = false
 parser_script_name = "scripts/run_princeton_parser.py"
 batch_id = "batch_e"
 use_base_url = false

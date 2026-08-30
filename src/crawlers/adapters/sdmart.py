@@ -78,7 +78,16 @@ async def fetch_sdmart_events_page(
     *,
     max_attempts: int = 5,
     base_backoff_seconds: float = 2.0,
+    retry_on_403: bool = True,
 ) -> str:
+    """Fetch one SDMA page.
+
+    `retry_on_403` is for the listing page, whose 403s are intermittent rate
+    limiting that clears when spaced out. Individual /event/ detail pages are
+    refused persistently, so callers fetching those pass False: retrying them
+    cannot succeed, wastes the venue's whole timeout budget, and keeps hammering
+    a host that is plainly declining.
+    """
     print(f"[sdmart-fetch] start url={url} max_attempts={max_attempts}")
     last_exception: Exception | None = None
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
@@ -117,7 +126,7 @@ async def fetch_sdmart_events_page(
             # sdmart.org rate-limits with 403 rather than 429, and holds the
             # refusal across the whole domain for a spell after a burst. The
             # same request succeeds once spaced out, so back off and retry.
-            if response.status_code == 403 and attempt < max_attempts:
+            if response.status_code == 403 and retry_on_403 and attempt < max_attempts:
                 wait_seconds = min(RATE_LIMIT_BACKOFF_SECONDS * attempt, RATE_LIMIT_BACKOFF_CAP_SECONDS)
                 print(f"[sdmart-fetch] rate-limited (403), retrying after {wait_seconds:.1f}s")
                 await asyncio.sleep(wait_seconds)
@@ -158,7 +167,9 @@ async def load_sdmart_details(
     details: dict[str, str] = {}
     for source_url in _extract_candidate_urls(list_html, list_url=list_url, current_date=current_date)[:max_details]:
         try:
-            details[source_url] = await fetch(source_url)
+            # Detail pages are refused persistently; fail fast instead of
+            # burning the venue's timeout on retries that cannot succeed.
+            details[source_url] = await fetch(source_url, retry_on_403=False)
         except Exception:
             continue
     return details

@@ -12,7 +12,7 @@ def test_frist_parser_keeps_paid_free_and_family_programs() -> None:
                 "source_url": "https://fristartmuseum.org/event/teen-artlab-words-on-wear-custom-hoodie/",
                 "date_text": "Saturday, April 4, 2026",
                 "time_text": "1:00-4:00 p.m.",
-                "summary": "This workshop is SOLD OUT. In this hands-on workshop, participants create custom hoodies.",
+                "summary": "In this hands-on workshop, participants create custom hoodies.",
                 "tags": ["Teens"],
                 "register_text": None,
                 "detail_html": """
@@ -22,7 +22,7 @@ def test_frist_parser_keeps_paid_free_and_family_programs() -> None:
                       <div class="events-card__meta">
                         <span class="event-date">Saturday, April 4, 2026</span>
                         <span class="event-time">1:00-4:00 p.m.</span>
-                        <p><span class="events-card__location">Studio A<br/>Free; sold out</span></p>
+                        <p><span class="events-card__location">Studio A<br/>Free; registration required</span></p>
                       </div>
                     </div>
                     <main><div class="l-content"><div class="l-constrain--xtra-small">
@@ -95,7 +95,9 @@ def test_frist_parser_keeps_paid_free_and_family_programs() -> None:
     assert rows[0].activity_type == "workshop"
 
     assert rows[1].drop_in is True
-    assert rows[1].is_free is True
+    # Frist charges gallery admission, so a program that is only free for members is not free.
+    assert rows[1].is_free is False
+    assert rows[1].free_verification_status == "confirmed"
 
     assert rows[2].is_free is False
     assert rows[2].registration_required is True
@@ -103,7 +105,7 @@ def test_frist_parser_keeps_paid_free_and_family_programs() -> None:
     assert rows[2].start_at == datetime(2026, 4, 19, 13, 30)
 
 
-def test_frist_parser_excludes_music_tours_and_member_events() -> None:
+def test_frist_parser_excludes_music_tours_member_events_and_sold_out_programs() -> None:
     payload = {
         "events": [
             {
@@ -125,6 +127,16 @@ def test_frist_parser_excludes_music_tours_and_member_events() -> None:
                 "tags": ["Tours"],
                 "register_text": None,
                 "detail_html": "<html><body><main><div class='l-content'><div class='l-constrain--xtra-small'><p>Tour event.</p></div></div></main></body></html>",
+            },
+            {
+                "title": "Teen ARTlab: Sold Out Screenprinting",
+                "source_url": "https://fristartmuseum.org/event/teen-artlab-screenprinting/",
+                "date_text": "Saturday, April 11, 2026",
+                "time_text": "1:00-4:00 p.m.",
+                "summary": "This workshop is SOLD OUT.",
+                "tags": ["Teens"],
+                "register_text": None,
+                "detail_html": "<html><body><main><div class='l-content'><div class='l-constrain--xtra-small'><p>A sold-out teen workshop.</p></div></div></main></body></html>",
             },
             {
                 "title": "Member Morning",
