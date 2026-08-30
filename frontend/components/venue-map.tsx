@@ -96,6 +96,7 @@ export function VenueMap({
   const mapRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<LayerGroup | null>(null);
   const primaryTilesRef = useRef<TileLayer | null>(null);
+  const primaryLabelsRef = useRef<TileLayer | null>(null);
   const fallbackTilesRef = useRef<TileLayer | null>(null);
   const usingFallbackTilesRef = useRef(false);
   const tileErrorCountRef = useRef(0);
@@ -125,15 +126,29 @@ export function VenueMap({
       L.control.zoom({ position: "bottomright" }).addTo(map);
       L.control.scale({ position: "bottomleft", imperial: true, metric: false }).addTo(map);
 
-      const primaryTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: "abcd",
-        maxZoom: 18,
-        maxNativeZoom: 18,
-        detectRetina: true,
-        crossOrigin: true,
-      });
+      // Esri's Light Gray Canvas keeps the muted basemap the markers were designed
+      // against, and unlike CARTO's public endpoint it still serves without an API
+      // key. Its labels ship as a separate overlay, so the two are added/removed
+      // together.
+      const primaryTiles = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        {
+          attribution:
+            'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 18,
+          // The service has no tiles past z16; Leaflet upscales beyond that.
+          maxNativeZoom: 16,
+          crossOrigin: true,
+        },
+      );
+      const primaryLabels = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+        {
+          maxZoom: 18,
+          maxNativeZoom: 16,
+          crossOrigin: true,
+        },
+      );
       const fallbackTiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 18,
@@ -156,6 +171,9 @@ export function VenueMap({
         if (map.hasLayer(primaryTiles)) {
           map.removeLayer(primaryTiles);
         }
+        if (map.hasLayer(primaryLabels)) {
+          map.removeLayer(primaryLabels);
+        }
         fallbackTiles.addTo(map);
       });
       fallbackTiles.on("load", () => {
@@ -170,11 +188,13 @@ export function VenueMap({
       });
 
       primaryTiles.addTo(map);
+      primaryLabels.addTo(map);
 
       map.setView(USA_CENTER, USA_ZOOM);
       mapRef.current = map;
       markersRef.current = L.layerGroup().addTo(map);
       primaryTilesRef.current = primaryTiles;
+      primaryLabelsRef.current = primaryLabels;
       fallbackTilesRef.current = fallbackTiles;
       setMapInitError("");
 
@@ -197,11 +217,13 @@ export function VenueMap({
       resizeObserver?.disconnect();
       markersRef.current?.clearLayers();
       primaryTilesRef.current?.off();
+      primaryLabelsRef.current?.off();
       fallbackTilesRef.current?.off();
       mapRef.current?.remove();
       mapRef.current = null;
       markersRef.current = null;
       primaryTilesRef.current = null;
+      primaryLabelsRef.current = null;
       fallbackTilesRef.current = null;
     };
   }, [containerNode]);
@@ -337,7 +359,10 @@ export function VenueMap({
     }
 
     applyView();
-  }, [applyView, onSelectVenue, onViewVenueActivities, resolvedVenues, selectedVenueName, userLocation, viewportMode]);
+    // `containerNode` is in the deps because the map itself is only created once
+    // the container ref resolves, on a later render. Without it, a venue list that
+    // finished loading before the map mounted never gets its markers drawn.
+  }, [applyView, containerNode, onSelectVenue, onViewVenueActivities, resolvedVenues, selectedVenueName, userLocation, viewportMode]);
 
   // The mobile overlay reveals the map by switching its container from
   // `display: none` to full-screen. Recompute size and re-run the view math we
