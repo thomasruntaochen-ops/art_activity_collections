@@ -973,14 +973,14 @@ batch_id = "batch_d"
 use_base_url = false
 args = ["--commit"]
 
-# Re-enabled 2026-08-30 with a caveat. Disabled 2026-08-28 because
-# zanesvilleart.org/calendar/ stopped publishing dated events -- it is now a hub
-# linking to program categories with no dates, and no Squarespace events
-# collection (/events, /programs all 404 on ?format=json). The dry run exits
-# clean at 0 rows, so running it daily is harmless and it will pick events up if
-# the site's current structure ever carries them. NOTE: if they restore a
-# calendar in a different shape, the parser still needs rewriting -- being
-# enabled is not by itself proof it will catch a restored calendar.
+# Re-enabled 2026-08-30. The 2026-08-28 note claiming the calendar no longer
+# publishes dated events was WRONG: /calendar/ renders a live month grid with
+# 33 a[href*="/zma-calendar/"] links, exactly the selector the adapter uses.
+# The parser returns 0 rows because it only reads the DEFAULT (current) month
+# and never clicks "Go to next month" -- so at month-end every event it can see
+# is already past. Verified 2026-08-30: August showed 11 links (all past),
+# September showed 9 it never reaches. Needs month pagination in
+# src/crawlers/adapters/zanesville_museum_of_art.py.
 [[venues]]
 venue = "zanesville_museum_of_art"
 state = "OH"
@@ -1534,8 +1534,11 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
-# Re-enabled 2026-08-30: dry run exits clean with 0 rows (parser fine, nothing
-# scheduled). Left enabled so future events are picked up.
+# Re-enabled + fixed 2026-08-30. The 0 rows were NOT an empty calendar: the
+# museum moved to thedahl.org and the old rapidcityartscouncil.org page keeps no
+# events. The adapter now points at the new host (same Weebly markup) and
+# expands weekly recurrences ("Saturdays"), which is how its two art programs
+# are listed. Dry run: 16 rows.
 venue = "dahl_arts_center"
 state = "SD"
 enabled = true
@@ -1555,8 +1558,10 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
-# Re-enabled 2026-08-30: dry run exits clean with 0 rows (parser fine, nothing
-# scheduled). Left enabled so future events are picked up.
+# Re-enabled 2026-08-30. Genuinely empty, verified: the events page embeds
+# Trumba webName="art-museum-marketing" -- the exact feed the adapter reads --
+# and that feed is valid RSS with zero <item>s. The parser is correct; left
+# enabled so events are picked up as soon as the museum publishes any.
 venue = "university_of_wyoming_art_museum"
 state = "WY"
 enabled = true

@@ -4,6 +4,7 @@ import re
 from datetime import date
 from datetime import datetime
 from datetime import time as dt_time
+from datetime import timedelta
 from html import unescape
 from urllib.parse import urljoin
 
@@ -15,7 +16,11 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
-DAHL_ARTS_CENTER_EVENTS_URL = "https://www.rapidcityartscouncil.org/events.html"
+# Moved 2026-08-30: the Rapid City Arts Council page now only points visitors at
+# thedahl.org ("THEDAHL.ORG/EVENTS" is its sole remaining heading) and carries no
+# event cells. The new site is the same Weebly markup, so the selectors below are
+# unchanged -- only the host moved.
+DAHL_ARTS_CENTER_EVENTS_URL = "https://www.thedahl.org/events.html"
 DAHL_ARTS_CENTER_TIMEZONE = "America/Denver"
 DAHL_ARTS_CENTER_VENUE_NAME = "Dahl Arts Center"
 DAHL_ARTS_CENTER_CITY = "Rapid City"
@@ -70,6 +75,23 @@ MONTH_DAY_LIST_RE = re.compile(
     r"(?P<month>[A-Za-z]+)\s+(?P<days>\d{1,2}(?:\s*(?:,|-)\s*\d{1,2})*)",
     re.IGNORECASE,
 )
+
+# The Dahl lists its standing programs by weekday alone ("Saturdays", "Every
+# Sunday") with no month or day number, so MONTH_DAY_LIST_RE can never match
+# them. Those lines are expanded into concrete dates instead -- see
+# _expand_weekday_recurrence. This is how "Saturday Art Adventure" and "Drawing
+# Group", the venue's only two art programs, get picked up at all.
+WEEKDAY_RECURRENCE_RE = re.compile(
+    r"^(?:every\s+)?(?P<weekday>mon|tues?|wednes?|thurs?|fri|satur|sun)days?$",
+    re.IGNORECASE,
+)
+WEEKDAY_INDEX = {
+    "mon": 0, "tue": 1, "tues": 1, "wednes": 2, "wedne": 2, "thur": 3, "thurs": 3,
+    "fri": 4, "satur": 5, "sun": 6,
+}
+# How far ahead to project a weekly program. Bounded so an open-ended "Saturdays"
+# cannot generate rows indefinitely into the future.
+WEEKDAY_RECURRENCE_WEEKS = 8
 TIME_RANGE_RE = re.compile(
     r"(?P<start>\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)\s*(?:-|–|—|to)\s*"
     r"(?P<end>\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)",
@@ -237,7 +259,9 @@ def _looks_like_meta_line(value: str) -> bool:
         return True
     if "|" in value:
         return True
-    return any(month in lowered for month in _month_names()) or lowered.startswith("sundays")
+    if WEEKDAY_RECURRENCE_RE.match(value.strip()):
+        return True
+    return any(month in lowered for month in _month_names())
 
 
 def _extract_meta(lines: list[str]) -> tuple[str | None, str | None, str | None]:
@@ -272,8 +296,18 @@ def _expand_occurrence_datetimes(
     cutoff: date,
 ) -> list[tuple[datetime, datetime | None]]:
     normalized_date = _normalize_space(date_text)
-    if not normalized_date or normalized_date.lower().startswith("sundays"):
+    if not normalized_date:
         return []
+
+    start_time, end_time = _parse_time_range(time_text, prefer_pm=True)
+    weekly = WEEKDAY_RECURRENCE_RE.match(normalized_date)
+    if weekly is not None:
+        return _expand_weekday_recurrence(
+            weekday_token=weekly.group("weekday").lower(),
+            start_time=start_time,
+            end_time=end_time,
+            cutoff=cutoff,
+        )
 
     match = MONTH_DAY_LIST_RE.search(normalized_date)
     if match is None:
@@ -284,7 +318,6 @@ def _expand_occurrence_datetimes(
     if not days:
         return []
 
-    start_time, end_time = _parse_time_range(time_text, prefer_pm=True)
     results: list[tuple[datetime, datetime | None]] = []
     today = datetime.now(ZoneInfo(DAHL_ARTS_CENTER_TIMEZONE)).date()
 
@@ -299,6 +332,36 @@ def _expand_occurrence_datetimes(
         end_at_value = datetime.combine(event_date, end_time) if end_time is not None else None
         results.append((start_at, end_at_value))
 
+    return results
+
+
+def _expand_weekday_recurrence(
+    *,
+    weekday_token: str,
+    start_time: dt_time | None,
+    end_time: dt_time | None,
+    cutoff: date,
+) -> list[tuple[datetime, datetime | None]]:
+    """Project a weekly program ("Saturdays") onto the next few real dates."""
+    weekday_index = WEEKDAY_INDEX.get(weekday_token)
+    if weekday_index is None:
+        return []
+
+    today = datetime.now(ZoneInfo(DAHL_ARTS_CENTER_TIMEZONE)).date()
+    first = max(today, cutoff)
+    # Advance to the next matching weekday, keeping `first` itself if it already
+    # is one (a Saturday program still runs on the Saturday you look at it).
+    first += timedelta(days=(weekday_index - first.weekday()) % 7)
+
+    results: list[tuple[datetime, datetime | None]] = []
+    for week in range(WEEKDAY_RECURRENCE_WEEKS):
+        event_date = first + timedelta(weeks=week)
+        start_at = datetime.combine(
+            event_date,
+            start_time if start_time is not None else dt_time(0, 0),
+        )
+        end_at_value = datetime.combine(event_date, end_time) if end_time is not None else None
+        results.append((start_at, end_at_value))
     return results
 
 

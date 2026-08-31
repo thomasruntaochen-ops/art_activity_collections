@@ -1,7 +1,9 @@
 import asyncio
 import json
 import re
+from datetime import date
 from datetime import datetime
+from html import unescape
 from urllib.parse import urljoin
 
 import httpx
@@ -12,6 +14,13 @@ from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
 PLAINS_ART_MUSEUM_LIST_URL = "https://plainsart.org/events/"
+# The /events/ page renders its listings client-side (the server HTML ships The
+# Events Calendar's styles but no event markup), so scraping it returns nothing.
+# The plugin's REST API serves the same events as JSON, which is also how the VA
+# Tribe bundle reads its venues. _extract_entries_from_list_html is kept for
+# replaying older cached payloads.
+PLAINS_ART_MUSEUM_EVENTS_API_URL = "https://www.plainsart.org/wp-json/tribe/events/v1/events"
+PLAINS_ART_MUSEUM_API_PAGE_SIZE = 50
 PLAINS_ART_MUSEUM_TIMEZONE = "America/Chicago"
 PLAINS_ART_MUSEUM_VENUE_NAME = "Plains Art Museum"
 PLAINS_ART_MUSEUM_CITY = "Fargo"
@@ -167,22 +176,66 @@ async def fetch_html(
 
 
 async def load_plains_art_museum_payload() -> dict:
-    list_html = await fetch_html(PLAINS_ART_MUSEUM_LIST_URL)
-    entries = _extract_entries_from_list_html(list_html)
-    detail_html_by_url: dict[str, str] = {}
-
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
-        for entry in entries:
-            source_url = entry["source_url"]
-            if not isinstance(source_url, str) or not source_url:
-                continue
-            detail_html_by_url[source_url] = await fetch_html(source_url, client=client)
-
+    # The API carries title, description, cost and exact start/end times, so no
+    # per-event detail fetch is needed any more.
+    entries = await _fetch_entries_from_events_api()
     return {
-        "list_html": list_html,
+        "list_html": "",
         "entries": entries,
-        "detail_html_by_url": detail_html_by_url,
+        "detail_html_by_url": {},
     }
+
+
+async def _fetch_entries_from_events_api() -> list[dict[str, str]]:
+    params = {
+        "per_page": PLAINS_ART_MUSEUM_API_PAGE_SIZE,
+        # Ask only for what is still ahead; the endpoint otherwise returns past
+        # events that _build_row would discard anyway.
+        "start_date": date.today().isoformat(),
+    }
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
+        response = await client.get(PLAINS_ART_MUSEUM_EVENTS_API_URL, params=params)
+        response.raise_for_status()
+        payload = response.json()
+
+    entries: list[dict[str, str]] = []
+    for event in payload.get("events") or []:
+        if not isinstance(event, dict):
+            continue
+        source_url = _normalize_space(event.get("url"))
+        title = _normalize_space(unescape(event.get("title") or ""))
+        if not source_url or not title:
+            continue
+        entries.append(
+            {
+                "source_url": source_url,
+                "title": title,
+                "start_iso": _normalize_space(event.get("start_date")),
+                "end_iso": _normalize_space(event.get("end_date")),
+                "summary": _html_to_text(event.get("description")),
+                "cost_text": _normalize_space(unescape(event.get("cost") or "")),
+            }
+        )
+    return entries
+
+
+def _html_to_text(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        return ""
+    return _normalize_space(BeautifulSoup(value, "html.parser").get_text(" ", strip=True))
+
+
+def _parse_api_datetime(value: str | None) -> datetime | None:
+    """Read the API's "YYYY-MM-DD HH:MM:SS" (and ISO "T") local timestamps."""
+    normalized = _normalize_space(value)
+    if not normalized:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(normalized, fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def parse_plains_art_museum_payload(payload: dict) -> list[ExtractedActivity]:
@@ -258,12 +311,21 @@ def _build_row(*, entry: dict[str, str], detail_html: str | None) -> ExtractedAc
     if not _is_qualifying(text_blob):
         return None
 
-    start_at, end_at = _parse_datetimes(detail["date_text"] or _normalize_space(entry.get("date_text")))
+    start_at = _parse_api_datetime(entry.get("start_iso"))
+    end_at = _parse_api_datetime(entry.get("end_iso")) if start_at is not None else None
+    if start_at is None:
+        start_at, end_at = _parse_datetimes(detail["date_text"] or _normalize_space(entry.get("date_text")))
     if start_at is None:
         return None
 
     age_min, age_max = _parse_age_range(title=title, description=description)
-    pricing_text = _join_non_empty([description, " | ".join(detail["cta_texts"]) if detail["cta_texts"] else None])
+    pricing_text = _join_non_empty(
+        [
+            description,
+            _normalize_space(entry.get("cost_text")) or None,
+            " | ".join(detail["cta_texts"]) if detail["cta_texts"] else None,
+        ]
+    )
     return ExtractedActivity(
         source_url=source_url,
         title=title,
