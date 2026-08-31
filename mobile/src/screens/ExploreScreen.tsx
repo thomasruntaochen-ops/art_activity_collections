@@ -12,8 +12,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { ScreenGradient } from "../components/ScreenGradient";
 import { VenueCard } from "../components/VenueCard";
-import { useVenues } from "../hooks/useVenues";
+import { useMuseumCount, useVenues } from "../hooks/useVenues";
 import { dedupeVenues } from "../lib/format";
 import { stateName } from "../lib/states";
 import { haversineMiles, resolveVenueCoordinates } from "../lib/venue-map-data";
@@ -27,6 +28,7 @@ export function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
   const { data, isLoading, isError, error, refetch, isRefetching } = useVenues();
+  const { data: museumCount } = useMuseumCount();
   const activeCount = useFilters(activeFilterCount);
   const userLocation = useFilters((s) => s.userLocation);
   const radiusMiles = useFilters((s) => s.radiusMiles);
@@ -91,10 +93,16 @@ export function ExploreScreen() {
 
   const nearMeActive = Boolean(userLocation && radiusMiles);
 
+  // Until the count resolves (or if it fails) the sentence simply drops the
+  // number rather than claiming zero museums.
+  const tagline = museumCount
+    ? `Discover the art museum activities across ${museumCount.toLocaleString()} museums for kids, teens and adults.`
+    : "Discover the art museum activities for kids, teens and adults.";
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top + space.md }]}>
+    <ScreenGradient style={[styles.container, { paddingTop: insets.top + space.md }]}>
       <Text style={styles.brand}>Art Museum Activities</Text>
-      <Text style={styles.subtitle}>Museums with active art programs</Text>
+      <Text style={styles.subtitle}>{tagline}</Text>
 
       <View style={styles.searchRow}>
         <TextInput
@@ -207,14 +215,13 @@ export function ExploreScreen() {
           }
         />
       )}
-    </View>
+    </ScreenGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.paper,
     paddingHorizontal: space.lg,
   },
   brand: {
@@ -225,8 +232,9 @@ const styles = StyleSheet.create({
   subtitle: {
     fontFamily: fonts.sans,
     fontSize: 14,
+    lineHeight: 20,
     color: colors.muted,
-    marginTop: 2,
+    marginTop: 4,
     marginBottom: space.md,
   },
   searchRow: {
@@ -324,8 +332,6 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: space.md,
     paddingTop: space.lg,
-    borderTopColor: colors.line,
-    borderTopWidth: 1,
     gap: space.sm,
   },
   footerText: {

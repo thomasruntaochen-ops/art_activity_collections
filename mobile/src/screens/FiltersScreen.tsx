@@ -168,8 +168,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingTop: space.md,
     backgroundColor: colors.paper,
-    borderTopColor: colors.line,
-    borderTopWidth: 1,
   },
   clearBtn: {
     flex: 1,

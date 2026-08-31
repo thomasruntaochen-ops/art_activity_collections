@@ -138,6 +138,10 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [venues, setVenues] = useState<VenueSummary[]>([]);
+  // Total museums in the directory, for the header tagline. Fetched once with
+  // only the default "upcoming" window applied — the tagline describes the whole
+  // directory, so it must not move when the user narrows the filter bar.
+  const [museumCount, setMuseumCount] = useState(0);
   const [stateOptions, setStateOptions] = useState<string[]>([]);
   const [cityOptions, setCityOptions] = useState<string[]>([]);
   const [venueOptions, setVenueOptions] = useState<string[]>([]);
@@ -317,6 +321,32 @@ export default function HomePage() {
       cancelled = true;
     };
   }, [selectedCity, selectedState, freeOnly, audienceFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMuseumCount() {
+      try {
+        const rows = await fetchVenueSummaries({
+          date_from: deriveDateRange("upcoming").date_from,
+          // 300 is the API's ceiling for this endpoint; raise both together if
+          // the directory ever outgrows it.
+          limit: 300,
+        });
+        if (cancelled) return;
+        // Same name-merge the venue list uses, so the tagline and the "Art
+        // Museums" list can never disagree on how many museums there are.
+        setMuseumCount(new Set(rows.map((row) => row.venue_name.trim().toLowerCase())).size);
+      } catch {
+        // A failed count just drops the number from the tagline.
+      }
+    }
+
+    loadMuseumCount();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -714,6 +744,11 @@ export default function HomePage() {
     }
     return counts;
   }, [selectedActivities]);
+  // Until the count resolves (or if it fails) the sentence simply drops the
+  // number rather than claiming zero museums.
+  const tagline = museumCount
+    ? `Discover the art museum activities across ${museumCount.toLocaleString()} museums for kids, teens and adults.`
+    : "Discover the art museum activities for kids, teens and adults.";
   const tableSummary = tableLoading
     ? "Loading matching activities..."
     : `${tableActivities.length} activities matching the current filters`;
@@ -723,9 +758,10 @@ export default function HomePage() {
       className={`explorer-shell${isMapOpen ? " is-map-open" : ""}${isFiltersOpen ? " is-filters-open" : ""}`}
     >
       <header className="explorer-topbar">
-        <div className="explorer-brand">Art Museum Activities Explorer</div>
-        {/* Mobile-only subtitle, matching the app's Explore header. */}
-        <p className="explorer-subtitle">Museums with active art programs</p>
+        <div className="explorer-identity">
+          <div className="explorer-brand">Art Museum Activities</div>
+          <p className="explorer-subtitle">{tagline}</p>
+        </div>
         <div className="explorer-headersearch">
           {viewMode === "map" ? (
             <>
@@ -988,7 +1024,7 @@ export default function HomePage() {
       <section className="explorer-content">
         <aside className="explorer-sidebar">
           <div className="explorer-sidebar__heading">
-            <h1>Venue Explorer</h1>
+            <h1>Art Museums</h1>
             <p>Museums with active art programs</p>
             {locationRange ? (
               <span className="explorer-sidebar__nearby">
@@ -1039,7 +1075,6 @@ export default function HomePage() {
         </aside>
 
         <aside className="explorer-detail" ref={detailRef}>
-          <p className="eyebrow">Venue Activities</p>
           <h2>{selectedVenue?.venue_name ?? "Select a museum"}</h2>
           <p className="explorer-detail__location">{selectedLocation}</p>
           {selectedVenue && directionsTargets ? (
@@ -1248,7 +1283,7 @@ export default function HomePage() {
               <p className="site-footer__heading">Disclaimer</p>
               <ul className="site-footer__list">
                 <li>
-                  <strong>Independent directory.</strong> Art Museum Activities Explorer is an
+                  <strong>Independent directory.</strong> Art Museum Activities is an
                   independent guide to art activities for all ages — kids, teens, and adults — and
                   is not affiliated with, endorsed by, or sponsored by any museum or institution
                   listed here.

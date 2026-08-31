@@ -3,7 +3,7 @@ import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Art Museum Activities Explorer",
+  title: "Art Museum Activities",
   description: "Search museum art activities for kids, teens, and adults",
 };
 

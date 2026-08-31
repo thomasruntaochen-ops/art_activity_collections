@@ -221,8 +221,6 @@ const styles = StyleSheet.create({
     bottom: space.md,
     backgroundColor: colors.paper,
     borderRadius: radius.lg,
-    borderColor: colors.line,
-    borderWidth: 1,
     padding: space.lg,
     shadowColor: "#000",
     shadowOpacity: 0.18,

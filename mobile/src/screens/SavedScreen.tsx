@@ -8,6 +8,7 @@ import { ActivityRow } from "../components/ActivityRow";
 import { VenueCard } from "../components/VenueCard";
 import type { RootStackParamList } from "../navigation/types";
 import { useFavorites } from "../store/favorites";
+import { ScreenGradient } from "../components/ScreenGradient";
 import { colors, fonts, space } from "../theme";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -33,54 +34,56 @@ export function SavedScreen() {
   const isEmpty = venues.length === 0 && activities.length === 0;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{
-        paddingTop: insets.top + space.md,
-        paddingHorizontal: space.lg,
-        paddingBottom: insets.bottom + space.xl,
-      }}
-      showsVerticalScrollIndicator={false}
-    >
-      <Text style={styles.brand}>Saved</Text>
-      <Text style={styles.subtitle}>Your museums and activities, kept on this phone</Text>
+    <ScreenGradient>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{
+          paddingTop: insets.top + space.md,
+          paddingHorizontal: space.lg,
+          paddingBottom: insets.bottom + space.xl,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.brand}>Saved</Text>
+        <Text style={styles.subtitle}>Your museums and activities, kept on this phone</Text>
 
-      {isEmpty ? (
-        <View style={styles.empty}>
-          <Ionicons name="heart-outline" size={40} color={colors.muted} />
-          <Text style={styles.note}>
-            Nothing saved yet. Tap the heart on any museum or activity and it will show up here.
-          </Text>
-        </View>
-      ) : null}
+        {isEmpty ? (
+          <View style={styles.empty}>
+            <Ionicons name="heart-outline" size={40} color={colors.muted} />
+            <Text style={styles.note}>
+              Nothing saved yet. Tap the heart on any museum or activity and it will show up here.
+            </Text>
+          </View>
+        ) : null}
 
-      {venues.length > 0 ? (
-        <>
-          <Text style={styles.section}>Museums</Text>
-          {venues.map((venue) => (
-            <VenueCard
-              key={venue.venue_name}
-              venue={venue}
-              onPress={() => navigation.navigate("VenueDetail", { venue })}
-            />
-          ))}
-        </>
-      ) : null}
+        {venues.length > 0 ? (
+          <>
+            <Text style={styles.section}>Museums</Text>
+            {venues.map((venue) => (
+              <VenueCard
+                key={venue.venue_name}
+                venue={venue}
+                onPress={() => navigation.navigate("VenueDetail", { venue })}
+              />
+            ))}
+          </>
+        ) : null}
 
-      {activities.length > 0 ? (
-        <>
-          <Text style={styles.section}>Activities</Text>
-          {activities.map((activity) => (
-            <ActivityRow key={activity.id} activity={activity} />
-          ))}
-        </>
-      ) : null}
-    </ScrollView>
+        {activities.length > 0 ? (
+          <>
+            <Text style={styles.section}>Activities</Text>
+            {activities.map((activity) => (
+              <ActivityRow key={activity.id} activity={activity} />
+            ))}
+          </>
+        ) : null}
+      </ScrollView>
+    </ScreenGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.paper },
+  container: { flex: 1, backgroundColor: "transparent" },
   brand: { fontFamily: fonts.serif, fontSize: 28, color: colors.ink },
   subtitle: {
     fontFamily: fonts.sans,

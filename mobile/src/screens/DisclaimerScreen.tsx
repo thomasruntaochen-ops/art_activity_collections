@@ -8,7 +8,7 @@ const ITEMS: { lead: string; body: string }[] = [
   {
     lead: "Independent directory.",
     body:
-      "Art Museum Activities Explorer is an independent guide to art activities for all ages — kids, teens, and adults — and is not affiliated with, endorsed by, or sponsored by any museum or institution listed here.",
+      "Art Museum Activities is an independent guide to art activities for all ages — kids, teens, and adults — and is not affiliated with, endorsed by, or sponsored by any museum or institution listed here.",
   },
   {
     lead: "Information may be inaccurate or out of date.",

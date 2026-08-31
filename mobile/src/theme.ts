@@ -21,6 +21,13 @@ export const fonts = {
   sans: Platform.select({ ios: "Avenir Next", default: "System" }) as string,
 };
 
+// Page wash, ported from the web's html background: the same paper base graded
+// warm-to-deep. Used by <ScreenGradient> on the content screens.
+export const gradient = {
+  colors: ["#faf5ed", "#f5efe6", "#eee7dc"] as [string, string, string],
+  locations: [0, 0.48, 1] as [number, number, number],
+};
+
 export const radius = { sm: 10, md: 16, lg: 22 };
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 };

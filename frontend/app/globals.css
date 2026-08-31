@@ -15,9 +15,15 @@
 }
 
 html {
+  min-height: 100%;
   background:
-    radial-gradient(circle at top left, rgba(255, 246, 226, 0.9), transparent 32%),
-    linear-gradient(180deg, #f9f3ea 0%, #f1ebe2 100%);
+    radial-gradient(1100px 620px at 8% -8%, rgba(255, 248, 232, 0.95), transparent 58%),
+    radial-gradient(900px 560px at 94% 2%, rgba(247, 235, 213, 0.7), transparent 60%),
+    radial-gradient(1200px 780px at 50% 112%, rgba(238, 229, 214, 0.9), transparent 62%),
+    linear-gradient(180deg, #faf5ed 0%, #f5efe6 48%, #eee7dc 100%);
+  /* Fixed so the wash stays put while the shell scrolls — otherwise the
+     gradient slides under the sections and the seams reappear. */
+  background-attachment: fixed;
 }
 
 body {
@@ -95,6 +101,19 @@ a {
   letter-spacing: -0.03em;
 }
 
+.explorer-identity {
+  display: grid;
+  gap: 6px;
+  max-width: 620px;
+}
+
+.explorer-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
 .explorer-toolbar {
   display: flex;
   align-items: center;
@@ -169,12 +188,9 @@ a {
   grid-template-columns: repeat(5, minmax(0, 1fr)) auto auto;
   gap: 14px;
   margin-bottom: 20px;
-  padding: 16px;
-  border: 1px solid rgba(123, 99, 65, 0.12);
-  border-radius: 24px;
-  background: rgba(255, 251, 245, 0.74);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(10px);
+  padding: 4px 2px 12px;
+  border: 0;
+  background: transparent;
 }
 
 .explorer-filterbar__control {
@@ -249,7 +265,6 @@ a {
 .filters-advanced__done,
 .filters-advanced__label,
 .filters-advanced__chips,
-.explorer-subtitle,
 .explorer-actionrow,
 .explorer-datestatus,
 .explorer-headersearch__filters,
@@ -339,27 +354,38 @@ a {
   grid-template-areas:
     "explorer detail"
     "map      detail";
+  gap: 10px;
   height: clamp(780px, calc(100vh - 120px), 884px);
   min-height: 780px;
-  border: 1px solid rgba(123, 99, 65, 0.12);
-  border-radius: 30px;
+  border: 0;
+  /* Still clipped: the panes scroll internally and the map fills its cell. */
   overflow: hidden;
-  background: rgba(255, 251, 245, 0.74);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(10px);
+  background: transparent;
 }
 
+/* Soft gradient panels in place of the old frames: the Art Museums list and the
+   Activities pane each get a warm wash that fades out toward the page, so they
+   still read as their own surface without a boundary line drawn around them.
+   `background-attachment` stays at the default `scroll`, which pins the wash to
+   the pane's box rather than dragging it along with the scrolling content. */
 .explorer-sidebar,
 .explorer-detail {
   padding: 32px 28px;
-  background: rgba(255, 251, 245, 0.78);
+  border-radius: 26px;
+  background:
+    radial-gradient(130% 62% at 50% 0%, rgba(255, 255, 255, 0.72), transparent 64%),
+    linear-gradient(
+      168deg,
+      rgba(255, 252, 246, 0.92) 0%,
+      rgba(251, 246, 238, 0.58) 46%,
+      rgba(244, 237, 226, 0.2) 100%
+    );
   min-height: 0;
   overflow-y: auto;
 }
 
 .explorer-sidebar {
   grid-area: explorer;
-  border-bottom: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -369,16 +395,15 @@ a {
 
 .explorer-detail {
   grid-area: detail;
-  border-left: 1px solid var(--line);
 }
 
 .explorer-map {
   grid-area: map;
-  padding: 14px;
+  /* Matches the sidebar's 24px inset so the map's edges line up with the venue
+     cards above it now that neither has a frame to define it. */
+  padding: 4px 24px 14px;
   min-height: 0;
-  background:
-    radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.85), transparent 28%),
-    linear-gradient(180deg, rgba(243, 237, 228, 0.88), rgba(237, 232, 223, 0.96));
+  background: transparent;
 }
 
 .explorer-map__frame {
@@ -386,10 +411,10 @@ a {
   height: 100%;
   flex-direction: column;
   min-height: 0;
+  /* Radius kept purely to round the map tiles; no frame around it. */
   border-radius: 24px;
-  border: 1px solid rgba(116, 98, 71, 0.12);
-  background: rgba(255, 255, 255, 0.36);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74);
+  border: 0;
+  background: transparent;
   overflow: hidden;
 }
 
@@ -837,7 +862,6 @@ a {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  border-right: 1px solid var(--line);
 }
 
 .explorer-detail__section {
@@ -1527,9 +1551,6 @@ a {
   }
 
   .explorer-subtitle {
-    display: block;
-    margin: -8px 0 0;
-    color: var(--muted);
     font-size: 0.9rem;
   }
 
@@ -1638,7 +1659,7 @@ a {
   }
 
   .explorer-detail {
-    border-top: 1px solid var(--line);
+    border-top: 0;
   }
 
   /* Keep the horizontal venue-card strip scrolling inside the viewport instead
@@ -1650,9 +1671,8 @@ a {
     max-width: 100%;
   }
 
-  /* The header already says "Museums with active art programs", so drop the
-     sidebar heading on mobile (the "near me" status chip stays). */
-  .explorer-sidebar__heading h1,
+  /* The header tagline covers the strapline, so only that is dropped on
+     mobile — the "Art Museums" heading stays as the list's label. */
   .explorer-sidebar__heading > p {
     display: none;
   }
