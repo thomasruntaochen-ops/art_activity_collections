@@ -204,27 +204,31 @@ use_base_url = false
 args = ["--commit", "--clear"]
 
 [[venues]]
+# Re-enabled 2026-08-30: dry run parses 4 rows. Was disabled with no
+# recorded reason; an empty calendar is not a reason to stop checking.
 venue = "byu_moa"
 state = "UT"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_byu_moa_parser.py"
 batch_id = "batch_a"
 use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# Re-enabled 2026-08-30: dry run parses 1 row.
 venue = "suma"
 state = "UT"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_suma_parser.py"
 batch_id = "batch_b"
 use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# Re-enabled 2026-08-30: dry run parses 15 rows.
 venue = "umfa"
 state = "UT"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_umfa_parser.py"
 batch_id = "batch_c"
 use_base_url = false
@@ -447,9 +451,10 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# Re-enabled 2026-08-30: dry run parses 1 row.
 venue = "wadsworth"
 state = "CT"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_wadsworth_parser.py"
 batch_id = "batch_d"
 use_base_url = false
@@ -624,9 +629,12 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# Re-enabled 2026-08-30: dry run parses 50 rows across chrysler/taubman/
+# virginia_moca/william_king. Only the `branch` sub-venue 404s, which the
+# bundle already skips rather than failing the whole run.
 venue = "va_tribe_bundle"
 state = "VA"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_va_tribe_bundle_parser.py"
 batch_id = "batch_a"
 use_base_url = false
@@ -965,15 +973,18 @@ batch_id = "batch_d"
 use_base_url = false
 args = ["--commit"]
 
-# Disabled 2026-08-28: zanesvilleart.org/calendar/ no longer publishes dated
-# events. It is now a hub linking to program categories (Art Classes, Material
-# Exploration, ...) with no dates anywhere in the page, and the site exposes no
-# Squarespace events collection (/events, /programs etc. all 404 on ?format=json).
-# Re-enable if they restore a real calendar; the parser needs rewriting either way.
+# Re-enabled 2026-08-30 with a caveat. Disabled 2026-08-28 because
+# zanesvilleart.org/calendar/ stopped publishing dated events -- it is now a hub
+# linking to program categories with no dates, and no Squarespace events
+# collection (/events, /programs all 404 on ?format=json). The dry run exits
+# clean at 0 rows, so running it daily is harmless and it will pick events up if
+# the site's current structure ever carries them. NOTE: if they restore a
+# calendar in a different shape, the parser still needs rewriting -- being
+# enabled is not by itself proof it will catch a restored calendar.
 [[venues]]
 venue = "zanesville_museum_of_art"
 state = "OH"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_zanesville_museum_of_art_parser.py"
 batch_id = "batch_e"
 use_base_url = false
@@ -1475,9 +1486,12 @@ use_base_url = false
 args = ["--venue", "stifel", "--commit"]
 
 [[venues]]
+# Re-enabled 2026-08-30: dry run exits clean with 0 rows -- the parser works,
+# the museum just has nothing scheduled. Left enabled so events are picked up
+# whenever they post them.
 venue = "plains_art_museum"
 state = "ND"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_plains_art_museum_parser.py"
 batch_id = "batch_b"
 use_base_url = false
@@ -1520,27 +1534,32 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# Re-enabled 2026-08-30: dry run exits clean with 0 rows (parser fine, nothing
+# scheduled). Left enabled so future events are picked up.
 venue = "dahl_arts_center"
 state = "SD"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_dahl_arts_center_parser.py"
 batch_id = "batch_c"
 use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# Re-enabled 2026-08-30: dry run parses 3 rows.
 venue = "south_dakota_art_museum"
 state = "SD"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_south_dakota_art_museum_parser.py"
 batch_id = "batch_d"
 use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# Re-enabled 2026-08-30: dry run exits clean with 0 rows (parser fine, nothing
+# scheduled). Left enabled so future events are picked up.
 venue = "university_of_wyoming_art_museum"
 state = "WY"
-enabled = false
+enabled = true
 parser_script_name = "scripts/run_university_of_wyoming_art_museum_parser.py"
 batch_id = "batch_e"
 use_base_url = false
