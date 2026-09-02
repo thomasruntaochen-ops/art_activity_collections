@@ -3,6 +3,9 @@ from datetime import datetime
 from src.crawlers.adapters.university_of_wyoming_art_museum import (
     parse_university_of_wyoming_art_museum_payload,
 )
+from src.crawlers.pipeline.candidates import get_candidate_count
+from src.crawlers.pipeline.candidates import listing_was_recognized
+from src.crawlers.pipeline.candidates import reset_candidate_count
 
 
 def test_university_of_wyoming_art_museum_parser_keeps_talks_and_workshops() -> None:
@@ -61,3 +64,37 @@ def test_university_of_wyoming_art_museum_parser_keeps_talks_and_workshops() -> 
     assert rows[2].end_at == datetime(2026, 4, 11, 15, 0)
     assert rows[2].activity_type == "workshop"
     assert rows[2].registration_required is True
+
+
+def test_empty_feed_is_reported_as_a_recognized_listing() -> None:
+    """The museum's Trumba feed is valid RSS with no items when nothing is booked.
+
+    Without reporting the channel, the empty-parse guard could not tell that from
+    a dead parser and exited 2 with an alert on every single run.
+    """
+    rss_text = """<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>UWYO Events University of Wyoming Art Museum Marketing</title>
+    <link>https://www.uwyo.edu/uw/cal</link>
+  </channel>
+</rss>"""
+
+    reset_candidate_count()
+    rows = parse_university_of_wyoming_art_museum_payload(rss_text)
+
+    assert rows == []
+    assert listing_was_recognized() is True
+    assert get_candidate_count() == 0
+
+
+def test_malformed_feed_is_not_reported_as_recognized() -> None:
+    """A feed with no <channel> is breakage, and must still reach the alert path."""
+    reset_candidate_count()
+
+    rows = parse_university_of_wyoming_art_museum_payload(
+        '<?xml version="1.0" encoding="utf-8"?><rss version="2.0"></rss>'
+    )
+
+    assert rows == []
+    assert listing_was_recognized() is False

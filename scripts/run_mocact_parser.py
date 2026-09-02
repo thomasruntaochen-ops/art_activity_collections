@@ -89,15 +89,10 @@ async def main() -> None:
         )
     )
     parser.add_argument(
-        "--start-date",
-        default=None,
-        help="Optional start date override in YYYY-MM-DD format.",
-    )
-    parser.add_argument(
-        "--page-limit",
+        "--detail-limit",
         type=int,
         default=None,
-        help="Optional cap on fetched API pages.",
+        help="Optional cap on fetched event detail pages.",
     )
     parser.add_argument(
         "--commit",
@@ -147,8 +142,7 @@ async def main() -> None:
             name="mocact_events",
             source_url=MOCACT_EVENTS_PAGE_URL,
             load_payload=lambda: load_mocact_events_payload(
-                start_date=args.start_date,
-                page_limit=args.page_limit,
+                detail_limit=args.detail_limit,
             ),
             parse_payload=parse_mocact_events_payload,
             parser_name="run_mocact_parser",

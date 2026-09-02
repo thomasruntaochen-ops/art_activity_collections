@@ -17,6 +17,7 @@ from src.crawlers.adapters.nc_tribe_bundle import get_nc_tribe_source_prefixes  
 from src.crawlers.adapters.nc_tribe_bundle import load_nc_tribe_bundle_payload  # noqa: E402
 from src.crawlers.adapters.nc_tribe_bundle import parse_nc_tribe_events  # noqa: E402
 from src.crawlers.pipeline.clear_utils import lookup_venue_ids  # noqa: E402
+from src.crawlers.pipeline.alerts import send_crawler_alert  # noqa: E402
 from src.crawlers.pipeline.script_runner import EmptyCommitGuard  # noqa: E402
 from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
 from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
@@ -227,8 +228,23 @@ async def main() -> None:
         )
 
     if errors_by_slug:
+        # Partial failure is not venue failure. Every sibling that parsed has already
+        # committed by this point, so exiting non-zero here reported a healthy run as
+        # broken -- 2026-08-31 inserted 43 rows and still went down as a failure
+        # because one dead sub-venue 404'd. The all-failed case still raises above.
         failed = ", ".join(sorted(errors_by_slug))
-        raise SystemExit(f"Completed NC Tribe bundle with fetch failures: {failed}")
+        print(f"[nc-tribe-fetch] completed with fetch failures: {failed}")
+        send_crawler_alert(
+            title="NC Tribe bundle sub-venue fetch failures",
+            message=(
+                f"Committed the venues that parsed; skipped {len(errors_by_slug)} that could not be fetched."
+            ),
+            details={
+                "parser": "run_nc_tribe_bundle_parser",
+                "failed_venues": {slug: message for slug, message in sorted(errors_by_slug.items())},
+                "committed_venues": [venue.slug for venue in selected_venues if venue.slug not in errors_by_slug],
+            },
+        )
 
 
 if __name__ == "__main__":

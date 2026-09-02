@@ -181,15 +181,21 @@ VA_TRIBE_VENUES: tuple[VaTribeVenueConfig, ...] = (
         list_url="https://www.taubmanmuseum.org/events/",
         api_url="https://www.taubmanmuseum.org/wp-json/tribe/events/v1/events",
     ),
-    VaTribeVenueConfig(
-        slug="branch",
-        source_name="branch_events",
-        venue_name="The Branch Museum of Design",
-        city="Richmond",
-        state="VA",
-        list_url="https://branchmuseum.org/makers-studio/",
-        api_url="https://branchmuseum.org/wp-json/tribe/events/v1/events",
-    ),
+    # Removed 2026-09-01: The Branch Museum left WordPress entirely. /wp-json/ no
+    # longer serves JSON, and both /makers-studio/ and /events/ 404; the site was
+    # rebuilt on a custom stack (Stripe + Swiper) whose events now live at
+    # https://branchmuseum.org/calendar/ in server-rendered markup. That needs a
+    # new adapter, not a repointed Tribe URL, so the sub-venue is out of the
+    # bundle rather than failing its fetch on every run.
+    # VaTribeVenueConfig(
+    #     slug="branch",
+    #     source_name="branch_events",
+    #     venue_name="The Branch Museum of Design",
+    #     city="Richmond",
+    #     state="VA",
+    #     list_url="https://branchmuseum.org/makers-studio/",
+    #     api_url="https://branchmuseum.org/wp-json/tribe/events/v1/events",
+    # ),
     VaTribeVenueConfig(
         slug="virginia_moca",
         source_name="virginia_moca_events",

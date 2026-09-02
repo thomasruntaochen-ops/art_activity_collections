@@ -30,6 +30,20 @@ BUTLER_LOCATION = "The Butler Institute of American Art, Youngstown, OH"
 TIME_RANGE_RE = re.compile(r"TIME\s+(.+?)(?:LOCATION|More Information|Registration|AMERICA 250)", re.IGNORECASE)
 AGE_RE = re.compile(r"ages?\s+([0-9]{1,2})(?:\s*-\s*([0-9]{1,2}))?", re.IGNORECASE)
 
+NAVIGATION_TIMEOUT_MS = 60000
+SELECTOR_TIMEOUT_MS = 30000
+
+
+async def _open_listing(page) -> None:
+    """Load the events grid and wait for the events themselves, not for silence.
+
+    butlerart.com keeps background requests open, so `networkidle` can simply
+    never fire -- on 2026-08-31 it burned the full 120s timeout and took the
+    venue down with it, while the grid itself renders in under two seconds.
+    """
+    await page.goto(BUTLER_EVENTS_URL, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
+    await page.wait_for_selector(".mec-event-article", timeout=SELECTOR_TIMEOUT_MS)
+
 
 async def load_butler_institute_of_american_art_payload() -> dict:
     if async_playwright is None:
@@ -40,7 +54,7 @@ async def load_butler_institute_of_american_art_payload() -> dict:
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         page = await browser.new_page()
-        await page.goto(BUTLER_EVENTS_URL, wait_until="networkidle", timeout=120000)
+        await _open_listing(page)
 
         articles = page.locator(".mec-event-article")
         item_count = await articles.count()
@@ -54,9 +68,9 @@ async def load_butler_institute_of_american_art_payload() -> dict:
 
             detail_text = None
             if href and _title_is_candidate(title):
-                await page.goto(href, wait_until="networkidle", timeout=120000)
+                await page.goto(href, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
                 detail_text = normalize_space(await page.locator("body").inner_text())
-                await page.goto(BUTLER_EVENTS_URL, wait_until="networkidle", timeout=120000)
+                await _open_listing(page)
                 articles = page.locator(".mec-event-article")
 
             items.append(

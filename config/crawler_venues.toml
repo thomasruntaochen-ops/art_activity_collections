@@ -524,6 +524,10 @@ use_base_url = false
 args = ["--commit", "--clear"]
 
 [[venues]]
+# Repointed 2026-09-01. MoCA CT dropped The Events Calendar around 2026-08-30:
+# the tribe REST route 404s and the namespace is gone from /wp-json/. The site
+# runs Modern Events Calendar now, so the adapter reads the MEC monthly view at
+# /calendar/ (the MEC REST routes expose the posts but not their schedules).
 venue = "mocact"
 state = "CT"
 enabled = true
@@ -630,8 +634,11 @@ args = ["--commit"]
 
 [[venues]]
 # Re-enabled 2026-08-30: dry run parses 50 rows across chrysler/taubman/
-# virginia_moca/william_king. Only the `branch` sub-venue 404s, which the
-# bundle already skips rather than failing the whole run.
+# virginia_moca/william_king.
+# 2026-09-01: `branch` was skipped per-venue but the script still exited 1 at the
+# end, so a run that committed 43 rows was reported as a failure. Partial fetch
+# failures now alert instead of failing the venue, and `branch` is out of the
+# bundle entirely -- The Branch Museum left WordPress and needs a new adapter.
 venue = "va_tribe_bundle"
 state = "VA"
 enabled = true
@@ -785,6 +792,9 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# 2026-09-01: partial fetch failures no longer fail the venue. A 504 on page 16
+# of Mint's pagination sank the whole bundle on 08-31 even though 56 rows parsed
+# and committed from the other four venues.
 venue = "nc_tribe_bundle"
 state = "NC"
 enabled = true
@@ -884,6 +894,10 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# Fixed 2026-09-01. The 0 rows on 07/29-07/31 and 08/30-08/31 were not an empty
+# calendar: /calendar only shows the current month, and the parser filtered on
+# each class series' start date, so every multi-week class aged out the moment
+# week one passed. It now expands the Begins/Ends range into concrete sessions.
 venue = "canton_museum_of_art"
 state = "OH"
 enabled = true
@@ -956,6 +970,9 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# 2026-09-01: navigation waits for the events grid rather than for networkidle.
+# butlerart.com keeps background requests open, so networkidle never fired on
+# 08-31 and burned the full 120s timeout on a page that renders in under 2s.
 venue = "butler_institute_of_american_art"
 state = "OH"
 enabled = true
@@ -1090,6 +1107,8 @@ use_base_url = false
 args = ["--commit"]
 
 [[venues]]
+# 2026-09-01: fetch_json retries like fetch_html always has. A single TLS blip
+# against artcenterky.org aborted every Kentucky venue in the 08-31 run.
 venue = "ky_bundle"
 state = "KY"
 enabled = true
@@ -1562,6 +1581,9 @@ args = ["--commit"]
 # Trumba webName="art-museum-marketing" -- the exact feed the adapter reads --
 # and that feed is valid RSS with zero <item>s. The parser is correct; left
 # enabled so events are picked up as soon as the museum publishes any.
+# 2026-09-01: the first run under that decision failed nightly, because an empty
+# parse exits 2 unless the parser says it found its listing. The adapter now
+# reports the RSS <channel>, so a quiet feed is a clean exit instead of an alert.
 venue = "university_of_wyoming_art_museum"
 state = "WY"
 enabled = true

@@ -1,6 +1,8 @@
 import json
 import re
+from datetime import date
 from datetime import datetime
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
@@ -35,6 +37,29 @@ TIME_BLOCK_RE = re.compile(
     r"(?:(?:\d+)\s+[A-Za-z]+s?,\s*)?(?P<time>\d{1,2}:\d{2}\s*[AP]M-\d{1,2}:\d{2}\s*[AP]M)",
     re.IGNORECASE,
 )
+# "Begins 09/04/2026, Ends 12/04/2026, no class 11/13/2026,11/20/2026"
+NO_CLASS_RE = re.compile(
+    r"no\s+class\s+(?P<dates>\d{2}/\d{2}/\d{4}(?:\s*,\s*\d{2}/\d{2}/\d{4})*)",
+    re.IGNORECASE,
+)
+# The days field either names the weekday a series meets on ("6 Wednesdays") or
+# spells the sessions out ("1 09/02/26,09/09/26,09/16/26, 06:00 PM-08:00 PM").
+SESSION_DATE_RE = re.compile(r"\b(\d{2}/\d{2}/\d{2})(?!\d)")
+WEEKDAY_RE = re.compile(
+    r"\b(?P<weekday>sunday|monday|tuesday|wednesday|thursday|friday|saturday)s?\b",
+    re.IGNORECASE,
+)
+WEEKDAY_INDEX = {
+    "monday": 0,
+    "tuesday": 1,
+    "wednesday": 2,
+    "thursday": 3,
+    "friday": 4,
+    "saturday": 5,
+    "sunday": 6,
+}
+# Sanity bound on a Begins/Ends range before expanding it week by week.
+MAX_SERIES_DAYS = 365
 
 
 async def load_canton_museum_of_art_payload() -> dict:
@@ -60,19 +85,17 @@ def parse_canton_museum_of_art_payload(payload: dict) -> list[ExtractedActivity]
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
     for detail_url, html in detail_pages.items():
-        row = _build_row(
+        for row in _build_rows(
             html,
             detail_url=detail_url,
             listing_item=listing_items.get(detail_url),
             today=today,
-        )
-        if row is None:
-            continue
-        key = (row.source_url, row.title, row.start_at)
-        if key in seen:
-            continue
-        seen.add(key)
-        rows.append(row)
+        ):
+            key = (row.source_url, row.title, row.start_at)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(row)
 
     rows.sort(key=lambda row: (row.start_at, row.title))
     return rows
@@ -122,13 +145,21 @@ def _parse_listing_items(listing_html: str) -> dict[str, dict]:
     return items
 
 
-def _build_row(
+def _build_rows(
     html: str,
     *,
     detail_url: str,
     listing_item: dict | None,
-    today,
-) -> ExtractedActivity | None:
+    today: date,
+) -> list[ExtractedActivity]:
+    """One row per session still to come in a class series.
+
+    Canton lists a multi-week class as a Begins/Ends range plus the weekday it
+    meets on, and /calendar only shows the current month. Keying off the series
+    start date alone therefore dropped every class the moment week one passed --
+    0 rows on 07/29-07/31 and again on 08/30-08/31, while 11 classes running
+    through October sat on the page.
+    """
     soup = BeautifulSoup(html, "html.parser")
     title = normalize_space(
         soup.select_one("h1#page-title").get_text(" ", strip=True)
@@ -148,9 +179,9 @@ def _build_row(
     event_type = normalize_space((listing_item or {}).get("event_type"))
     candidate_blob = f" {normalize_space(join_non_empty([title, event_type, skill_text, description_text]) or '').lower()} "
     if " camp " in candidate_blob:
-        return None
+        return []
     if not should_include_event(title=title, description=description_text, category=join_non_empty([event_type, skill_text])):
-        return None
+        return []
 
     begin_text = normalize_space(
         soup.select_one(".cuscls_data_begin").get_text(" ", strip=True)
@@ -159,21 +190,32 @@ def _build_row(
     )
     date_match = DATE_RANGE_RE.search(begin_text)
     if date_match is None:
-        return None
+        return []
     start_date = datetime.strptime(date_match.group("start"), "%m/%d/%Y").date()
-    if start_date < today:
-        return None
+    end_date = datetime.strptime(date_match.group("end"), "%m/%d/%Y").date()
+    if end_date < start_date:
+        end_date = start_date
 
     day_time_text = normalize_space(
         soup.select_one(".cuscls_data_days").get_text(" ", strip=True)
         if soup.select_one(".cuscls_data_days")
         else ""
     )
+    skipped_dates = _no_class_dates(begin_text)
+    session_dates = [
+        session_date
+        for session_date in _session_dates(
+            start_date=start_date,
+            end_date=end_date,
+            day_text=day_time_text,
+        )
+        if session_date >= today and session_date not in skipped_dates
+    ]
+    if not session_dates:
+        return []
+
     time_match = TIME_BLOCK_RE.search(day_time_text)
     time_text = time_match.group("time") if time_match else None
-    start_at, end_at = parse_time_range(base_date=start_date, time_text=time_text)
-    if start_at is None:
-        return None
 
     room_text = normalize_space(
         soup.select_one(".cuscls_data_room").get_text(" ", strip=True)
@@ -211,28 +253,98 @@ def _build_row(
         ]
     )
 
-    return ExtractedActivity(
-        source_url=detail_url,
-        title=title,
-        description=full_description,
-        venue_name=CANTON_VENUE_NAME,
-        location_text=location_text,
-        city=CANTON_CITY,
-        state=CANTON_STATE,
-        activity_type=infer_activity_type(title, full_description, event_type),
-        age_min=age_min,
-        age_max=age_max,
-        drop_in=False,
-        registration_required=True,
-        start_at=start_at,
-        end_at=end_at,
-        timezone=NY_TIMEZONE,
-        audience_segment=infer_audience_segment(
-            title=title,
-            description=full_description,
-            category=event_type,
-            age_min=age_min,
-            age_max=age_max,
-        ),
-        **price_classification_kwargs(full_description),
-    )
+    rows: list[ExtractedActivity] = []
+    for session_date in session_dates:
+        start_at, end_at = parse_time_range(base_date=session_date, time_text=time_text)
+        if start_at is None:
+            continue
+        rows.append(
+            ExtractedActivity(
+                source_url=detail_url,
+                title=title,
+                description=full_description,
+                venue_name=CANTON_VENUE_NAME,
+                location_text=location_text,
+                city=CANTON_CITY,
+                state=CANTON_STATE,
+                activity_type=infer_activity_type(title, full_description, event_type),
+                age_min=age_min,
+                age_max=age_max,
+                drop_in=False,
+                registration_required=True,
+                start_at=start_at,
+                end_at=end_at,
+                timezone=NY_TIMEZONE,
+                audience_segment=infer_audience_segment(
+                    title=title,
+                    description=full_description,
+                    category=event_type,
+                    age_min=age_min,
+                    age_max=age_max,
+                ),
+                **price_classification_kwargs(full_description),
+            )
+        )
+
+    return rows
+
+
+def _no_class_dates(begin_text: str) -> set[date]:
+    """Dates the Begins/Ends line explicitly excludes ("no class 11/13/2026")."""
+    match = NO_CLASS_RE.search(begin_text or "")
+    if match is None:
+        return set()
+
+    skipped: set[date] = set()
+    for raw in match.group("dates").split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            skipped.add(datetime.strptime(raw, "%m/%d/%Y").date())
+        except ValueError:
+            continue
+    return skipped
+
+
+def _session_dates(*, start_date: date, end_date: date, day_text: str) -> list[date]:
+    """Every session a class meets, from either shape the days field takes.
+
+    Canton either spells the dates out ("1 09/02/26,09/09/26, 06:00 PM-08:00 PM")
+    or names the weekday and leaves the range implied ("6 Wednesdays"). Anything
+    it cannot read falls back to a single session on the start date.
+    """
+    explicit = _explicit_session_dates(day_text)
+    if explicit:
+        return explicit
+
+    weekday_index = _weekday_index(day_text)
+    if weekday_index is None:
+        return [start_date]
+
+    last_date = min(end_date, start_date + timedelta(days=MAX_SERIES_DAYS))
+    # Keep start_date itself when it already falls on the meeting weekday.
+    cursor = start_date + timedelta(days=(weekday_index - start_date.weekday()) % 7)
+    dates: list[date] = []
+    while cursor <= last_date:
+        dates.append(cursor)
+        cursor += timedelta(weeks=1)
+
+    return dates or [start_date]
+
+
+def _explicit_session_dates(day_text: str) -> list[date]:
+    dates: list[date] = []
+    for raw in SESSION_DATE_RE.findall(day_text or ""):
+        try:
+            dates.append(datetime.strptime(raw, "%m/%d/%y").date())
+        except ValueError:
+            continue
+    return sorted(set(dates))
+
+
+def _weekday_index(day_text: str) -> int | None:
+    match = WEEKDAY_RE.search(day_text or "")
+    if match is None:
+        return None
+    return WEEKDAY_INDEX.get(match.group("weekday").lower())

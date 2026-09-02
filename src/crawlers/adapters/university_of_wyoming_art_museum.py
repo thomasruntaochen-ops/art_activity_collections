@@ -13,6 +13,8 @@ from zoneinfo import ZoneInfo
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.pricing import price_classification_kwargs
+from src.crawlers.pipeline.candidates import record_candidate_count
+from src.crawlers.pipeline.candidates import record_listing_recognized
 from src.crawlers.pipeline.types import ExtractedActivity
 
 UNIVERSITY_OF_WYOMING_ART_MUSEUM_LIST_URL = "https://www.uwyo.edu/artmuseum/events/index.html"
@@ -158,10 +160,18 @@ def parse_university_of_wyoming_art_museum_payload(
     if channel is None:
         return []
 
+    # A well-formed <channel> is the listing container. The museum's Trumba feed
+    # ("art-museum-marketing") is valid RSS carrying zero <item>s whenever nothing
+    # is scheduled, so reporting it here is what tells the empty-parse guard this
+    # is a quiet calendar rather than a broken parser.
+    record_listing_recognized()
+    items = channel.findall("item")
+    record_candidate_count(len(items))
+
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
 
-    for item in channel.findall("item"):
+    for item in items:
         row = _build_row_from_item(item)
         if row is None or row.start_at.date() < start_day:
             continue

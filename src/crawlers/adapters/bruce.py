@@ -86,6 +86,7 @@ async def fetch_bruce_page(
         client = httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS)
 
     last_exception: Exception | None = None
+    challenge_seen = False
     try:
         for attempt in range(1, max_attempts + 1):
             try:
@@ -100,6 +101,18 @@ async def fetch_bruce_page(
             if response.status_code < 400:
                 return response.text
 
+            if _is_bot_challenge(response):
+                # Cloudflare scores these per request rather than blocking outright,
+                # so a challenge is a transient denial like a 429: back off and try
+                # again. We do not attempt to defeat the challenge itself -- if it
+                # keeps coming back the run fails with the reason spelled out, and
+                # the fix is for the museum to allowlist us or publish a feed.
+                challenge_seen = True
+                if attempt < max_attempts:
+                    await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
+                    continue
+                break
+
             if response.status_code in (429, 500, 502, 503, 504) and attempt < max_attempts:
                 await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
                 continue
@@ -109,9 +122,29 @@ async def fetch_bruce_page(
         if owns_client:
             await client.aclose()
 
+    if challenge_seen:
+        raise RuntimeError(
+            f"brucemuseum.org served a Cloudflare bot challenge for {url} on every "
+            f"attempt ({max_attempts}). Ask the museum to allowlist the crawler or to "
+            "point us at an official events feed -- this crawler does not try to "
+            "defeat the challenge."
+        )
     if last_exception is not None:
         raise RuntimeError("Unable to fetch Bruce Museum events page") from last_exception
     raise RuntimeError("Unable to fetch Bruce Museum events page after retries")
+
+
+def _is_bot_challenge(response: httpx.Response) -> bool:
+    """Whether the response is an anti-bot interstitial rather than the page."""
+    if "cf-mitigated" in response.headers:
+        return True
+    if response.status_code not in (401, 403, 429, 503):
+        return False
+    body = response.text[:4000].lower()
+    return any(
+        marker in body
+        for marker in ("challenges.cloudflare.com", "cf-challenge", "just a moment", "enable javascript and cookies")
+    )
 
 
 def build_bruce_events_url(*, page_number: int) -> str:

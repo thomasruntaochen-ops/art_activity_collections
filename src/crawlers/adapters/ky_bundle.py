@@ -281,18 +281,46 @@ async def fetch_json(
     url: str,
     *,
     client: httpx.AsyncClient | None = None,
+    max_attempts: int = 5,
+    base_backoff_seconds: float = 2.0,
 ) -> object:
+    """Same retry policy as fetch_html.
+
+    Without it a single connection blip on one sub-venue aborted the whole
+    Kentucky bundle -- that is how 2026-08-31 lost every KY venue to one
+    transient TLS failure against artcenterky.org.
+    """
     owns_client = client is None
     if client is None:
         client = httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=JSON_HEADERS)
 
+    last_exception: Exception | None = None
     try:
-        response = await client.get(url)
-        response.raise_for_status()
-        return response.json()
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = await client.get(url)
+            except httpx.HTTPError as exc:
+                last_exception = exc
+                if attempt < max_attempts:
+                    await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
+                    continue
+                break
+
+            if response.status_code < 400:
+                return response.json()
+
+            if response.status_code in (429, 500, 502, 503, 504) and attempt < max_attempts:
+                await asyncio.sleep(base_backoff_seconds * (2 ** (attempt - 1)))
+                continue
+
+            response.raise_for_status()
     finally:
         if owns_client:
             await client.aclose()
+
+    if last_exception is not None:
+        raise RuntimeError(f"Unable to fetch JSON: {url}") from last_exception
+    raise RuntimeError(f"Unable to fetch JSON after retries: {url}")
 
 
 async def load_ky_bundle_payload(
