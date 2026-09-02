@@ -638,7 +638,8 @@ args = ["--commit"]
 # 2026-09-01: `branch` was skipped per-venue but the script still exited 1 at the
 # end, so a run that committed 43 rows was reported as a failure. Partial fetch
 # failures now alert instead of failing the venue, and `branch` is out of the
-# bundle entirely -- The Branch Museum left WordPress and needs a new adapter.
+# bundle entirely -- The Branch Museum left WordPress. It runs as its own venue
+# (`branch_museum`) from 2026-09-02.
 venue = "va_tribe_bundle"
 state = "VA"
 enabled = true
@@ -655,6 +656,23 @@ parser_script_name = "scripts/run_va_html_bundle_parser.py"
 batch_id = "batch_c"
 use_base_url = false
 args = ["--commit"]
+
+[[venues]]
+# Added 2026-09-02 as a standalone venue. Branch was a `branch_events` sub-venue
+# of va_tribe_bundle until 2026-09-01, when it was dropped: the museum left
+# WordPress, so /wp-json/ stopped serving JSON and its Tribe fetch 404'd on every
+# run. The rebuilt Drupal site publishes events at /events_programs (with start
+# times; /calendar/ is current-month only and has none), which is what the new
+# adapter reads. --clear also sweeps up the orphaned Tribe-era rows the bundle
+# left behind. Expect low volume: most of what this museum lists is concerts,
+# exhibitions and closures, and only its workshops and design talks qualify.
+venue = "branch_museum"
+state = "VA"
+enabled = true
+parser_script_name = "scripts/run_branch_museum_parser.py"
+batch_id = "batch_e"
+use_base_url = false
+args = ["--commit", "--clear"]
 
 [[venues]]
 venue = "wa_tribe_bundle"
