@@ -1,3 +1,4 @@
+import { slugify } from "./slug";
 // USPS state/territory codes → full display names. The API stores and filters
 // by the code; the UI shows the full name.
 const STATE_NAMES: Record<string, string> = {
@@ -63,4 +64,16 @@ const STATE_NAMES: Record<string, string> = {
 export function stateName(code: string | null | undefined): string {
   if (!code) return "";
   return STATE_NAMES[code.trim().toUpperCase()] ?? code;
+}
+
+// State slugs for the /[state] landing pages. The slug is built from the
+// display name ("CA" -> "california", "DC" -> "washington-dc") so URLs read
+// naturally; the API still filters by the two-letter code.
+export function stateSlug(code: string): string {
+  return slugify(stateName(code));
+}
+
+export function stateCodeFromSlug(slug: string): string | null {
+  const match = Object.keys(STATE_NAMES).find((code) => stateSlug(code) === slug);
+  return match ?? null;
 }

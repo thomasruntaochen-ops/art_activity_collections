@@ -1,6 +1,14 @@
 # Vercel Frontend Setup
 
-Migrate the Next.js frontend from Railway to Vercel. The frontend is fully client-side rendered (CSR) — Vercel serves it as static assets from a global CDN at no cost.
+> **Not the current deployment.** The frontend runs on Railway; see
+> `RAILWAY_CONFIG.md`. This document is kept only as a reference for a possible
+> future migration, and the note below corrects a claim that is no longer true.
+
+Migrate the Next.js frontend from Railway to Vercel. The interactive explorer on
+`/` is client-rendered, but the SEO landing pages (`/[state]`, `/[state]/[city]`,
+`/venue/[slug]`) and the `sitemap.xml`, `robots.txt` and `llms.txt` routes are
+server-rendered with revalidation, so the app is no longer a pure static export
+and needs a host that runs the Next.js server.
 
 ## Prerequisites
 

@@ -133,7 +133,11 @@ const VenueMap = dynamic(
   },
 );
 
-export default function HomePage() {
+// The interactive explorer. It stays a client component — maps, filters and
+// geolocation all need the browser — so the crawlable, server-rendered
+// summary of the site is passed in as `footerSlot` and rendered inside the
+// existing footer rather than being bolted on below it.
+export default function ExplorerClient({ footerSlot }: { footerSlot?: React.ReactNode }) {
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1316,6 +1320,7 @@ export default function HomePage() {
               </ul>
             </div>
           </details>
+          {footerSlot}
           <p className="site-footer__links">
             <Link href="/privacy">Privacy Policy</Link>
             {" · "}Designed and developed by Thomas R Chen{" · "}&copy; 2026 Thomas R Chen

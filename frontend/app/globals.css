@@ -1954,3 +1954,404 @@ a {
     min-height: 44px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Server-rendered SEO pages (/[state], /[state]/[city], /venue/[slug]) and the
+   directory block in the homepage footer. These are documents rather than app
+   surfaces, so they use the same paper/ink/gold tokens but a calmer, readable
+   column instead of the explorer's dense grid.
+   ------------------------------------------------------------------------- */
+
+.seo-page {
+  min-height: 100vh;
+  padding: 40px 24px 72px;
+}
+
+.seo-page__inner {
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.seo-crumbs {
+  margin-bottom: 22px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.seo-crumbs a:hover {
+  color: var(--gold-deep);
+  text-decoration: underline;
+}
+
+.seo-crumbs__sep {
+  margin: 0 8px;
+  color: var(--line-strong);
+}
+
+.seo-page__header {
+  margin-bottom: 34px;
+}
+
+.seo-page__eyebrow {
+  margin: 0 0 8px;
+  color: var(--gold-deep);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.seo-page__title {
+  margin: 0 0 14px;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-weight: 500;
+  font-size: 2.3rem;
+  line-height: 1.15;
+  color: var(--ink);
+}
+
+.seo-page__lede {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.seo-page__photo {
+  width: 100%;
+  height: auto;
+  margin-bottom: 34px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  object-fit: cover;
+}
+
+.seo-section {
+  margin-bottom: 40px;
+}
+
+.seo-section h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-weight: 500;
+  font-size: 1.3rem;
+  color: var(--ink);
+}
+
+.seo-section__count {
+  color: var(--muted);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.seo-section__more {
+  margin: 18px 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.seo-section__more a {
+  color: var(--gold-deep);
+  font-weight: 600;
+}
+
+.seo-section__more a:hover {
+  text-decoration: underline;
+}
+
+.seo-empty {
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+/* Activity list */
+
+.seo-activities {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 14px;
+}
+
+.seo-activity {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-strong);
+}
+
+.seo-activity__title {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink);
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.seo-activity__title:hover {
+  color: var(--gold-deep);
+  text-decoration: underline;
+}
+
+.seo-activity__meta {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.seo-activity__meta a:hover {
+  color: var(--gold-deep);
+  text-decoration: underline;
+}
+
+.seo-activity__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.seo-tag {
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+}
+
+.seo-tag--free {
+  border-color: rgba(200, 144, 49, 0.45);
+  background: rgba(200, 144, 49, 0.12);
+  color: var(--gold-deep);
+  font-weight: 600;
+}
+
+/* Venue grid */
+
+.seo-venues {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.seo-venue {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-strong);
+}
+
+.seo-venue__link {
+  display: grid;
+  gap: 3px;
+}
+
+.seo-venue__name {
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.seo-venue__link:hover .seo-venue__name {
+  color: var(--gold-deep);
+  text-decoration: underline;
+}
+
+.seo-venue__place,
+.seo-venue__count {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.seo-venue__site {
+  color: var(--gold-deep);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.seo-venue__site:hover {
+  text-decoration: underline;
+}
+
+/* Chip lists (cities, states) */
+
+.seo-chiplist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.seo-chip {
+  display: inline-block;
+  padding: 6px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--paper-strong);
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+
+.seo-chip:hover {
+  border-color: var(--gold);
+  color: var(--gold-deep);
+}
+
+/* Venue fact list */
+
+.seo-facts {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.seo-facts div {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.seo-facts dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.seo-facts dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.seo-facts a {
+  color: var(--gold-deep);
+  font-weight: 600;
+}
+
+.seo-facts a:hover {
+  text-decoration: underline;
+}
+
+/* Homepage footer directory */
+
+.seo-directory {
+  margin: 8px 0 26px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+
+.seo-directory__title {
+  margin: 0 0 8px;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-weight: 500;
+  font-size: 1.15rem;
+  color: var(--ink);
+}
+
+.seo-directory__title--faq {
+  margin-top: 30px;
+}
+
+.seo-directory__lede {
+  margin: 0 0 16px;
+  max-width: 68ch;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+
+.seo-directory__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.seo-directory__link {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  color: var(--ink);
+  font-size: 0.86rem;
+  border-bottom: 1px solid transparent;
+}
+
+.seo-directory__link:hover {
+  color: var(--gold-deep);
+  border-bottom-color: var(--line);
+}
+
+.seo-directory__count {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.seo-directory__faq {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  max-width: 72ch;
+}
+
+.seo-directory__faq dt {
+  margin-bottom: 4px;
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.seo-directory__faq dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.65;
+}
+
+@media (max-width: 700px) {
+  .seo-page {
+    padding: 26px 18px 56px;
+  }
+
+  .seo-page__title {
+    font-size: 1.8rem;
+  }
+
+  .seo-facts div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}

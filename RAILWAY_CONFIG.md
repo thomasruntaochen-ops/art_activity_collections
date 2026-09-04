@@ -34,8 +34,12 @@ Optional:
 
 ### API vars
 
-- `API_ALLOWED_ORIGINS=https://<frontend-domain>`
+- `API_ALLOWED_ORIGINS=https://www.artmuseumactivities.com`
   - Comma-separated list of browser origins allowed by CORS.
+  - Only affects browser calls from the explorer. Server-side rendering calls
+    the API from the frontend container, which is not subject to CORS, so an
+    SSR page can render fine while the browser app is still blocked (or the
+    reverse) — check both after a domain change.
   - Must include the exact frontend domain (scheme + host, no trailing slash).
   - Add `http://localhost:3000` only for local development.
 - `AUTH_ENABLED=false`
@@ -58,11 +62,22 @@ Optional:
 - `REDIS_URL=`
   - Redis connection string for shared rate limits across multiple API replicas.
   - Leave empty to use in-memory limiter (works but resets on restart/deploy and is per-instance).
-- `RATE_LIMIT_GUEST_PER_MINUTE=30`
+- `RATE_LIMIT_GUEST_PER_MINUTE=180`
   - Guest/anonymous burst limit in 60-second window.
-  - Applied by client IP when user is not authenticated.
-- `RATE_LIMIT_GUEST_PER_DAY=500`
+  - Applied by client IP when the user is not authenticated.
+  - **Do not lower this below ~60.** Server-side rendering in the `frontend`
+    service reaches the API from a single container, so every SSR request shares
+    one guest IP bucket — unlike browser traffic, which is spread across many.
+    A build issues ~43 requests. At the old documented value of 30 the build
+    still completes (it backs off and retries on `Retry-After`) but takes about
+    2.5 minutes instead of 20 seconds; below that it will start failing deploys.
+- `RATE_LIMIT_GUEST_PER_DAY=10000`
   - Guest/anonymous daily quota (UTC day window).
+  - The old documented value of 500 is too low now: one deploy alone spends ~43,
+    and page revalidation spends more. These limits are abuse guards, not a paid
+    quota — raising them costs only the compute for the extra served requests.
+  - Both values match the defaults in `src/core/config.py`; the 30/500 pair
+    documented here previously predates server-side rendering.
 - `RATE_LIMIT_USER_PER_MINUTE=120`
   - Authenticated user burst limit in 60-second window.
 - `RATE_LIMIT_USER_PER_DAY=5000`
@@ -122,11 +137,32 @@ Safety behavior (all parser scripts):
   - `npm ci && npm run build`
 - Start command:
   - `npm run start`
-- Public domain: enabled
+- Public domain: enabled (`www.artmuseumactivities.com`)
+
+The explorer on `/` is client-rendered, but the SEO pages (`/[state]`,
+`/[state]/[city]`, `/venue/[slug]`) and the `sitemap.xml`, `robots.txt` and
+`llms.txt` routes are server-rendered and revalidated on a timer. `npm run start`
+already runs the Next.js server, so no start-command change is needed — but the
+service must not be switched to a static export, which would drop those routes.
+
+`npm run build` prerenders one page per state and calls the API while doing so
+(~43 requests: one venue catalog plus one activity query per state). City and
+venue pages are generated on first request instead, so they cost nothing at
+build time.
 
 ### Frontend vars
 
 - `NEXT_PUBLIC_API_BASE_URL=https://<api-domain>`
+  - Also used for server-side rendering, so it must be reachable from the
+    frontend container, not just from browsers.
+- `NEXT_PUBLIC_SITE_URL=https://www.artmuseumactivities.com` (optional)
+  - Canonical origin for canonical tags, Open Graph URLs, JSON-LD, `robots.txt`
+    and `sitemap.xml`. It defaults to the production domain in
+    `frontend/lib/site.ts`, so set it only to override for a staging domain or
+    after a rename. Bare origin, no trailing slash.
+  - Serve one canonical host and 301 the other: with `www` canonical, redirect
+    `artmuseumactivities.com` to `www.artmuseumactivities.com`, or search
+    engines index two copies of every page.
 
 ## Required One-Time DB Setup
 
@@ -154,6 +190,11 @@ When frontend domain changes:
 
 1. Update `API_ALLOWED_ORIGINS` in `api`.
 2. Redeploy `api`.
+3. Set `NEXT_PUBLIC_SITE_URL` in `frontend` to the new origin (or update the
+   default in `frontend/lib/site.ts`) and redeploy, so canonical tags, Open
+   Graph URLs and `sitemap.xml` follow the move.
+4. Re-submit `https://<new-domain>/sitemap.xml` in Google Search Console and
+   Bing Webmaster Tools, and keep a 301 from the old domain.
 
 When enabling auth:
 
