@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { APP_STORE_URL } from "../lib/site";
 import { getVenueMedia } from "../lib/venue-media";
 import { slugify } from "../lib/slug";
 import { stateName, stateSlug } from "../lib/states";
@@ -34,6 +35,32 @@ export function formatActivityDate(naive: string): string {
 // "activit y". Interpolating a complete word avoids that.
 export function plural(count: number, singular: string, pluralForm?: string): string {
   return count === 1 ? singular : (pluralForm ?? `${singular}s`);
+}
+
+// The Smart App Banner declared in app/layout.tsx only draws in Safari on iOS,
+// which leaves Chrome, Android and every desktop visitor with no route to the
+// app at all. This is the visible counterpart, and it goes on the pages that
+// actually receive search traffic rather than only on the homepage.
+export function AppCallout() {
+  return (
+    <aside className="app-callout">
+      <div>
+        <p className="app-callout__title">Take these listings with you</p>
+        <p className="app-callout__body">
+          The free iPhone app maps what&rsquo;s near you, filters by age and date, and adds an
+          activity to your calendar in one tap.
+        </p>
+      </div>
+      <a
+        className="app-callout__cta"
+        href={APP_STORE_URL}
+        target="_blank"
+        rel="noopener"
+      >
+        Get the free iPhone app
+      </a>
+    </aside>
+  );
 }
 
 export function Breadcrumbs({ trail }: { trail: { name: string; path: string }[] }) {

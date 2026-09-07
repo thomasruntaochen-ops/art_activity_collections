@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { JsonLd } from "../../components/json-ld";
 import {
   ActivityList,
+  AppCallout,
   Breadcrumbs,
   CityLinks,
   plural,
@@ -172,6 +173,8 @@ export default async function StatePage({ params }: Props) {
             </p>
           )}
         </section>
+
+        <AppCallout />
 
         <section className="seo-section">
           <h2>Art museums in {label}</h2>

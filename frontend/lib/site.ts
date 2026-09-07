@@ -14,6 +14,12 @@ export const SITE_URL = (
 
 export const SITE_NAME = "Art Museum Activities";
 
+// The published iOS app. The numeric id is what Safari's Smart App Banner and
+// every App Store link key on; the bundle id is not interchangeable with it.
+export const APP_STORE_ID = "6791827252";
+
+export const APP_STORE_URL = `https://apps.apple.com/us/app/art-museum-activities/id${APP_STORE_ID}`;
+
 export const SITE_DESCRIPTION =
   "Find free art activities, workshops, and drop-in studios for kids, teens, and families at art museums across the United States.";
 

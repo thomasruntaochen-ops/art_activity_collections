@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { JsonLd } from "../../../components/json-ld";
 import {
   ActivityList,
+  AppCallout,
   Breadcrumbs,
   plural,
   VenueGrid,
@@ -159,6 +160,8 @@ export default async function CityPage({ params }: Props) {
           <h2>Upcoming art activities in {city}</h2>
           <ActivityList activities={activities} />
         </section>
+
+        <AppCallout />
 
         <section className="seo-section">
           <h2>

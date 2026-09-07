@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import ExplorerClient from "./explorer-client";
+import { AppCallout } from "../components/seo-sections";
 import { JsonLd } from "../components/json-ld";
 import { getAllVenues } from "../lib/seo-data";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
@@ -83,6 +84,8 @@ export default async function HomePage() {
       />
       <ExplorerClient
         footerSlot={
+          <>
+          <AppCallout />
           <section className="seo-directory" aria-labelledby="browse-by-state">
             <h2 className="seo-directory__title" id="browse-by-state">
               Browse art museum activities by state
@@ -115,6 +118,7 @@ export default async function HomePage() {
               ))}
             </dl>
           </section>
+          </>
         }
       />
     </>

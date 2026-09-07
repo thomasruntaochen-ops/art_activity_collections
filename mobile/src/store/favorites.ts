@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { recordValueMoment } from "../lib/review";
 import type { Activity, VenueSummary } from "../lib/types";
 
 type FavoritesState = {
@@ -16,7 +17,7 @@ type FavoritesState = {
 // AsyncStorage; cleared only when the app is deleted.
 export const useFavorites = create<FavoritesState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       savedVenues: {},
       savedActivities: {},
       toggleVenue: (venue) =>
@@ -26,14 +27,18 @@ export const useFavorites = create<FavoritesState>()(
           else next[venue.venue_name] = venue;
           return { savedVenues: next };
         }),
-      toggleActivity: (activity) =>
+      toggleActivity: (activity) => {
+        const key = String(activity.id);
+        const wasSaved = Boolean(get().savedActivities[key]);
         set((state) => {
-          const key = String(activity.id);
           const next = { ...state.savedActivities };
           if (next[key]) delete next[key];
           else next[key] = activity;
           return { savedActivities: next };
-        }),
+        });
+        // Saving counts as a value moment; un-saving obviously does not.
+        if (!wasSaved) void recordValueMoment();
+      },
     }),
     {
       name: "favorites",

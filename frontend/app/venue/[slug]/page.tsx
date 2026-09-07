@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { JsonLd } from "../../../components/json-ld";
-import { ActivityList, Breadcrumbs, plural } from "../../../components/seo-sections";
+import { ActivityList, AppCallout, Breadcrumbs, plural } from "../../../components/seo-sections";
 import { byStartTime, getAllVenues, getUpcomingActivities } from "../../../lib/seo-data";
 import { SITE_NAME } from "../../../lib/site";
 import { findBySlug, slugify } from "../../../lib/slug";
@@ -193,6 +193,8 @@ export default async function VenuePage({ params }: Props) {
           <h2>Upcoming activities at {venue.venue_name}</h2>
           <ActivityList activities={activities} showVenue={false} />
         </section>
+
+        <AppCallout />
 
         {venue.venue_state && (
           <p className="seo-section__more">

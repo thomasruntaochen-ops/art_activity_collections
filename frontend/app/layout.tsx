@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import { JsonLd } from "../components/json-ld";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
+import { APP_STORE_ID, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
 import { buildSiteLd } from "../lib/structured-data";
 
 export const metadata: Metadata = {
@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   applicationName: SITE_NAME,
   category: "Arts & Family",
   alternates: { canonical: "/" },
+  // Emits <meta name="apple-itunes-app">, which is what draws Safari's Smart
+  // App Banner on iOS. It only appears in Safari, so it supplements the visible
+  // AppCallout rather than replacing it.
+  itunes: { appId: APP_STORE_ID },
   openGraph: {
     type: "website",
     siteName: SITE_NAME,

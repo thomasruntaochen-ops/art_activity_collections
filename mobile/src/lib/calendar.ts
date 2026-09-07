@@ -1,5 +1,6 @@
 import * as Calendar from "expo-calendar";
 import { Alert } from "react-native";
+import { recordValueMoment } from "./review";
 import type { Activity } from "./types";
 
 // Find a calendar we can write to: the default one when available, otherwise
@@ -43,7 +44,11 @@ export async function addActivityToCalendar(activity: Activity): Promise<void> {
       location: activity.venue_name ?? undefined,
       notes: activity.source_url,
     });
-    Alert.alert("Added to calendar", `“${activity.title}” is on your calendar.`);
+    // Asked after the confirmation is dismissed rather than alongside it, so
+    // the rating sheet never stacks on top of our own alert.
+    Alert.alert("Added to calendar", `“${activity.title}” is on your calendar.`, [
+      { text: "OK", onPress: () => void recordValueMoment() },
+    ]);
   } catch {
     Alert.alert("Couldn’t add event", "Something went wrong adding this to your calendar.");
   }

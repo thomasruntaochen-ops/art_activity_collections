@@ -2271,6 +2271,62 @@ a {
 
 /* Homepage footer directory */
 
+/* Visible App Store link on the search-traffic pages. Safari's Smart App
+   Banner covers iOS Safari only; this covers everyone else. */
+.app-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 40px;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper-strong);
+}
+
+.app-callout__title {
+  margin: 0 0 6px;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-weight: 500;
+  font-size: 1.1rem;
+  color: var(--ink);
+}
+
+.app-callout__body {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.app-callout__cta {
+  flex-shrink: 0;
+  padding: 11px 18px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper-strong);
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.app-callout__cta:hover {
+  background: var(--gold-deep);
+}
+
+@media (max-width: 640px) {
+  .app-callout {
+    padding: 16px 18px;
+  }
+
+  .app-callout__cta {
+    width: 100%;
+    text-align: center;
+  }
+}
+
 .seo-directory {
   margin: 8px 0 26px;
   padding-top: 24px;
