@@ -763,7 +763,7 @@ export default function ExplorerClient({ footerSlot }: { footerSlot?: React.Reac
     >
       <header className="explorer-topbar">
         <div className="explorer-identity">
-          <div className="explorer-brand">Art Museum Activities</div>
+          <h1 className="explorer-brand">Art Museum Activities</h1>
           <p className="explorer-subtitle">{tagline}</p>
         </div>
         <div className="explorer-headersearch">
@@ -1028,7 +1028,7 @@ export default function ExplorerClient({ footerSlot }: { footerSlot?: React.Reac
       <section className="explorer-content">
         <aside className="explorer-sidebar">
           <div className="explorer-sidebar__heading">
-            <h1>Art Museums</h1>
+            <h2>Art Museums</h2>
             <p>Museums with active art programs</p>
             {locationRange ? (
               <span className="explorer-sidebar__nearby">
@@ -1192,7 +1192,7 @@ export default function ExplorerClient({ footerSlot }: { footerSlot?: React.Reac
           <div className="table-shell__header">
             <div>
               <p className="eyebrow">Detailed Activity Index</p>
-              <h1>Activity Table</h1>
+              <h2>Activity Table</h2>
               <p className="table-shell__lead">{tableSummary}</p>
             </div>
 

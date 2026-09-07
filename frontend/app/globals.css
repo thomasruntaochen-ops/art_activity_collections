@@ -88,7 +88,7 @@ a {
 }
 
 .explorer-brand,
-.explorer-sidebar__heading h1,
+.explorer-sidebar__heading h2,
 .explorer-map__header h2,
 .explorer-detail h2,
 .explorer-detail__section h3 {
@@ -97,8 +97,17 @@ a {
 }
 
 .explorer-brand {
+  margin: 0;
   font-size: 2rem;
   letter-spacing: -0.03em;
+}
+
+/* Was an <h1> and inherited the UA default (2em, 0.67em margins). It is an
+   <h2> now so the homepage's single <h1> can be the brand line — these pin the
+   old rendering instead of picking up the smaller <h2> defaults. */
+.explorer-sidebar__heading h2 {
+  margin: 0.67em 0;
+  font-size: 2rem;
 }
 
 .explorer-identity {
@@ -1238,7 +1247,7 @@ a {
   gap: 18px;
 }
 
-.table-shell__header h1 {
+.table-shell__header h2 {
   margin: 0;
   font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
   font-weight: 500;
@@ -1688,7 +1697,7 @@ a {
     padding: 16px;
   }
 
-  .explorer-sidebar__heading h1 {
+  .explorer-sidebar__heading h2 {
     font-size: 1.05rem;
   }
 
