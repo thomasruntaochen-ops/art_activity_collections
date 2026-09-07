@@ -67,7 +67,9 @@ export function buildDirectionsTargets(venue: VenueSummary): { google: string; a
 
 // Merge duplicate venue rows that share a name (the DB can hold several rows for
 // the same museum), summing counts and keeping the soonest next activity. Ported
-// from the web explorer so the app shows each museum once. Sorted by program count.
+// from the web explorer so the app shows each museum once. Order comes from the
+// API (curated prominence first, program count inside each band) and a Map
+// preserves insertion order, so the merge must not re-sort.
 export function dedupeVenues(venues: VenueSummary[]): VenueSummary[] {
   const merged = new Map<string, VenueSummary>();
   for (const venue of venues) {
@@ -95,5 +97,5 @@ export function dedupeVenues(venues: VenueSummary[]): VenueSummary[] {
       existing.next_activity_at = venue.next_activity_at;
     }
   }
-  return Array.from(merged.values()).sort((a, b) => b.activity_count - a.activity_count);
+  return Array.from(merged.values());
 }

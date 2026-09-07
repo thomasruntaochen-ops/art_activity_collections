@@ -13,6 +13,7 @@ from src.models.activity import FreeVerificationStatus
 from src.models.activity import Source
 from src.models.activity import Venue
 from src.services.activity_service import list_activities
+from src.services.activity_service import list_venue_summaries
 from src.services.activity_service import _dedupe_activities_for_display
 
 
@@ -266,3 +267,122 @@ def test_list_activities_teens_and_adults_filters_include_teens_adults() -> None
         assert titles("adults") == {"Adult Studio", "Teen & Adult Studio"}
         # Unrelated segments stay scoped to themselves.
         assert titles("kids") == {"Kids Studio"}
+
+
+def test_list_venue_summaries_orders_prominent_museums_before_busier_ones() -> None:
+    """A flagship museum leads even when a local venue has more programs.
+
+    Ordering by program count alone put the Whitney (one upcoming program) below
+    every regional venue with a busy calendar, and the query's row cap could cut
+    it from the response entirely.
+    """
+    engine = create_engine("sqlite:///:memory:")
+    TestingSessionLocal = sessionmaker(bind=engine)
+    Base.metadata.create_all(engine)
+
+    now = datetime(2026, 6, 10, 12, 0)
+
+    with TestingSessionLocal() as db:
+        source = Source(
+            name="example_source",
+            base_url="https://example.org",
+            adapter_type="static_html",
+            crawl_frequency="daily",
+            active=True,
+        )
+        national = Venue(name="Whitney Museum of American Art", city="New York", state="NY")
+        regional = Venue(name="Crocker Art Museum", city="Sacramento", state="CA")
+        unlisted = Venue(name="Example Community Gallery", city="Fresno", state="CA")
+        db.add_all([source, national, regional, unlisted])
+        db.flush()
+
+        def add_activities(venue: Venue, count: int) -> None:
+            db.add_all(
+                [
+                    Activity(
+                        source_id=source.id,
+                        source_url=f"https://example.org/{venue.id}-{index}",
+                        title=f"Program {index}",
+                        audience_segment=AudienceSegment.kids,
+                        is_free=True,
+                        free_verification_status=FreeVerificationStatus.confirmed,
+                        drop_in=True,
+                        registration_required=False,
+                        start_at=now,
+                        timezone="America/New_York",
+                        venue_id=venue.id,
+                        status=ActivityStatus.active,
+                        first_seen_at=now,
+                        last_seen_at=now,
+                        updated_at=now,
+                    )
+                    for index in range(count)
+                ]
+            )
+
+        add_activities(national, 1)
+        add_activities(regional, 2)
+        add_activities(unlisted, 9)
+        db.commit()
+
+        rows = list_venue_summaries(db)
+
+    assert [row.venue_name for row in rows] == [
+        "Whitney Museum of American Art",
+        "Crocker Art Museum",
+        "Example Community Gallery",
+    ]
+
+
+def test_list_venue_summaries_keeps_program_count_order_within_a_band() -> None:
+    """Museums sharing a rank still lead with the fullest calendar."""
+    engine = create_engine("sqlite:///:memory:")
+    TestingSessionLocal = sessionmaker(bind=engine)
+    Base.metadata.create_all(engine)
+
+    now = datetime(2026, 6, 10, 12, 0)
+
+    with TestingSessionLocal() as db:
+        source = Source(
+            name="example_source",
+            base_url="https://example.org",
+            adapter_type="static_html",
+            crawl_frequency="daily",
+            active=True,
+        )
+        quiet = Venue(name="Quiet Community Gallery", city="Fresno", state="CA")
+        busy = Venue(name="Busy Community Gallery", city="Fresno", state="CA")
+        db.add_all([source, quiet, busy])
+        db.flush()
+
+        db.add_all(
+            [
+                Activity(
+                    source_id=source.id,
+                    source_url=f"https://example.org/{venue.id}-{index}",
+                    title=f"Program {index}",
+                    audience_segment=AudienceSegment.kids,
+                    is_free=True,
+                    free_verification_status=FreeVerificationStatus.confirmed,
+                    drop_in=True,
+                    registration_required=False,
+                    start_at=now,
+                    timezone="America/Los_Angeles",
+                    venue_id=venue.id,
+                    status=ActivityStatus.active,
+                    first_seen_at=now,
+                    last_seen_at=now,
+                    updated_at=now,
+                )
+                for venue, count in ((quiet, 1), (busy, 4))
+                for index in range(count)
+            ]
+        )
+        db.commit()
+
+        rows = list_venue_summaries(db)
+
+    assert [row.venue_name for row in rows] == [
+        "Busy Community Gallery",
+        "Quiet Community Gallery",
+    ]

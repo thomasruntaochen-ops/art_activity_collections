@@ -7,6 +7,7 @@ from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from src.models.activity import Activity, AudienceSegment, Venue
+from src.services.venue_prominence import prominence_case
 
 
 def _to_naive(value: datetime | None) -> datetime | None:
@@ -268,7 +269,17 @@ def list_venue_summaries(
         .join(Activity, Activity.venue_id == Venue.id)
         .where(*conditions, Venue.name.is_not(None))
         .group_by(Venue.id)
-        .order_by(func.count(Activity.id).desc(), func.min(Activity.start_at).asc(), Venue.name.asc())
+        # Curated prominence leads, program count only breaks ties inside a
+        # band. Sorting by count alone buried the museums people search for --
+        # the Whitney's single program put it below every regional gallery with
+        # a busy calendar -- and, because this query is capped, it could drop a
+        # flagship museum from the response entirely.
+        .order_by(
+            prominence_case(Venue.name).asc(),
+            func.count(Activity.id).desc(),
+            func.min(Activity.start_at).asc(),
+            Venue.name.asc(),
+        )
         .limit(max(1, min(limit, 300)))
     )
 

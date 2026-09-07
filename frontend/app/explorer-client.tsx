@@ -417,7 +417,11 @@ export default function ExplorerClient({ footerSlot }: { footerSlot?: React.Reac
         existing.next_activity_at = venue.next_activity_at;
       }
     }
-    return Array.from(merged.values()).sort((a, b) => b.activity_count - a.activity_count);
+    // No re-sort: the API already returns venues in display order (curated
+    // prominence first, program count inside each band) and a Map preserves
+    // insertion order, so the merge keeps that order intact. Sorting by count
+    // here would put a busy regional gallery above the Met again.
+    return Array.from(merged.values());
   }, [venues]);
 
   const filteredVenues = useMemo(() => {
