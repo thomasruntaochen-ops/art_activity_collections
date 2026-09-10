@@ -35,7 +35,7 @@ DATE_HEADING_RE = re.compile(
 )
 TIME_LOCATION_RE = re.compile(r"^(\d{1,2}:\d{2}\s*[AP]M)\s*(.*)$", re.IGNORECASE)
 AGE_RE = re.compile(r"Ages?\s*(\d{1,2})\s*[\-\u2013]\s*(\d{1,2})", re.IGNORECASE)
-EMBEDDED_SOURCE_RE = re.compile(r'\\"_source\\":(\{.*?\})\\,\\"highlight\\"', re.DOTALL)
+EMBEDDED_SOURCE_RE = re.compile(r'\\"_source\\":(\{.*?\})\\?,\\"highlight\\"', re.DOTALL)
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -186,6 +186,13 @@ def parse_met_events_html(
         return embedded_rows
 
     # Fallback path for legacy/static snapshots where script payload is absent.
+    # It can only recover a time when one sits adjacent to the title, so rows land at
+    # midnight with no end_at. On the live site that means the embedded payload shape
+    # drifted and EMBEDDED_SOURCE_RE needs updating.
+    print(
+        "[met] WARNING: embedded event JSON matched 0 events; "
+        "falling back to text scraping (start times may default to midnight)."
+    )
     soup = BeautifulSoup(html, "html.parser")
 
     # Keep event-detail links in document order so repeated titles remain stable.
@@ -292,11 +299,8 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
     seen_keys: set[tuple[str, str, datetime]] = set()
 
     for match in EMBEDDED_SOURCE_RE.finditer(html):
-        source_obj_escaped = match.group(1)
-        source_obj_json = source_obj_escaped.replace('\\"', '"').replace("\\/", "/")
-        try:
-            source_obj = json.loads(source_obj_json)
-        except json.JSONDecodeError:
+        source_obj = _decode_embedded_source(match.group(1))
+        if source_obj is None:
             continue
 
         paid = str(source_obj.get("paid", "")).lower()
@@ -382,6 +386,22 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
         )
 
     return rows
+
+
+def _decode_embedded_source(raw: str) -> dict | None:
+    """Decode one _source blob, which is JSON nested inside a JSON string literal."""
+    try:
+        # Undo the outer string escaping (\" -> ", \u0026 -> &) before parsing.
+        unescaped = json.loads(f'"{raw}"')
+    except json.JSONDecodeError:
+        # Older snapshots embed the object without the extra escaping layer.
+        unescaped = raw.replace('\\"', '"').replace("\\/", "/")
+
+    try:
+        decoded = json.loads(unescaped)
+    except json.JSONDecodeError:
+        return None
+    return decoded if isinstance(decoded, dict) else None
 
 
 def _looks_like_price(text: str) -> bool:
