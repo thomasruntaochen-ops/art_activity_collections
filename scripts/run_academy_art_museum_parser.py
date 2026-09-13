@@ -15,7 +15,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.crawlers.adapters.academy_art_museum import (  # noqa: E402
     ACADEMY_ART_MUSEUM_EVENTS_URL,
     fetch_academy_art_museum_events_page,
-    parse_academy_art_museum_events_html,
+    load_academy_art_museum_payload,
+    parse_academy_art_museum_events_payload,
 )
 from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
 from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
@@ -224,8 +225,8 @@ async def main() -> None:
         )
         clear_completed = True
 
-    async def _load_cached_html() -> str:
-        return html
+    async def _load_cached_html() -> dict:
+        return await load_academy_art_museum_payload(html, list_url=args.url)
 
     summary = await run_targets(
         targets=[
@@ -233,8 +234,8 @@ async def main() -> None:
                 name="academy_art_museum_events",
                 source_url=args.url,
                 load_payload=_load_cached_html,
-                parse_payload=lambda payload: parse_academy_art_museum_events_html(
-                    html=payload,
+                parse_payload=lambda payload: parse_academy_art_museum_events_payload(
+                    payload,
                     list_url=args.url,
                 ),
                 parser_name="academy_art_museum",

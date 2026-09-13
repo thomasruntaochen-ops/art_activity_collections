@@ -122,6 +122,137 @@ async def fetch_academy_art_museum_events_page(
     raise RuntimeError("Unable to fetch Academy Art Museum events page after retries")
 
 
+ACADEMY_DETAIL_CONCURRENCY = 5
+# The detail page repeats other events in a post grid; only the main rich-text
+# body describes this event, so everything else is dropped before reading a time.
+ACADEMY_DETAIL_NOISE_SELECTOR = (
+    "div.fl-post-grid-post, div.fl-post-grid, aside, nav, header, footer"
+)
+
+
+async def load_academy_art_museum_payload(
+    html: str,
+    *,
+    list_url: str = ACADEMY_ART_MUSEUM_EVENTS_URL,
+) -> dict:
+    """Pair the listing HTML with detail pages for events whose time it omits."""
+    detail_urls = sorted(
+        {
+            row.source_url
+            for row in parse_academy_art_museum_events_html(html, list_url=list_url)
+            if row.start_at.hour == 0 and row.start_at.minute == 0
+        }
+    )
+    return {
+        "html": html,
+        "detail_html_by_url": await _fetch_academy_detail_html(detail_urls),
+    }
+
+
+async def _fetch_academy_detail_html(urls: list[str]) -> dict[str, str]:
+    if not urls:
+        return {}
+
+    results: dict[str, str] = {}
+    semaphore = asyncio.Semaphore(ACADEMY_DETAIL_CONCURRENCY)
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
+        async def fetch_one(url: str) -> None:
+            async with semaphore:
+                try:
+                    response = await client.get(url)
+                except httpx.HTTPError as exc:
+                    print(f"[academy] detail fetch failed ({url}): {exc}")
+                    return
+                if response.status_code >= 400:
+                    print(f"[academy] detail fetch failed ({url}): HTTP {response.status_code}")
+                    return
+                results[url] = response.text
+
+        await asyncio.gather(*(fetch_one(url) for url in urls))
+
+    missing = len(urls) - len(results)
+    if missing:
+        print(f"[academy] WARNING: {missing}/{len(urls)} detail pages unavailable; those rows keep a midnight start.")
+    return results
+
+
+def parse_academy_art_museum_events_payload(
+    payload: dict,
+    *,
+    list_url: str = ACADEMY_ART_MUSEUM_EVENTS_URL,
+) -> list[ExtractedActivity]:
+    return parse_academy_art_museum_events_html(
+        payload.get("html") or "",
+        list_url=list_url,
+        detail_html_by_url=payload.get("detail_html_by_url") or {},
+    )
+
+
+def _extract_detail_times(
+    detail_html: str,
+) -> tuple[tuple[int, int], tuple[int, int] | None] | None:
+    soup = BeautifulSoup(detail_html, "html.parser")
+    for noise in soup.select(ACADEMY_DETAIL_NOISE_SELECTOR):
+        noise.decompose()
+
+    for block in soup.select("div.fl-rich-text"):
+        parsed = _parse_time_blob(_normalize_space(block.get_text(" ", strip=True)))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _parse_time_blob(blob: str) -> tuple[tuple[int, int], tuple[int, int] | None] | None:
+    if not blob:
+        return None
+
+    time_range = TIME_RANGE_RE.search(blob)
+    if time_range is not None:
+        end_meridiem = time_range.group("end_meridiem")
+        start_meridiem = time_range.group("start_meridiem") or end_meridiem
+        start = _time_parts(
+            time_range.group("start_hour"), time_range.group("start_minute"), start_meridiem
+        )
+        end = _time_parts(
+            time_range.group("end_hour"), time_range.group("end_minute"), end_meridiem
+        )
+        if start is None:
+            return None
+        if end is not None and end <= start:
+            # The site writes noon as "12AM" (e.g. "10-12AM" for 10am-noon).
+            if time_range.group("end_hour") == "12" and end == (0, int(time_range.group("end_minute") or 0)):
+                end = (12, end[1])
+            if end <= start:
+                # Anything still backwards is unreadable; a start alone beats a wrong range.
+                end = None
+        return start, end
+
+    time_single = TIME_SINGLE_RE.search(blob)
+    if time_single is not None:
+        start = _time_parts(
+            time_single.group("hour"), time_single.group("minute"), time_single.group("meridiem")
+        )
+        if start is not None:
+            return start, None
+    return None
+
+
+def _time_parts(hour: str | None, minute: str | None, meridiem: str | None) -> tuple[int, int] | None:
+    if hour is None or meridiem is None:
+        return None
+    hour_value = int(hour)
+    minute_value = int(minute or "0")
+    if not (1 <= hour_value <= 12) or not (0 <= minute_value <= 59):
+        return None
+    normalized = meridiem.lower().replace(".", "")
+    if normalized.startswith("p") and hour_value != 12:
+        hour_value += 12
+    if normalized.startswith("a") and hour_value == 12:
+        hour_value = 0
+    return hour_value, minute_value
+
+
 class AcademyArtMuseumEventsAdapter(BaseSourceAdapter):
     source_name = "academy_art_museum_events"
 
@@ -140,6 +271,7 @@ def parse_academy_art_museum_events_html(
     html: str,
     *,
     list_url: str = ACADEMY_ART_MUSEUM_EVENTS_URL,
+    detail_html_by_url: dict[str, str] | None = None,
 ) -> list[ExtractedActivity]:
     soup = BeautifulSoup(html, "html.parser")
     rows: list[ExtractedActivity] = []
@@ -193,6 +325,18 @@ def parse_academy_art_museum_events_html(
         )
         if start_at is None:
             continue
+
+        # Multi-week class series carry no appears-date span, so the listing can only
+        # yield a midnight start. The detail page states the weekly meeting time.
+        if start_at.hour == 0 and start_at.minute == 0 and detail_html_by_url:
+            detail_times = _extract_detail_times(detail_html_by_url.get(source_url) or "")
+            if detail_times is not None:
+                (start_hour, start_minute), detail_end = detail_times
+                start_at = start_at.replace(hour=start_hour, minute=start_minute)
+                if detail_end is not None:
+                    # A weekly series' end_date is the last week, not this session's
+                    # end, so the session end belongs on the start's own day.
+                    end_at = start_at.replace(hour=detail_end[0], minute=detail_end[1])
 
         description_parts: list[str] = []
         if appears_text:
