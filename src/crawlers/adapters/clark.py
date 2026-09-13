@@ -1,7 +1,9 @@
+import asyncio
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urljoin
 
+import httpx
 from bs4 import BeautifulSoup
 
 try:
@@ -67,6 +69,21 @@ EXCLUDED_SPECIAL_EVENT_TITLE_MARKERS = (
     "reception",
 )
 
+CLARK_DETAIL_CONCURRENCY = 5
+
+# Listing cards carry only a date; the clock time lives in div.time on the detail
+# page, as either a range ("1-4 pm", "10:30 am-12 pm") or a single start ("5:30 pm").
+DETAIL_TIME_RANGE_RE = re.compile(
+    r"(?P<start_hour>\d{1,2})(?::(?P<start_minute>\d{2}))?\s*(?P<start_meridiem>[ap]\.?m\.?)?"
+    r"\s*[\u2013\u2014-]\s*"
+    r"(?P<end_hour>\d{1,2})(?::(?P<end_minute>\d{2}))?\s*(?P<end_meridiem>[ap]\.?m\.?)",
+    re.IGNORECASE,
+)
+DETAIL_TIME_SINGLE_RE = re.compile(
+    r"(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<meridiem>[ap]\.?m\.?)",
+    re.IGNORECASE,
+)
+
 SINGLE_DATE_RE = re.compile(r"^(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2}),\s*(?P<year>\d{4})$")
 DATE_RANGE_RE = re.compile(
     r"^(?P<start_month>[A-Za-z]+)\s+(?P<start_day>\d{1,2})\s*[–-]\s*"
@@ -88,14 +105,50 @@ async def load_clark_events_payload(
         scroll_rounds=scroll_rounds,
         timeout_ms=timeout_ms,
     )
+    pages = [
+        {
+            "url": CLARK_EVENTS_URL,
+            "html": html,
+        }
+    ]
+    # Re-run the listing parse here so only events that survive the filters cost a
+    # detail request, and so the filter logic stays defined in one place.
+    detail_urls = sorted({row.source_url for row in parse_clark_events_html(html, list_url=CLARK_EVENTS_URL)})
     return {
-        "pages": [
-            {
-                "url": CLARK_EVENTS_URL,
-                "html": html,
-            }
-        ]
+        "pages": pages,
+        "detail_html_by_url": await _fetch_clark_detail_html(detail_urls),
     }
+
+
+async def _fetch_clark_detail_html(urls: list[str]) -> dict[str, str]:
+    if not urls:
+        return {}
+
+    results: dict[str, str] = {}
+    semaphore = asyncio.Semaphore(CLARK_DETAIL_CONCURRENCY)
+
+    async with httpx.AsyncClient(timeout=30.0, headers=DEFAULT_HEADERS, follow_redirects=True) as client:
+        async def fetch_one(url: str) -> None:
+            async with semaphore:
+                try:
+                    response = await client.get(url)
+                except httpx.HTTPError as exc:
+                    print(f"[clark] detail fetch failed ({url}): {exc}")
+                    return
+                if response.status_code != 200:
+                    print(f"[clark] detail fetch failed ({url}): HTTP {response.status_code}")
+                    return
+                if any(marker in response.text for marker in CHALLENGE_MARKERS):
+                    print(f"[clark] detail fetch blocked by challenge ({url}); keeping date-only start.")
+                    return
+                results[url] = response.text
+
+        await asyncio.gather(*(fetch_one(url) for url in urls))
+
+    missing = len(urls) - len(results)
+    if missing:
+        print(f"[clark] WARNING: {missing}/{len(urls)} detail pages unavailable; those rows keep a midnight start.")
+    return results
 
 
 async def _load_clark_events_html(
@@ -195,9 +248,11 @@ async def _target_results_count(page) -> int | None:
 def parse_clark_events_payload(payload: dict) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
+    detail_html_by_url = payload.get("detail_html_by_url") or {}
 
     for page in payload.get("pages", []):
         for item in parse_clark_events_html(page["html"], list_url=page["url"]):
+            _apply_detail_time(item, detail_html_by_url.get(item.source_url))
             key = (item.source_url, item.title, item.start_at)
             if key in seen:
                 continue
@@ -318,6 +373,75 @@ def _infer_audience_segment(*, type_label: str) -> str:
     if type_label == "Community Program":
         return "all_ages"
     return "adults"
+
+
+def _apply_detail_time(row: ExtractedActivity, detail_html: str | None) -> None:
+    """Refine a date-only start with the clock time from the event's detail page."""
+    if not detail_html:
+        return
+
+    time_node = BeautifulSoup(detail_html, "html.parser").select_one("div.time")
+    if time_node is None:
+        return
+
+    parsed = _parse_detail_time_text(_normalize_space(time_node.get_text(" ", strip=True)))
+    if parsed is None:
+        return
+
+    start_time, end_time = parsed
+    row.start_at = row.start_at.replace(hour=start_time[0], minute=start_time[1])
+    if end_time is not None:
+        end_at = row.start_at.replace(hour=end_time[0], minute=end_time[1])
+        if end_at < row.start_at:
+            # An evening event that runs past midnight ends on the following day.
+            end_at += timedelta(days=1)
+        row.end_at = end_at
+
+
+def _parse_detail_time_text(
+    time_text: str,
+) -> tuple[tuple[int, int], tuple[int, int] | None] | None:
+    if not time_text:
+        return None
+
+    range_match = DETAIL_TIME_RANGE_RE.search(time_text)
+    if range_match is not None:
+        end_meridiem = range_match.group("end_meridiem")
+        # "1-4 pm" states the meridiem once, at the end.
+        start_meridiem = range_match.group("start_meridiem") or end_meridiem
+        start = _to_24_hour(
+            range_match.group("start_hour"), range_match.group("start_minute"), start_meridiem
+        )
+        end = _to_24_hour(
+            range_match.group("end_hour"), range_match.group("end_minute"), end_meridiem
+        )
+        if start is None:
+            return None
+        return start, end
+
+    single_match = DETAIL_TIME_SINGLE_RE.search(time_text)
+    if single_match is not None:
+        start = _to_24_hour(
+            single_match.group("hour"), single_match.group("minute"), single_match.group("meridiem")
+        )
+        if start is not None:
+            return start, None
+
+    return None
+
+
+def _to_24_hour(hour: str | None, minute: str | None, meridiem: str | None) -> tuple[int, int] | None:
+    if hour is None or meridiem is None:
+        return None
+    hour_value = int(hour)
+    minute_value = int(minute or "0")
+    if not (1 <= hour_value <= 12) or not (0 <= minute_value <= 59):
+        return None
+    if meridiem.lower().replace(".", "").startswith("p") and hour_value != 12:
+        hour_value += 12
+    if meridiem.lower().replace(".", "").startswith("a") and hour_value == 12:
+        hour_value = 0
+    return hour_value, minute_value
 
 
 def _parse_start_at(date_text: str) -> datetime | None:
