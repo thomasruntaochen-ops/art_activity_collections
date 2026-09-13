@@ -91,8 +91,12 @@ AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|and up)\b", re.IGNORECASE
 
 DATE_WITH_YEAR_RE = re.compile(r"([A-Za-z]{3,9}\.?\s+\d{1,2},\s*\d{4})")
 DATE_RANGE_RE = re.compile(r"([A-Za-z]{3,9}\.?\s+\d{1,2},\s*\d{4})\s*(?:-|–|—|to)\s*([A-Za-z]{3,9}\.?\s+\d{1,2},\s*\d{4})")
+# Venues write the meridiem in either case ("8:00 PM", "8:00 pm", "8:00 p.m."),
+# so every meridiem pattern here must be case-insensitive.
+MERIDIEM_PATTERN = r"[APap]\.?[Mm]\.?"
 TIME_RANGE_RE = re.compile(
-    r"(?P<start>\d{1,2}:\d{2}(?:\s*[APap]\.?M\.?)?)\s*(?:-|–|—|to)\s*(?P<end>\d{1,2}:\d{2}\s*[APap]\.?M\.?)"
+    r"(?P<start>\d{1,2}:\d{2}(?:\s*" + MERIDIEM_PATTERN + r")?)\s*(?:-|–|—|to)\s*"
+    r"(?P<end>\d{1,2}:\d{2}\s*" + MERIDIEM_PATTERN + r")"
 )
 ICA_DATE_TIME_RE = re.compile(
     r"(?P<weekday>[A-Za-z]+),?\s+"
@@ -849,11 +853,11 @@ def _parse_time_range(value: str | None) -> tuple[time | None, time | None]:
     if match:
         end_time = _parse_time_value(match.group("end"))
         start_raw = match.group("start")
-        if end_time and re.search(r"[APap]\.?M\.?", match.group("end")) and not re.search(r"[APap]\.?M\.?", start_raw):
+        if end_time and re.search(MERIDIEM_PATTERN, match.group("end")) and not re.search(MERIDIEM_PATTERN, start_raw):
             start_raw = f"{start_raw} {_extract_meridiem(match.group('end'))}"
         return _parse_time_value(start_raw), end_time
 
-    single = re.findall(r"\d{1,2}:\d{2}\s*[APap]\.?M\.?", cleaned)
+    single = re.findall(r"\d{1,2}:\d{2}\s*" + MERIDIEM_PATTERN, cleaned)
     if single:
         start = _parse_time_value(single[0])
         end = _parse_time_value(single[1]) if len(single) > 1 else None
@@ -970,7 +974,7 @@ def _first_non_empty(*values: str) -> str:
 
 
 def _extract_meridiem(value: str) -> str:
-    match = re.search(r"([APap])\.?M\.?", value)
+    match = re.search(r"([APap])\.?[Mm]\.?", value)
     if not match:
         return ""
     return f"{match.group(1).upper()}M"
