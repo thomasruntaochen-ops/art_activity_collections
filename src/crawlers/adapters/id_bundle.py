@@ -944,8 +944,14 @@ def _normalize_url(href: str | None, base_url: str) -> str | None:
         return None
     absolute = urljoin(base_url, normalized)
     parsed = urlparse(absolute)
+    path = parsed.path
+    # Drupal serves the same node at both /index.php/<path> and /<path>, and these
+    # sites switch between the two over time. Collapsing them keeps one canonical
+    # source_url so later runs update the existing row instead of inserting a twin.
+    if path.startswith("/index.php/"):
+        path = path[len("/index.php"):]
     query = urlencode(sorted(parse_qsl(parsed.query, keep_blank_values=True)))
-    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", query, ""))
+    return urlunparse((parsed.scheme, parsed.netloc, path, "", query, ""))
 
 
 def _extract_meta_content(soup: BeautifulSoup, property_name: str) -> str | None:
