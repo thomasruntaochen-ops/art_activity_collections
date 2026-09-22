@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
+import os
 import sys
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup
 from sqlalchemy import bindparam, delete, or_, select, text
@@ -30,6 +33,15 @@ from src.models.activity import Activity, Source
 
 DEFAULT_CACHE_DIR = Path("data") / "html" / "moma"
 MOMA_SOURCE_URL_PREFIX = "https://www.moma.org/%"
+
+# www.moma.org/calendar/ sits behind a Cloudflare managed challenge that an
+# automated client cannot clear. When the live fetch is blocked we fall back to
+# an archived copy of the page, saved by a person from an ordinary browser -
+# the same arrangement run_met_parser.py uses for metmuseum.org.
+RAWHTML_BASE_URL_ENV = "RAWHTML_BASE_URL"
+ARCHIVE_DIR = PROJECT_ROOT / "data" / "rawhtml" / "moma"
+ARCHIVE_SUBDIR = "moma"
+STALE_ARCHIVE_DAYS = 14
 
 def _write_html_cache(html: str, cache_dir: Path, *, audience: str) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -81,13 +93,79 @@ async def _load_html(
         html = await fetch_moma_events_page(url)
     except Exception as exc:
         print(f"Fetch failed for {audience} ({url}): {exc}")
-        raise SystemExit(1) from exc
+        archived = _load_archived_html(audience=audience)
+        if archived is None:
+            print(
+                f"[moma-archive] No archived {audience} page available. "
+                "Save the calendar page from a browser to "
+                f"{ARCHIVE_DIR / f'{audience}.html'} (or upload it to "
+                f"{RAWHTML_BASE_URL_ENV}/{ARCHIVE_SUBDIR}/{audience}.html) to keep MoMA flowing "
+                "while the live page is blocked."
+            )
+            raise SystemExit(1) from exc
+        return archived
 
     if save_html:
         cache_path = _write_html_cache(html, cache_dir, audience=audience)
         print(f"Saved {audience} raw HTML cache to: {cache_path}")
 
     return html, None
+
+
+def _archive_path(audience: str) -> Path:
+    return ARCHIVE_DIR / f"{audience}.html"
+
+
+def _download_archived_html(*, audience: str) -> Path | None:
+    """Pull the archived page from the same R2 bucket run_met_parser.py uses."""
+    base_url = os.getenv(RAWHTML_BASE_URL_ENV, "").strip()
+    if not base_url:
+        return None
+
+    remote_url = f"{base_url.rstrip('/')}/{ARCHIVE_SUBDIR}/{audience}.html"
+    try:
+        request = Request(
+            remote_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (compatible; art-activity-collection/1.0)",
+                "Accept": "text/html,application/xhtml+xml",
+            },
+        )
+        with urlopen(request, timeout=20) as response:
+            html = response.read().decode("utf-8", errors="replace")
+    except HTTPError as exc:
+        print(f"[moma-archive] Remote fetch failed ({remote_url}): HTTP {exc.code} {exc.reason}")
+        return None
+    except Exception as exc:
+        print(f"[moma-archive] Remote fetch failed ({remote_url}): {exc}")
+        return None
+
+    ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = _archive_path(audience)
+    output_path.write_text(html, encoding="utf-8")
+    print(f"[moma-archive] Downloaded archived {audience} page to: {output_path}")
+    return output_path
+
+
+def _load_archived_html(*, audience: str) -> tuple[str, Path] | None:
+    archive_path = _download_archived_html(audience=audience) or _archive_path(audience)
+    if not archive_path.exists():
+        return None
+
+    saved_at = datetime.fromtimestamp(archive_path.stat().st_mtime, tz=timezone.utc)
+    age = datetime.now(timezone.utc) - saved_at
+    age_days = age // timedelta(days=1)
+    print(
+        f"[moma-archive] Live fetch blocked; using archived {audience} page "
+        f"{archive_path} (saved {saved_at:%Y-%m-%d}, {age_days}d old)."
+    )
+    if age > timedelta(days=STALE_ARCHIVE_DAYS):
+        print(
+            f"[ALERT] Archived MoMA {audience} page is {age_days} days old "
+            f"(over {STALE_ARCHIVE_DAYS}); its events are probably stale. "
+            "Re-save the calendar page from a browser."
+        )
+    return archive_path.read_text(encoding="utf-8"), archive_path
 
 
 def _serialize_moma_row(row, *, audience: str) -> dict:

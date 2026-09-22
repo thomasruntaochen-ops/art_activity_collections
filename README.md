@@ -140,6 +140,18 @@ This scaffold includes:
   - `python3 scripts/run_moma_parser.py`
 - Parse directly from MoMA URLs and commit to MySQL:
   - `python3 scripts/run_moma_parser.py --commit`
+- **Live fetch is currently blocked.** Since 2026-09-21 `www.moma.org/calendar/` sits
+  behind a Cloudflare managed challenge ("Just a moment...") that neither httpx nor
+  headless Playwright can clear. The pages still load normally in a regular browser,
+  so the parser falls back to an archived copy, the same way the MET parser does:
+  - Open the calendar page in your browser, then File > Save Page As (or copy
+    `document.documentElement.outerHTML`) into `data/rawhtml/moma/<audience>.html`,
+    where `<audience>` is `adults`, `teens`, or `kids`.
+  - Optionally upload the same files to `$RAWHTML_BASE_URL/moma/<audience>.html`; the
+    parser downloads them before falling back to the local copy.
+  - The archive is only consulted when the live fetch fails, so MoMA resumes crawling
+    itself as soon as the challenge is lifted. A snapshot older than 14 days logs an
+    `[ALERT]` so stale events do not pass unnoticed.
 
 ## Whitney Source Parser
 - URL: `https://whitney.org/events?tags[]=courses_and_workshops&tags[]=teen_events`
