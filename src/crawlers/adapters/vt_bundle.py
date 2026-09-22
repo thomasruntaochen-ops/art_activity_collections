@@ -18,6 +18,7 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import NY_TIMEZONE
 from src.crawlers.adapters.oh_common import absolute_url
 from src.crawlers.adapters.oh_common import clean_html_fragment
+from src.crawlers.adapters.oh_common import coerce_tribe_venue
 from src.crawlers.adapters.oh_common import fetch_html
 from src.crawlers.adapters.oh_common import infer_activity_type
 from src.crawlers.adapters.oh_common import join_non_empty
@@ -437,7 +438,7 @@ def _parse_tribe_events(payload: dict[str, object], *, venue: VtVenueConfig, sta
         if not _should_keep_event(title=title, description=description, category=categories):
             continue
 
-        venue_info = event.get("venue") or {}
+        venue_info = coerce_tribe_venue(event.get("venue"))
         location_text = join_non_empty(
             [
                 normalize_space(venue_info.get("venue")),

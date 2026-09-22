@@ -195,6 +195,24 @@ def join_non_empty(parts: list[str | None]) -> str | None:
     return " | ".join(cleaned)
 
 
+def coerce_tribe_venue(value: object) -> dict[str, object]:
+    """Normalize The Events Calendar's `venue` field to a dict.
+
+    The Tribe REST API is inconsistent: an event with no venue returns `[]`,
+    an event with one venue usually returns `{...}`, but the same endpoint
+    sometimes returns `[{...}]` for a venue attached to an older post. Callers
+    that did `event.get("venue") or {}` survived the empty list and crashed on
+    the populated one, so every Tribe adapter routes through here instead.
+    """
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, dict):
+                return item
+    return {}
+
+
 def parse_date_text(date_text: str) -> date | None:
     text = normalize_space(date_text)
     if not text:

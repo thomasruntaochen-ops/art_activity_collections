@@ -14,6 +14,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.adapters.oh_common import coerce_tribe_venue
 from src.crawlers.adapters.oh_common import infer_activity_type
 from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
@@ -921,7 +922,7 @@ def _parse_zillman_listing_html(payload: dict, *, venue: MeVenueConfig, now: dat
 
 
 def _tribe_location_text(event: dict, *, venue: MeVenueConfig) -> str:
-    venue_info = event.get("venue") or {}
+    venue_info = coerce_tribe_venue(event.get("venue"))
     parts = [
         normalize_space(venue_info.get("venue")),
         normalize_space(venue_info.get("address")),
