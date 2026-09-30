@@ -10,6 +10,7 @@ from src.crawlers.extractors.filters import is_irrelevant_item_text
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import POSITIVE_DOLLAR_RE
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 LACMA_EVENTS_URL = "https://www.lacma.org/event"
 
@@ -63,11 +64,7 @@ INCLUDED_KEYWORDS = (
     "artmaking",
 )
 DEFAULT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": BROWSER_USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.lacma.org/",

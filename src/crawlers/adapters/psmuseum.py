@@ -10,6 +10,7 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 PSMUSEUM_PROGRAMS_URL = "https://www.psmuseum.org/events/programs-events"
 PSMUSEUM_FPLUS_URL = "https://www.psmuseum.org/events/fplus"
@@ -65,11 +66,7 @@ TIME_SINGLE_RE = re.compile(
     re.IGNORECASE,
 )
 DEFAULT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": BROWSER_USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.psmuseum.org/events/programs-events",

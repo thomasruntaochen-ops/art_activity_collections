@@ -17,6 +17,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 MAM_EVENTS_URL = "https://mam.org/events/"
 MAM_EVENTS_API_URL = "https://mam.org/events/wp-json/tribe/events/v1/events"
@@ -27,11 +28,7 @@ MAM_STATE = "WI"
 MAM_LOCATION = "Milwaukee Art Museum, Milwaukee, WI"
 
 DEFAULT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": BROWSER_USER_AGENT,
     "Accept": "application/json,text/plain,*/*",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": MAM_EVENTS_URL,

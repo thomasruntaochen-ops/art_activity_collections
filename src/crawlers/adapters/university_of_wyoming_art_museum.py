@@ -16,6 +16,7 @@ from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.candidates import record_listing_recognized
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 UNIVERSITY_OF_WYOMING_ART_MUSEUM_LIST_URL = "https://www.uwyo.edu/artmuseum/events/index.html"
 UNIVERSITY_OF_WYOMING_ART_MUSEUM_RSS_URL = "https://www.trumba.com/calendars/art-museum-marketing.rss"
@@ -26,11 +27,7 @@ UNIVERSITY_OF_WYOMING_ART_MUSEUM_STATE = "WY"
 UNIVERSITY_OF_WYOMING_ART_MUSEUM_DEFAULT_LOCATION = "University of Wyoming Art Museum, Laramie, WY"
 
 DEFAULT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": BROWSER_USER_AGENT,
     "Accept": "application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": UNIVERSITY_OF_WYOMING_ART_MUSEUM_LIST_URL,

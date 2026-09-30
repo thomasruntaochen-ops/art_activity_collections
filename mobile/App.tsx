@@ -24,6 +24,9 @@ const headerTheme = {
   headerStyle: { backgroundColor: colors.paper },
   headerTintColor: colors.goldDeep,
   headerShadowVisible: false,
+  // iOS labels the back button with the previous screen's title, which would
+  // otherwise leak route names ("Tabs", "Filters") into the UI.
+  headerBackTitle: "Back",
 } as const;
 
 function Tabs() {

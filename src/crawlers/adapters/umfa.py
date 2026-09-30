@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 UMFA_EVENTS_URL = "https://umfa.utah.edu/events/"
 UMFA_EVENTS_API_URL = "https://umfa.utah.edu/wp-json/tribe/events/v1/events"
@@ -21,11 +22,7 @@ UMFA_STATE = "UT"
 UMFA_DEFAULT_LOCATION = "Utah Museum of Fine Arts, Salt Lake City, UT"
 
 DEFAULT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": BROWSER_USER_AGENT,
     "Accept": "application/json,text/plain,*/*",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": UMFA_EVENTS_URL,

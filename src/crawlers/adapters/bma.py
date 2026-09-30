@@ -11,6 +11,7 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 BMA_EVENTS_URL = "https://artbma.org/events"
 BMA_TIMEZONE = "America/New_York"
@@ -23,10 +24,7 @@ BMA_DEFAULT_LOCATION = "Baltimore, MD"
 # rebuilt from a Nuxt/Apollo SPA into a server-rendered WordPress (Flynt theme).
 # We clear the challenge with a realistic browser fingerprint, then scrape the
 # `article.event-card` markup the listing now renders.
-BMA_USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-)
+BMA_USER_AGENT = BROWSER_USER_AGENT
 BMA_LAUNCH_ARGS = (
     "--disable-blink-features=AutomationControlled",
     "--no-sandbox",

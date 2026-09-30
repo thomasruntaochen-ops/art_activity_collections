@@ -12,6 +12,7 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.fetch_utils import gather_pages
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 LYMAN_ALLYN_EVENTS_URL = "https://www.lymanallyn.org/events/"
 
@@ -22,11 +23,7 @@ LYMAN_ALLYN_STATE = "CT"
 LYMAN_ALLYN_DEFAULT_LOCATION = "New London, CT"
 
 DEFAULT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": BROWSER_USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": LYMAN_ALLYN_EVENTS_URL,

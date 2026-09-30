@@ -13,6 +13,7 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 JOSLYN_CALENDAR_URL = "https://joslyn.org/visit/calendar"
 JOSLYN_EVENT_URL_PREFIX = "https://joslyn.org/events/"
@@ -23,11 +24,7 @@ JOSLYN_STATE = "NE"
 JOSLYN_DEFAULT_LOCATION = "Joslyn Art Museum, Omaha, NE"
 
 DEFAULT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": BROWSER_USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": JOSLYN_CALENDAR_URL,

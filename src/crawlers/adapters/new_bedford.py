@@ -16,6 +16,7 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 NEW_BEDFORD_EVENTS_URL = "https://newbedfordart.org/events/"
 NEW_BEDFORD_WP_PAGES_URL = "https://newbedfordart.org/wp-json/wp/v2/pages"
@@ -26,11 +27,7 @@ NEW_BEDFORD_STATE = "MA"
 NEW_BEDFORD_DEFAULT_LOCATION = "New Bedford Art Museum, 608 Pleasant Street, New Bedford, MA 02740"
 
 DEFAULT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": BROWSER_USER_AGENT,
     "Accept": "application/json,text/plain,*/*",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": NEW_BEDFORD_EVENTS_URL,

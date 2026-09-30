@@ -36,6 +36,7 @@ except ImportError:  # pragma: no cover
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 GUGGENHEIM_CALENDAR_URL = "https://www.guggenheim.org/calendar"
 GUGGENHEIM_BASE_URL = "https://www.guggenheim.org"
@@ -45,10 +46,7 @@ GUGGENHEIM_STATE = "NY"
 GUGGENHEIM_DEFAULT_LOCATION = "Solomon R. Guggenheim Museum, New York, NY"
 NY_TIMEZONE = "America/New_York"
 
-USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-)
+USER_AGENT = BROWSER_USER_AGENT
 
 # /event/<slug>/<YYYY-MM-DD> — the trailing date is the occurrence's own date.
 OCCURRENCE_URL_RE = re.compile(r"/event/(?P<slug>[^/]+)/(?P<date>\d{4}-\d{2}-\d{2})/?$")

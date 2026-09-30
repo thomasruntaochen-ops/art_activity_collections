@@ -17,6 +17,7 @@ from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 MFAH_EVENTS_URL = "https://www.mfah.org/events?period=year"
 MFAH_TIMEZONE = "America/Chicago"
@@ -95,11 +96,7 @@ async def load_mfah_payload(
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=True)
             context = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/122.0.0.0 Safari/537.36"
-                ),
+                user_agent=BROWSER_USER_AGENT,
                 locale="en-US",
                 timezone_id=MFAH_TIMEZONE,
             )

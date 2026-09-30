@@ -12,6 +12,7 @@ from src.crawlers.extractors.filters import is_irrelevant_item_text
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 NORTON_SIMON_FAMILY_URL = "https://www.nortonsimon.org/calendar/family-youth-and-teens"
 NORTON_SIMON_LECTURES_URL = "https://www.nortonsimon.org/calendar/lectures"
@@ -73,11 +74,7 @@ INCLUDED_KEYWORDS = (
     "youth",
 )
 AJAX_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": BROWSER_USER_AGENT,
     "Accept": "application/json, text/javascript, */*; q=0.01",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.nortonsimon.org/calendar",

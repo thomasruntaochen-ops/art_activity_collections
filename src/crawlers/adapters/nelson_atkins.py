@@ -19,6 +19,7 @@ from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
+from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 NELSON_ATKINS_EVENTS_URL = "https://cart.nelson-atkins.org/events?view=calendar+view=list&kid=11,165,216"
 NELSON_ATKINS_API_URL = "https://cart.nelson-atkins.org/api/products/productionseasons"
@@ -31,11 +32,7 @@ NELSON_ATKINS_DEFAULT_DAY_WINDOW = 184
 NELSON_ATKINS_KEYWORDS = [11, 165, 216]
 
 DEFAULT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": BROWSER_USER_AGENT,
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
     "Content-Type": "application/json",
