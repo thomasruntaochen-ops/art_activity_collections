@@ -25,7 +25,8 @@ DUBUQUE_STATE = "IA"
 DUBUQUE_TIMEZONE = "America/Chicago"
 DUBUQUE_LOCATION = "Dubuque Museum of Art, Dubuque, IA"
 
-SCRIPT_URL_RE = re.compile(r'<script src="(?P<url>https://dbqart\.org/experiences/script\?v=[^"]+)"')
+# The site began emitting the script under /index.php/ in Sept 2026.
+SCRIPT_URL_RE = re.compile(r'<script src="(?P<url>https://dbqart\.org/(?:index\.php/)?experiences/script\?v=[^"]+)"')
 DATA_ARRAY_RE = re.compile(r"data:\s*(\[\s*.*?\])\s*,\s*selectedExperienceType", re.DOTALL)
 UNQUOTED_KEY_RE = re.compile(r'(?<=[{,])\s*([A-Za-z_][A-Za-z0-9_]*)\s*:')
 EXCLUDE_MARKERS = (

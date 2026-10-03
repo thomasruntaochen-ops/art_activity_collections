@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 import httpx
@@ -22,6 +22,10 @@ MO_TIMEZONE = "America/Chicago"
 # 900s per-venue timeout.
 RATE_LIMIT_BACKOFF_SECONDS = 60.0
 RATE_LIMIT_BACKOFF_CAP_SECONDS = 180.0
+# /events/ is a month grid, so late in a month nearly everything on it is past;
+# also read the following months, spaced out for the throttling noted below.
+SLAM_MONTHS_AHEAD = 2
+SLAM_PAGE_DELAY_SECONDS = 5.0
 SLAM_VENUE_NAME = "Saint Louis Art Museum"
 SLAM_CITY = "St. Louis"
 SLAM_STATE = "MO"
@@ -155,11 +159,31 @@ async def load_slam_payload(*, page_limit: int | None = None, per_page: int = 50
     this is not just the IP rate limiting (which also answers 403, and which the
     retry backoff above still handles).
 
-    Reading one HTML page instead of walking paginated API requests also means
-    far fewer requests to a host that throttles aggressively.
+    Reading a few month pages instead of walking paginated API requests also
+    means far fewer requests to a host that throttles aggressively.
+    `page_limit` caps how many month pages are read.
     """
-    html = await fetch_slam_events_page(SLAM_EVENTS_URL, as_text=True)
-    return {"events": _extract_jsonld_events(html)}
+    month_urls = _build_month_urls(datetime.now(ZoneInfo(MO_TIMEZONE)).date())
+    if page_limit is not None:
+        month_urls = month_urls[: max(page_limit, 1)]
+
+    events: list[dict] = []
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
+        for index, url in enumerate(month_urls):
+            if index:
+                await asyncio.sleep(SLAM_PAGE_DELAY_SECONDS)
+            html = await fetch_slam_events_page(url, as_text=True, client=client)
+            events.extend(_extract_jsonld_events(html))
+    return {"events": events}
+
+
+def _build_month_urls(today: date) -> list[str]:
+    urls = [SLAM_EVENTS_URL]
+    year, month = today.year, today.month
+    for _ in range(SLAM_MONTHS_AHEAD):
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        urls.append(f"{SLAM_EVENTS_URL}month/{year}-{month:02d}/")
+    return urls
 
 
 def _extract_jsonld_events(html: str) -> list[dict]:

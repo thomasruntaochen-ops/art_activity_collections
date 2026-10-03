@@ -49,11 +49,15 @@ PLAYWRIGHT_LAUNCH_ARGS = (
     "--disable-dev-shm-usage",
 )
 
+# The Holter replaced its creative-kids/teen program pages (404 since 2026-09-29)
+# with youth-classes and family-programs; detail pages still live under /education/.
 HOLTER_DISCOVERY_URLS = (
-    "https://holtermuseum.org/programs/creative-kids/",
-    "https://holtermuseum.org/programs/teen/",
+    "https://holtermuseum.org/programs/youth-classes/",
+    "https://holtermuseum.org/programs/family-programs/",
 )
 HOLTER_SKIP_SLUGS = {"scholarship-application"}
+# "There is no class on Nov. 2" / "*there will be no class Oct. 15 and Nov. 26"
+HOLTER_NO_CLASS_RE = re.compile(r"there (?:is|will be) no class(?: on)?([^|]+)", re.IGNORECASE)
 
 MONTH_TOKEN_RE = re.compile(
     r"(?P<month>Jan(?:uary)?\.?|Feb(?:ruary)?\.?|Mar(?:ch)?\.?|Apr(?:il)?\.?|May|"
@@ -62,6 +66,7 @@ MONTH_TOKEN_RE = re.compile(
     r"(?P<day>\d{1,2})(?:st|nd|rd|th)?",
     re.IGNORECASE,
 )
+DAY_LIST_TAIL_RE = re.compile(r"\s*(?:,|&|and)\s*(?P<day>\d{1,2})(?:st|nd|rd|th)?\b\*?", re.IGNORECASE)
 HOLTER_RANGE_RE = re.compile(
     r"(?P<start_month>Jan(?:uary)?\.?|Feb(?:ruary)?\.?|Mar(?:ch)?\.?|Apr(?:il)?\.?|May|"
     r"Jun(?:e)?\.?|Jul(?:y)?\.?|Aug(?:ust)?\.?|Sep(?:t(?:ember)?)?\.?|Oct(?:ober)?\.?|"
@@ -226,6 +231,8 @@ MT_VENUES: tuple[MtVenueConfig, ...] = (
             "https://holtermuseum.org/education/",
             "https://holtermuseum.org/programs/creative-kids/",
             "https://holtermuseum.org/programs/teen/",
+            "https://holtermuseum.org/programs/youth-classes/",
+            "https://holtermuseum.org/programs/family-programs/",
         ),
     ),
     MtVenueConfig(
@@ -703,7 +710,14 @@ def _parse_holter_events(payload: dict, *, venue: MtVenueConfig) -> list[Extract
 
         title = lines[0]
         description = _build_holter_description(lines[1:])
-        if not _should_include_event(title=title, description=description, categories=()):
+        # Holter pages are recurring classes whose instructor bios mention "Cardboard
+        # Camp", so only a camp in the title marks a real camp.
+        if not _should_include_event(
+            title=title,
+            description=description,
+            categories=(),
+            camp_in_title_only=True,
+        ):
             continue
 
         occurrence_dates = _extract_holter_occurrence_dates(lines, reference_date=today)
@@ -854,39 +868,43 @@ def _build_holter_description(lines: list[str]) -> str | None:
 
 def _extract_holter_occurrence_dates(lines: list[str], *, reference_date: date) -> list[date]:
     joined = " | ".join(lines)
-    range_match = HOLTER_RANGE_RE.search(joined)
-    if range_match:
-        start_date = _build_month_day_date(
-            range_match.group("start_month"),
-            range_match.group("start_day"),
-            year=reference_date.year,
-        )
-        end_date = _build_month_day_date(
-            range_match.group("end_month") or range_match.group("start_month"),
-            range_match.group("end_day"),
-            year=reference_date.year,
-        )
-        if start_date is None or end_date is None or end_date < start_date:
-            return []
-
+    # Classes can list several session blocks, e.g. "Sept. 22-Oct. 20 | Nov. 17-Dec. 8".
+    range_matches = list(HOLTER_RANGE_RE.finditer(joined))
+    if range_matches:
         weekday = _extract_holter_weekday(lines)
         exceptions = _extract_holter_exception_dates(joined, year=reference_date.year)
-        if weekday is not None:
+        values: set[date] = set()
+        for range_match in range_matches:
+            start_date = _build_month_day_date(
+                range_match.group("start_month"),
+                range_match.group("start_day"),
+                year=reference_date.year,
+            )
+            end_date = _build_month_day_date(
+                range_match.group("end_month") or range_match.group("start_month"),
+                range_match.group("end_day"),
+                year=reference_date.year,
+            )
+            if start_date is None or end_date is None or end_date < start_date:
+                continue
+
+            if weekday is None:
+                if start_date >= reference_date:
+                    values.add(start_date)
+                continue
+
             current = start_date + timedelta(days=(weekday - start_date.weekday()) % 7)
-            values: list[date] = []
             while current <= end_date:
                 if current >= reference_date and current not in exceptions:
-                    values.append(current)
+                    values.add(current)
                 current += timedelta(days=7)
-            return values
-
-        return [start_date] if start_date >= reference_date else []
+        return sorted(values)
 
     explicit_dates: list[date] = []
     for line in lines[1:]:
         if HOLTER_RANGE_RE.search(line):
             continue
-        if "There is no class on" in line:
+        if HOLTER_NO_CLASS_RE.search(line):
             continue
         explicit_dates.extend(_extract_month_day_dates(line, year=reference_date.year))
 
@@ -904,10 +922,8 @@ def _extract_holter_weekday(lines: list[str]) -> int | None:
 
 
 def _extract_holter_exception_dates(text: str, *, year: int) -> set[date]:
-    if "There is no class on" not in text:
-        return set()
     exceptions: set[date] = set()
-    for chunk in re.findall(r"There is no class on([^|]+)", text, flags=re.IGNORECASE):
+    for chunk in HOLTER_NO_CLASS_RE.findall(text):
         exceptions.update(_extract_month_day_dates(chunk, year=year))
     return exceptions
 
@@ -930,9 +946,16 @@ def _apply_time_text(activity_date: date, *, time_text: str | None) -> tuple[dat
 def _extract_month_day_dates(text: str, *, year: int) -> list[date]:
     values: list[date] = []
     for match in MONTH_TOKEN_RE.finditer(text):
-        built = _build_month_day_date(match.group("month"), match.group("day"), year=year)
-        if built is not None:
-            values.append(built)
+        days = [match.group("day")]
+        position = match.end()
+        # "Oct. 7, 14, 21, 28" / "Dec. 2 & 9" list more days of the same month.
+        while tail := DAY_LIST_TAIL_RE.match(text, position):
+            days.append(tail.group("day"))
+            position = tail.end()
+        for day in days:
+            built = _build_month_day_date(match.group("month"), day, year=year)
+            if built is not None:
+                values.append(built)
     return values
 
 
@@ -949,7 +972,13 @@ def _build_month_day_date(month_text: str | None, day_text: str | None, *, year:
         return None
 
 
-def _should_include_event(*, title: str, description: str | None, categories: list[str] | tuple[str, ...]) -> bool:
+def _should_include_event(
+    *,
+    title: str,
+    description: str | None,
+    categories: list[str] | tuple[str, ...],
+    camp_in_title_only: bool = False,
+) -> bool:
     title_blob = f" {normalize_space(title).lower()} "
     description_blob = f" {normalize_space(description).lower()} "
     categories_blob = f" {' '.join(normalize_space(value).lower() for value in categories)} "
@@ -957,7 +986,7 @@ def _should_include_event(*, title: str, description: str | None, categories: li
 
     if "(copy)" in title_blob:
         return False
-    if re.search(r"\bcamps?\b", blob):
+    if re.search(r"\bcamps?\b", title_blob if camp_in_title_only else blob):
         return False
     if " summer art academy " in title_blob:
         return False

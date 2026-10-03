@@ -1,5 +1,6 @@
+import calendar
 import json
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
@@ -8,6 +9,7 @@ import httpx
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.adapters.oh_common import DEFAULT_HEADERS
 from src.crawlers.adapters.oh_common import NY_TIMEZONE
+from src.crawlers.adapters.oh_common import absolute_url
 from src.crawlers.adapters.oh_common import fetch_html
 from src.crawlers.adapters.oh_common import infer_activity_type
 from src.crawlers.adapters.oh_common import join_non_empty
@@ -16,20 +18,12 @@ from src.crawlers.adapters.oh_common import should_include_event
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
-try:
-    from playwright.async_api import async_playwright
-except ImportError:  # pragma: no cover - environment-specific dependency
-    async_playwright = None
 
-
-ZANESVILLE_EVENTS_URL = "https://www.zanesvilleart.org/calendar/"
-# The calendar is a YUI3 widget that renders one month at a time. Reading only
-# the default (current) month means that late in the month every event on screen
-# is already past and the parser yields nothing, even though the next month is
-# full -- so walk forward a few months and pool the links.
+# The /calendar/ widget page was removed in Sept 2026, so read the zma-calendar
+# events collection's Squarespace JSON instead. Each month view holds only that
+# month, and late in a month every event is already past -- so pool a few months.
+ZANESVILLE_EVENTS_URL = "https://www.zanesvilleart.org/zma-calendar"
 ZANESVILLE_MONTHS_AHEAD = 3
-ZANESVILLE_EVENT_LINK_SELECTOR = 'a[href*="/zma-calendar/"]'
-ZANESVILLE_NEXT_MONTH_SELECTOR = "a.yui3-calendarnav-nextmonth"
 ZANESVILLE_VENUE_NAME = "Zanesville Museum of Art"
 ZANESVILLE_CITY = "Zanesville"
 ZANESVILLE_STATE = "OH"
@@ -46,19 +40,18 @@ EXPLICIT_EXCLUDE_MARKERS = (
 
 
 async def load_zanesville_museum_of_art_payload() -> dict:
-    if async_playwright is None:
-        raise RuntimeError(
-            "Playwright is required for Zanesville Museum of Art parsing. Install crawler extras and chromium first."
-        )
-
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True)
-        page = await browser.new_page()
-        await page.goto(ZANESVILLE_EVENTS_URL, wait_until="networkidle", timeout=120000)
-        detail_urls = await _collect_detail_urls(page, months_ahead=ZANESVILLE_MONTHS_AHEAD)
-        await browser.close()
-
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
+        detail_urls: list[str] = []
+        for month_url in _build_month_urls(datetime.now(ZoneInfo(NY_TIMEZONE)).date()):
+            month_payload = json.loads(await fetch_html(month_url, referer=ZANESVILLE_EVENTS_URL, client=client))
+            for item in month_payload.get("items") or []:
+                full_url = normalize_space(item.get("fullUrl"))
+                if not full_url:
+                    continue
+                detail_url = absolute_url(ZANESVILLE_EVENTS_URL, full_url)
+                if detail_url not in detail_urls:
+                    detail_urls.append(detail_url)
+
         detail_pages: dict[str, str] = {}
         for detail_url in detail_urls:
             detail_pages[detail_url] = await fetch_html(detail_url, referer=ZANESVILLE_EVENTS_URL, client=client)
@@ -66,65 +59,13 @@ async def load_zanesville_museum_of_art_payload() -> dict:
     return {"detail_pages": detail_pages}
 
 
-async def _collect_detail_urls(page, *, months_ahead: int) -> list[str]:
-    """Pool event links across the current month and the next few."""
+def _build_month_urls(today: date) -> list[str]:
     urls: list[str] = []
-    seen: set[str] = set()
-    previous_links: list[str] = []
-
-    for month_index in range(max(1, months_ahead)):
-        if month_index:
-            next_link = page.locator(ZANESVILLE_NEXT_MONTH_SELECTOR).first
-            if await next_link.count() == 0:
-                break
-            await next_link.click()
-            # The month header flips immediately, but the grid is emptied and
-            # only refilled about a second later -- so waiting on the header (or
-            # on "the links changed") returns during that empty gap and re-reads
-            # nothing. Wait for a NON-EMPTY set that differs from the month just
-            # left. A genuinely event-free month never satisfies that, so the
-            # timeout is the exit for it: fall through, collect its zero links,
-            # and carry on to the following month.
-            try:
-                await page.wait_for_function(
-                    """
-                    ([selector, previousJoined]) => {
-                        const nodes = document.querySelectorAll(selector);
-                        const hrefs = [...new Set([...nodes].map(node => node.href))];
-                        return hrefs.length > 0 && hrefs.join("|") !== previousJoined;
-                    }
-                    """,
-                    arg=[ZANESVILLE_EVENT_LINK_SELECTOR, "|".join(previous_links)],
-                    timeout=15000,
-                )
-            except Exception:
-                pass
-
-        previous_links = await _read_event_links(page)
-        for href in previous_links:
-            if href and href not in seen:
-                seen.add(href)
-                urls.append(href)
-
+    year, month = today.year, today.month
+    for _ in range(ZANESVILLE_MONTHS_AHEAD):
+        urls.append(f"{ZANESVILLE_EVENTS_URL}?format=json&month={calendar.month_name[month].lower()}-{year}")
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
     return urls
-
-
-async def _read_event_links(page) -> list[str]:
-    return await page.locator(ZANESVILLE_EVENT_LINK_SELECTOR).evaluate_all(
-        """
-        elements => {
-            const urls = [];
-            const seen = new Set();
-            for (const element of elements) {
-                const href = element.href;
-                if (!href || seen.has(href)) continue;
-                seen.add(href);
-                urls.push(href);
-            }
-            return urls;
-        }
-        """
-    )
 
 
 def parse_zanesville_museum_of_art_payload(payload: dict) -> list[ExtractedActivity]:

@@ -1,6 +1,7 @@
 import asyncio
+import calendar
 import re
-from datetime import datetime
+from datetime import date, datetime
 from urllib.parse import urljoin
 
 import httpx
@@ -13,6 +14,9 @@ from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 NOYES_EVENTS_URL = "https://noyesmuseum.org/all-noyes-events"
+# The events page is a month calendar showing only the current month, so late in
+# a month it holds no upcoming events; also fetch the following months' views.
+NOYES_EXTRA_MONTHS = 2
 
 NY_TIMEZONE = "America/New_York"
 NOYES_VENUE_NAME = "Noyes Museum of Art"
@@ -68,6 +72,7 @@ HARD_EXCLUDED_KEYWORDS = (
     "band",
     "tai chi",
     "poetry",
+    "housing",
 )
 SOFT_EXCLUDED_KEYWORDS = (
     "registration",
@@ -133,17 +138,40 @@ async def fetch_noyes_page(
 
 
 async def load_noyes_events_payload() -> dict:
-    html = await fetch_noyes_page(NOYES_EVENTS_URL)
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
+        html_pages = [
+            await fetch_noyes_page(url, client=client)
+            for url in _build_month_urls(datetime.now().date())
+        ]
     return {
         "listing_url": NOYES_EVENTS_URL,
-        "html": html,
+        "html_pages": html_pages,
     }
 
 
 def parse_noyes_events_payload(payload: dict) -> list[ExtractedActivity]:
     list_url = str(payload.get("listing_url") or NOYES_EVENTS_URL)
-    html = str(payload.get("html") or "")
-    return parse_noyes_events_html(html, list_url=list_url)
+    html_pages = payload.get("html_pages") or [payload.get("html") or ""]
+    rows: list[ExtractedActivity] = []
+    seen: set[tuple[str, str, datetime]] = set()
+    for html in html_pages:
+        for row in parse_noyes_events_html(str(html), list_url=list_url):
+            key = (row.source_url, row.title, row.start_at)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(row)
+    rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
+    return rows
+
+
+def _build_month_urls(today: date) -> list[str]:
+    urls = [NOYES_EVENTS_URL]
+    year, month = today.year, today.month
+    for _ in range(NOYES_EXTRA_MONTHS):
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        urls.append(f"{NOYES_EVENTS_URL}?month={calendar.month_name[month].lower()}-{year}&view=calendar")
+    return urls
 
 
 class NoyesEventsAdapter(BaseSourceAdapter):

@@ -16,7 +16,8 @@ from src.crawlers.pipeline.pricing import infer_price_classification_from_amount
 from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.user_agent import BROWSER_USER_AGENT
 
-FRIST_EVENTS_URL = "https://fristartmuseum.org/events/"
+# /events/ became a landing page in Sept 2026; the paged calendar is /all-events/.
+FRIST_EVENTS_URL = "https://fristartmuseum.org/all-events/"
 
 NY_TIMEZONE = "America/New_York"
 MAX_FUTURE_DAYS = 365
@@ -74,6 +75,7 @@ TITLE_EXCLUDE_PATTERNS = (
 REJECT_TAGS = {
     "member event",
     "music",
+    "music + performances",
     "tours",
 }
 MULTI_SPACE_RE = re.compile(r"\s+")
@@ -275,11 +277,13 @@ def _build_page_url(page: int) -> str:
 def _parse_listing_cards(html: str) -> list[dict]:
     soup = BeautifulSoup(html, "html.parser")
     cards: list[dict] = []
-    for card in soup.select(".teaser-card.teaser-card--event"):
-        link = card.select_one(".teaser-card__title a[href]")
+    # The Sept 2026 redesign renders `.card--event` cards whose only tag is the
+    # event-type eyebrow; the summary and register text moved to detail pages.
+    for card in soup.select(".card.card--event"):
+        link = card.select_one(".card__title a[href]")
         if link is None:
             continue
-        tags = [_normalize_space(node.get_text(" ", strip=True)) for node in card.select(".teaser-card__tags a")]
+        tags = [_normalize_space(node.get_text(" ", strip=True)) for node in card.select(".card__eyebrow")]
         tags = [value for value in tags if value]
         cards.append(
             {
@@ -287,9 +291,7 @@ def _parse_listing_cards(html: str) -> list[dict]:
                 "source_url": _normalize_space(link.get("href")),
                 "date_text": _normalize_space(_text_or_none(card.select_one(".event-date"))),
                 "time_text": _normalize_space(_text_or_none(card.select_one(".event-time"))),
-                "summary": _normalize_space(_text_or_none(card.select_one(".teaser-card__text"))),
                 "tags": tags,
-                "register_text": _normalize_space(_text_or_none(card.select_one(".teaser-card__register"))),
             }
         )
     return cards

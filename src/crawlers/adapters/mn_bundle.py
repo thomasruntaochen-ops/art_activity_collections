@@ -182,6 +182,7 @@ ARTSMIA_BODY_DATETIME_RE = re.compile(
     r"(\d{1,2}:\d{2}\s*[ap]m)\s+to\s+(\d{1,2}:\d{2}\s*[ap]m)",
     re.IGNORECASE,
 )
+WAM_EVENTS_URL = "https://wam.umn.edu/events"
 WAM_RANGE_WITH_END_DATE_RE = re.compile(
     r"(?P<start_month>[A-Za-z]{3,9})\s+(?P<start_day>\d{1,2})\s+(?P<start_year>\d{4})\s*\|\s*"
     r"(?P<start_time>\d{1,2}(?::\d{2})?\s*[ap]m)\s*-\s*"
@@ -534,9 +535,20 @@ async def _load_wam_payload(
         if len(detail_urls) >= max(max_links, 1):
             break
 
+    # Create + Learn features one Open Studio at a time, so once it has passed the
+    # venue looked dead; the events calendar lists every upcoming program.
+    events_html = await fetch_html(WAM_EVENTS_URL, client=client)
+    for url in _extract_main_links(events_html, WAM_EVENTS_URL)[: max(max_links, 1)]:
+        if url not in detail_urls:
+            detail_urls.append(url)
+
     detail_pages: dict[str, str] = {}
     for url in detail_urls:
-        detail_pages[url] = await fetch_html(url, client=client)
+        # Most of these are nav pages, so one failing (e.g. a 429) should not sink the venue.
+        try:
+            detail_pages[url] = await fetch_html(url, client=client)
+        except httpx.HTTPError as exc:
+            print(f"[mn-wam] skipping {url}: {exc}")
 
     return {
         "list_html": list_html,
@@ -729,7 +741,12 @@ def _parse_rourke_events(payload: dict, *, venue: MnVenueConfig) -> list[Extract
 def _parse_wam_events(payload: dict, *, venue: MnVenueConfig) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
     list_text = _extract_main_text(payload.get("list_html"))
-    for url, html in (payload.get("detail_pages") or {}).items():
+    detail_pages = payload.get("detail_pages") or {}
+    # Only pages carrying a WAM event date are events; the rest are nav links.
+    record_candidate_count(
+        sum(1 for html in detail_pages.values() if _parse_wam_event_datetime(_extract_main_text(html))[0])
+    )
+    for url, html in detail_pages.items():
         row = _build_wam_row(url, html, list_text=list_text, venue=venue)
         if row is not None:
             rows.append(row)
@@ -1028,6 +1045,22 @@ def _extract_mmam_urls(html: str) -> list[str]:
             if url in seen:
                 continue
             seen.add(url)
+            urls.append(url)
+    return urls
+
+
+def _extract_main_links(html: str, base_url: str) -> list[str]:
+    soup = BeautifulSoup(html, "html.parser")
+    root = soup.find("main") or soup.body or soup
+    urls: list[str] = []
+    for anchor in root.select("a[href]"):
+        href = _normalize_space(anchor.get("href"))
+        if not href or href.startswith(("#", "mailto:")):
+            continue
+        url = urljoin(base_url, href)
+        if urlparse(url).netloc != urlparse(base_url).netloc or url.rstrip("/") == base_url.rstrip("/"):
+            continue
+        if url not in urls:
             urls.append(url)
     return urls
 

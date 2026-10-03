@@ -193,14 +193,23 @@ def _iter_upcoming_event_blocks(soup: BeautifulSoup):
             yield month_label, block
 
 
+def _iter_block_children(node):
+    # Since Sept 2026 each event after the first sits in its own wrapper <div>
+    # (itself nesting the next one), so descend through divs to the p/h5/hr run.
+    for child in node.children:
+        if isinstance(child, NavigableString):
+            continue
+        if child.name == "div":
+            yield from _iter_block_children(child)
+            continue
+        yield child
+
+
 def _split_event_blocks(body) -> list[list]:
     blocks: list[list] = []
     current: list = []
 
-    for child in body.children:
-        if isinstance(child, NavigableString):
-            continue
-
+    for child in _iter_block_children(body):
         text = _normalize_space(child.get_text(" ", strip=True))
         if child.name == "hr":
             if current:
