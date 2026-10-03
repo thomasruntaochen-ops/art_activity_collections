@@ -1,4 +1,6 @@
 import asyncio
+import html
+import json
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -17,6 +19,12 @@ from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 NY_TIMEZONE = "America/New_York"
 NPG_TRUMBA_RSS_URL = "https://www.trumba.com/calendars/npg-events.rss"
+# asia.si.edu answers automated clients with a Cloudflare challenge; the
+# Smithsonian's public all-museums Trumba feed carries the same events.
+SMITHSONIAN_TRUMBA_JSON_URL = "https://www.trumba.com/calendars/smithsonian-events.json"
+ASIAN_ART_TRUMBA_NAME = "Asian Art Museum"
+# The event-search topics the venue used to be read through.
+ASIAN_ART_CATEGORIES = {"Workshops", "Lectures & Discussions", "Kids & Families"}
 
 DEFAULT_HEADERS = {
     "User-Agent": BROWSER_USER_AGENT,
@@ -98,7 +106,6 @@ TIME_RANGE_RE = re.compile(
 )
 TIME_SINGLE_RE = re.compile(r"\b(?P<time>\d{1,2}(?::\d{2})?\s*[APap]\.?[Mm]\.?)\b", re.IGNORECASE)
 
-ASIA_EVENT_RE = re.compile(r"/whats-on/events/search/event:\d+")
 NPG_DATE_RE = re.compile(
     r"Event Date:\s*(?P<date>[A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2},\s+\d{4})\s+(?P<times>.+?)\s+Event Location:",
     re.IGNORECASE,
@@ -109,14 +116,6 @@ NPG_CATEGORY_RE = re.compile(
     r"Event Category:\s*(?P<category>.+?)\s+(?P<description>(?:Calling all artists!|Children and families are invited).+?)\s+Add to Calendar",
     re.IGNORECASE,
 )
-ASIA_DATE_RE = re.compile(
-    r"Date\s+(?P<date>[A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{4})\s+(?P<times>.+?)\s+Location",
-    re.IGNORECASE,
-)
-ASIA_LOCATION_RE = re.compile(r"Location\s+(?P<location>.+?)\s+Description", re.IGNORECASE)
-ASIA_DESCRIPTION_RE = re.compile(r"Description\s+(?P<description>.+?)\s+Image:", re.IGNORECASE)
-ASIA_COST_RE = re.compile(r"Cost\s+(?P<cost>.+?)\s+Accessibility", re.IGNORECASE)
-ASIA_TOPICS_RE = re.compile(r"Topics\s+(?P<topics>.+?)\s+Explore Art \+ Culture", re.IGNORECASE)
 PHILLIPS_DATETIME_RE = re.compile(
     r"(?P<date>[A-Za-z]+\s+\d{1,2},\s+\d{4}),\s+(?P<times>\d{1,2}(?::\d{2})?\s*[ap]m\s*-\s*\d{1,2}(?::\d{2})?\s*[ap]m)",
     re.IGNORECASE,
@@ -145,11 +144,7 @@ DC_HTML_VENUES: tuple[DcHtmlVenueConfig, ...] = (
         venue_name="National Museum of Asian Art",
         city="Washington",
         state="DC",
-        list_urls=(
-            "https://asia.si.edu/whats-on/events/search/?&edan_fq%5B%5D=p.event.topics:Workshops",
-            "https://asia.si.edu/whats-on/events/search/?&edan_fq%5B%5D=p.event.topics:Lectures+%26+Discussions",
-            "https://asia.si.edu/whats-on/events/search/?&edan_fq%5B%5D=p.event.topics:Kids+%26+Families",
-        ),
+        list_urls=(SMITHSONIAN_TRUMBA_JSON_URL,),
     ),
     DcHtmlVenueConfig(
         slug="npg",
@@ -235,12 +230,19 @@ async def load_dc_html_bundle_payload(
         for venue in selected:
             listing_urls = list(venue.list_urls)
             detail_items: list[dict] = []
-            listing_cards: list[dict] = []
 
             if venue.slug == "kreeger":
                 html = await fetch_html(venue.list_urls[0], client=client)
                 detail_items.append({"url": venue.list_urls[0], "list_text": "First Studio", "html": html})
                 payload[venue.slug] = {"listing_urls": listing_urls, "detail_items": detail_items}
+                continue
+
+            if venue.slug == "asian_art":
+                feed = json.loads(await fetch_html(SMITHSONIAN_TRUMBA_JSON_URL, client=client))
+                payload[venue.slug] = {
+                    "listing_urls": listing_urls,
+                    "trumba_events": [event for event in feed if _is_asian_art_trumba_event(event)],
+                }
                 continue
 
             if venue.slug == "npg":
@@ -255,8 +257,6 @@ async def load_dc_html_bundle_payload(
                     listing_html = await fetch_html(listing_url, client=client)
                 except Exception:
                     continue
-                if venue.slug == "asian_art":
-                    listing_cards.extend(_extract_asian_art_listing_cards(listing_html, listing_url))
                 for link_url, list_text in _extract_listing_links(venue.slug, listing_html, listing_url):
                     if link_url in seen_links:
                         continue
@@ -273,7 +273,6 @@ async def load_dc_html_bundle_payload(
             payload[venue.slug] = {
                 "listing_urls": listing_urls,
                 "detail_items": detail_items,
-                "listing_cards": listing_cards,
             }
 
     return payload
@@ -282,6 +281,8 @@ async def load_dc_html_bundle_payload(
 def parse_dc_html_events(payload: dict, *, venue: DcHtmlVenueConfig) -> list[ExtractedActivity]:
     if venue.slug == "npg" and payload.get("rss_xml"):
         return _parse_npg_rss_events(str(payload.get("rss_xml") or ""), venue=venue)
+    if venue.slug == "asian_art":
+        return _parse_asian_art_trumba_events(payload.get("trumba_events") or [], venue=venue)
 
     detail_items = payload.get("detail_items") or []
     rows: list[ExtractedActivity] = []
@@ -298,18 +299,9 @@ def parse_dc_html_events(payload: dict, *, venue: DcHtmlVenueConfig) -> list[Ext
         seen.add(key)
         rows.append(row)
 
-    if venue.slug == "asian_art":
-        for item in payload.get("listing_cards") or []:
-            row = _parse_asian_art_listing_item(item, venue=venue)
-            if row is None or row.start_at.date() < current_date:
-                continue
-            if not _passes_common_activity_filter(row):
-                continue
-            key = (row.source_url, row.title, row.start_at)
-            if key in seen:
-                continue
-            seen.add(key)
-            rows.append(row)
+    rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
+    return rows
+
 
     rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
     return rows
@@ -336,10 +328,7 @@ def _extract_listing_links(venue_slug: str, html: str, list_url: str) -> list[tu
         if not text:
             continue
 
-        if venue_slug == "asian_art":
-            if not ASIA_EVENT_RE.search(href):
-                continue
-        elif venue_slug in {"npg", "phillips"}:
+        if venue_slug in {"npg", "phillips"}:
             if "/event/" not in href:
                 continue
         else:
@@ -350,33 +339,8 @@ def _extract_listing_links(venue_slug: str, html: str, list_url: str) -> list[tu
     return links
 
 
-def _extract_asian_art_listing_cards(html: str, list_url: str) -> list[dict]:
-    soup = BeautifulSoup(html, "html.parser")
-    cards: list[dict] = []
-    seen: set[str] = set()
-
-    for anchor in soup.find_all("a", href=True):
-        href = (anchor.get("href") or "").strip()
-        if not ASIA_EVENT_RE.search(href):
-            continue
-        source_url = urljoin(list_url, href)
-        if source_url in seen:
-            continue
-        title = _normalize_space(anchor.get_text(" ", strip=True))
-        card = anchor.find_parent(class_="card")
-        card_text = _normalize_space(card.get_text(" | ", strip=True)) if card is not None else title
-        if not title or not card_text:
-            continue
-        seen.add(source_url)
-        cards.append({"url": source_url, "title": title, "card_text": card_text})
-
-    return cards
-
-
 def _build_row(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | None:
-    if venue.slug == "asian_art":
-        parsed = _parse_asian_art_item(item, venue=venue)
-    elif venue.slug == "npg":
+    if venue.slug == "npg":
         parsed = _parse_npg_item(item, venue=venue)
     elif venue.slug == "kreeger":
         parsed = _parse_kreeger_item(item, venue=venue)
@@ -437,96 +401,6 @@ def _passes_common_activity_filter(parsed: ExtractedActivity) -> bool:
     if any(pattern in {" admission ", " storytime ", " tour ", " tours "} for pattern in exclude_hits) and not strong_activity:
         return False
     return True
-
-
-def _parse_asian_art_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | None:
-    text = _html_text(item["html"])
-    title = _extract_title(item["html"], default=item.get("list_text") or "")
-    date_match = ASIA_DATE_RE.search(text)
-    if not title or date_match is None:
-        return None
-
-    start_at, end_at = _parse_date_and_times(date_match.group("date"), date_match.group("times"))
-    if start_at is None:
-        return None
-
-    description = _match_group(ASIA_DESCRIPTION_RE, text, "description")
-    topics = _match_group(ASIA_TOPICS_RE, text, "topics")
-    location = _match_group(ASIA_LOCATION_RE, text, "location") or f"{venue.city}, {venue.state}"
-    cost = _match_group(ASIA_COST_RE, text, "cost")
-
-    description_parts = [part for part in [description, f"Topics: {topics}" if topics else None, f"Cost: {cost}" if cost else None] if part]
-    full_description = " | ".join(description_parts) if description_parts else None
-    token_blob = _searchable_blob(" ".join(part for part in [title, full_description or "", topics] if part))
-    is_free, free_verification_status = _infer_dc_html_price(
-        " ".join(part for part in [cost, full_description] if part),
-        default_is_free=True,
-    )
-
-    return ExtractedActivity(
-        source_url=item["url"],
-        title=title,
-        description=full_description,
-        venue_name=venue.venue_name,
-        location_text=location,
-        city=venue.city,
-        state=venue.state,
-        activity_type=_infer_dc_html_activity_type(token_blob),
-        age_min=None,
-        age_max=None,
-        audience_segment=_infer_dc_html_audience(title=title, description=full_description, token_blob=token_blob),
-        drop_in=("walk-up" in _searchable_blob(full_description or "")),
-        registration_required=("registration" in _searchable_blob(full_description or "") and "no registration" not in _searchable_blob(full_description or "")),
-        start_at=start_at,
-        end_at=end_at,
-        timezone=NY_TIMEZONE,
-        is_free=is_free,
-        free_verification_status=free_verification_status,
-    )
-
-
-def _parse_asian_art_listing_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | None:
-    title = _normalize_space(item.get("title"))
-    source_url = _normalize_space(item.get("url"))
-    card_text = _normalize_space(item.get("card_text"))
-    if not title or not source_url or not card_text:
-        return None
-
-    tail = card_text
-    if tail.startswith(title):
-        tail = tail[len(title):].strip(" |")
-    parts = [_normalize_space(part) for part in tail.split("|") if _normalize_space(part)]
-    if len(parts) < 2:
-        return None
-
-    start_at, end_at = _parse_date_and_times(parts[0], parts[1])
-    if start_at is None:
-        return None
-
-    topics = parts[2] if len(parts) >= 3 else ""
-    full_description = " | ".join(part for part in [f"Topics: {topics}" if topics else None, "Cost: Free (inferred)"] if part)
-    token_blob = _searchable_blob(" ".join(part for part in [title, full_description, topics] if part))
-
-    return ExtractedActivity(
-        source_url=source_url,
-        title=title,
-        description=full_description or None,
-        venue_name=venue.venue_name,
-        location_text=f"{venue.venue_name}, {venue.city}, {venue.state}",
-        city=venue.city,
-        state=venue.state,
-        activity_type=_infer_dc_html_activity_type(token_blob),
-        age_min=None,
-        age_max=None,
-        audience_segment=_infer_dc_html_audience(title=title, description=full_description, token_blob=token_blob),
-        drop_in=None,
-        registration_required=False,
-        start_at=start_at,
-        end_at=end_at,
-        timezone=NY_TIMEZONE,
-        is_free=True,
-        free_verification_status="inferred",
-    )
 
 
 def _infer_dc_html_price(text: str | None, *, default_is_free: bool | None) -> tuple[bool | None, str]:
@@ -594,6 +468,96 @@ def _parse_npg_item(item: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivit
         age_max=age_max,
         drop_in=("drop in" in token_blob or "drop-in" in token_blob),
         registration_required=("registration required" in token_blob and "no registration required" not in token_blob),
+        start_at=start_at,
+        end_at=end_at,
+        timezone=NY_TIMEZONE,
+        is_free=is_free,
+        free_verification_status=free_verification_status,
+    )
+
+
+def _is_asian_art_trumba_event(event: dict) -> bool:
+    fields = _trumba_custom_fields(event)
+    if ASIAN_ART_TRUMBA_NAME not in (fields.get("Venue"), fields.get("Sponsor")):
+        return False
+    categories = {part.strip() for part in fields.get("Categories", "").split(",")}
+    return bool(categories & ASIAN_ART_CATEGORIES) and not event.get("canceled")
+
+
+def _trumba_custom_fields(event: dict) -> dict[str, str]:
+    return {
+        _normalize_space(field.get("label")): _html_text(html.unescape(str(field.get("value") or "")))
+        for field in event.get("customFields") or []
+        if isinstance(field, dict)
+    }
+
+
+def _parse_asian_art_trumba_events(events: list[dict], *, venue: DcHtmlVenueConfig) -> list[ExtractedActivity]:
+    current_date = datetime.now(ZoneInfo(NY_TIMEZONE)).date()
+    rows: list[ExtractedActivity] = []
+    seen: set[tuple[str, str, datetime]] = set()
+    for event in events:
+        row = _parse_asian_art_trumba_event(event, venue=venue)
+        if row is None or row.start_at.date() < current_date or not _passes_common_activity_filter(row):
+            continue
+        key = (row.source_url, row.title, row.start_at)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(row)
+    rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
+    return rows
+
+
+def _parse_asian_art_trumba_event(event: dict, *, venue: DcHtmlVenueConfig) -> ExtractedActivity | None:
+    title = _normalize_space(html.unescape(str(event.get("title") or "")))
+    source_url = _normalize_space(event.get("permaLinkUrl"))
+    try:
+        start_at = datetime.fromisoformat(str(event.get("startDateTime") or ""))
+    except ValueError:
+        return None
+    if not title or not source_url:
+        return None
+    try:
+        end_at: datetime | None = datetime.fromisoformat(str(event.get("endDateTime") or ""))
+    except ValueError:
+        end_at = None
+    if end_at is not None and end_at <= start_at:
+        end_at = None
+
+    fields = _trumba_custom_fields(event)
+    topics = fields.get("Categories")
+    cost = fields.get("Cost")
+    description = _html_text(html.unescape(str(event.get("description") or "")))
+    description_parts = [part for part in [description, f"Topics: {topics}" if topics else None, f"Cost: {cost}" if cost else None] if part]
+    full_description = " | ".join(description_parts) if description_parts else None
+    token_blob = _searchable_blob(" ".join(part for part in [title, full_description or ""] if part))
+    is_free, free_verification_status = _infer_dc_html_price(
+        " ".join(part for part in [cost, full_description] if part),
+        default_is_free=True,
+    )
+    registration_blob = _searchable_blob(" ".join(part for part in [cost, full_description] if part))
+
+    return ExtractedActivity(
+        source_url=source_url,
+        title=title,
+        description=full_description,
+        venue_name=venue.venue_name,
+        location_text=fields.get("Event Location") or fields.get("Building") or f"{venue.city}, {venue.state}",
+        city=venue.city,
+        state=venue.state,
+        activity_type=_infer_dc_html_activity_type(token_blob),
+        age_min=None,
+        age_max=None,
+        # The feed's topics name the audience ("Kids & Families"); long descriptions
+        # (speaker bios) mention family in passing, so read title and topics only.
+        audience_segment=_infer_dc_html_audience(
+            title=title,
+            description=full_description,
+            token_blob=_searchable_blob(" ".join(part for part in [title, topics] if part)),
+        ),
+        drop_in=("walk-up" in registration_blob or "no registration" in registration_blob),
+        registration_required=("registration" in registration_blob and "no registration" not in registration_blob),
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
