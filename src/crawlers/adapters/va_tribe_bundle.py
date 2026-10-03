@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from urllib.parse import urljoin
 from urllib.parse import urlparse
 
 import httpx
@@ -47,10 +48,12 @@ INCLUDE_PATTERNS = (
     " workshops ",
 )
 CHRYSLER_TITLE_EXCLUDE_PATTERNS = (
+    " ignite ",  # 18+ nightlife party
     " mixtape first thursday ",
     " summer intern ",
     " teacher institute ",
     " teacher two day workshop ",
+    " teacher workshop ",
 )
 CHRYSLER_CATEGORY_EXCLUDE_NAMES = {
     "teacher professional development",
@@ -128,6 +131,8 @@ STRICT_EXCLUDE_PATTERNS = (
     " tours ",
     " yoga ",
 )
+TICKETAPP_DATE_RE = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2}\b")
+TICKETAPP_TIME_RE = re.compile(r"\b(\d{1,2}:\d{2})\s*([ap]m)\b", re.IGNORECASE)
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to|&#8211;)\s*(\d{1,2})\b", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:\+|\band up\b)", re.IGNORECASE)
 AGE_AND_UNDER_RE = re.compile(r"\bages?\s*(\d{1,2})\s*and under\b", re.IGNORECASE)
@@ -148,6 +153,9 @@ class VaTribeVenueConfig:
     # (HTTP 403 rest_forbidden). When an iCal feed URL is provided, the loader
     # uses it instead of the REST API.
     ical_url: str | None = None
+    # Venues that moved their calendar into a TicketApp portal: the loader reads
+    # its program cards and each program page's dated sessions instead.
+    ticketapp_url: str | None = None
 
 
 VA_TRIBE_VENUES: tuple[VaTribeVenueConfig, ...] = (
@@ -157,8 +165,10 @@ VA_TRIBE_VENUES: tuple[VaTribeVenueConfig, ...] = (
         venue_name="Chrysler Museum of Art",
         city="Norfolk",
         state="VA",
-        list_url="https://chrysler.org/events/",
+        # chrysler.org/events/ now redirects here and its Tribe API is empty.
+        list_url="https://chrysler.ticketapp.org/portal/pages/events_and_programs",
         api_url="https://chrysler.org/wp-json/tribe/events/v1/events",
+        ticketapp_url="https://chrysler.ticketapp.org/portal/pages/events_and_programs",
     ),
     VaTribeVenueConfig(
         slug="maier",
@@ -283,6 +293,13 @@ async def load_va_tribe_bundle_payload(
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         for venue in venues_to_load:
+            if venue.ticketapp_url:
+                try:
+                    events_by_slug[venue.slug] = await _load_ticketapp_events(venue.ticketapp_url, client=client)
+                except Exception as exc:
+                    errors_by_slug[venue.slug] = str(exc)
+                    print(f"[va-tribe-fetch] venue={venue.slug} (ticketapp) failed: {exc}")
+                continue
             if venue.ical_url:
                 try:
                     events_by_slug[venue.slug] = await _load_ical_events(venue.ical_url, client=client)
@@ -309,6 +326,62 @@ async def load_va_tribe_bundle_payload(
             events_by_slug[venue.slug] = events
 
     return {"events_by_slug": events_by_slug, "errors_by_slug": errors_by_slug}
+
+
+async def _load_ticketapp_events(portal_url: str, *, client: httpx.AsyncClient) -> list[dict]:
+    """One Tribe-shaped event per dated session listed on the portal's program pages.
+
+    The program name rides along as a category so the strict exclusions
+    ("The Art of Yoga", "Evening Venue Tour") and audience patterns ("Art
+    Babies") still see it; the card blurb stands in for the description.
+    """
+    response = await client.get(portal_url)
+    response.raise_for_status()
+    portal = BeautifulSoup(response.text, "html.parser")
+
+    events: list[dict] = []
+    for card in portal.select(".product-card"):
+        link = card.select_one('a[href*="/portal/product/"]')
+        program = _normalize_space(card.select_one(".card-title").get_text(" ", strip=True)) if card.select_one(".card-title") else ""
+        if link is None or not program:
+            continue
+        summary = _normalize_space(card.get_text(" ", strip=True).replace("View Details", ""))
+        summary = _normalize_space(summary[len(program):] if summary.startswith(program) else summary)
+        product_url = urljoin(portal_url, link.get("href", ""))
+        try:
+            product_response = await client.get(product_url)
+            product_response.raise_for_status()
+        except httpx.HTTPError as exc:  # one dead program page must not sink the venue
+            print(f"[va-tribe-fetch] ticketapp program skipped url={product_url}: {exc}")
+            continue
+
+        product = BeautifulSoup(product_response.text, "html.parser")
+        for item in product.select(".event_list_item"):
+            session_link = item.select_one("a.event_list_a[href]")
+            date_match = TICKETAPP_DATE_RE.search(_normalize_space(item.select_one("h4").get_text(" ", strip=True)) if item.select_one("h4") else "")
+            time_match = TICKETAPP_TIME_RE.search(_normalize_space(item.select_one("p").get_text(" ", strip=True)) if item.select_one("p") else "")
+            if session_link is None or date_match is None:
+                continue
+            clock = f"{time_match.group(1)}{time_match.group(2).lower()}" if time_match else "12:00am"
+            try:
+                start_at = datetime.strptime(f"{date_match.group(0)} {clock}", "%m/%d/%y %I:%M%p")
+            except ValueError:
+                continue
+            events.append(
+                {
+                    "title": _normalize_space(session_link.get_text(" ", strip=True)),
+                    "url": urljoin(product_url, session_link.get("href", "")),
+                    "start_date": start_at.strftime("%Y-%m-%d %H:%M:%S") if time_match else start_at.strftime("%Y-%m-%d"),
+                    "end_date": None,
+                    "description": summary,
+                    "excerpt": None,
+                    "categories": [{"name": program}],
+                    "venue": None,
+                    "cost": "",
+                    "cost_details": None,
+                }
+            )
+    return events
 
 
 async def _load_ical_events(
@@ -513,7 +586,13 @@ def _build_row(event_obj: dict, *, venue: VaTribeVenueConfig) -> ExtractedActivi
         pattern in _searchable_blob(title) for pattern in VIRGINIA_MOCA_TITLE_EXCLUDE_PATTERNS
     ):
         return None
-    if any(pattern in token_blob for pattern in STRICT_EXCLUDE_PATTERNS):
+    # Strict exclusions say what an event *is*, so read them from the title and
+    # categories. Descriptions mention "exhibition" or "admission" in passing
+    # (a teen studio class "inspired by the exhibition"), which had hidden 30+
+    # classes at William King, Maier and Taubman. Sold-out is a status, so it
+    # still counts anywhere.
+    strict_blob = _searchable_blob(" ".join([title, " ".join(category_names)]).lower())
+    if any(pattern in strict_blob for pattern in STRICT_EXCLUDE_PATTERNS) or " sold out " in token_blob:
         return None
     if any(pattern in token_blob for pattern in HARD_EXCLUDE_PATTERNS):
         if (
