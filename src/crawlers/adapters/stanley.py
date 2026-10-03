@@ -19,7 +19,8 @@ from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
-STANLEY_CALENDAR_URL = "https://stanleymuseum.uiowa.edu/programming-events/calendar"
+# /programming-events/calendar redirects here since the 2026 redesign.
+STANLEY_CALENDAR_URL = "https://stanleymuseum.uiowa.edu/events-calendar"
 STANLEY_VENUE_NAME = "Stanley Museum of Art"
 STANLEY_CITY = "Iowa City"
 STANLEY_STATE = "IA"
@@ -103,8 +104,10 @@ def parse_stanley_payload(payload: dict) -> list[ExtractedActivity]:
 
 
 def _build_row(card: BeautifulSoup) -> ExtractedActivity | None:
-    title = normalize_space(card.select_one("h2 .headline__heading").get_text(" ", strip=True) if card.select_one("h2 .headline__heading") else "")
-    link = card.select_one("h2 a[href]")
+    # Card headlines moved from <h2> to <h3> in the 2026 redesign.
+    heading = card.select_one(".headline .headline__heading")
+    title = normalize_space(heading.get_text(" ", strip=True) if heading else "")
+    link = card.select_one(".headline a[href]")
     subtitle = normalize_space(card.select_one(".card__subtitle").get_text(" ", strip=True) if card.select_one(".card__subtitle") else "")
     meta = normalize_space(card.select_one(".card__meta").get_text(" ", strip=True) if card.select_one(".card__meta") else "")
     description = normalize_space(card.select_one(".card__description").get_text(" ", strip=True) if card.select_one(".card__description") else "")
