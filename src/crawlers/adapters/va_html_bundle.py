@@ -1,7 +1,8 @@
 import asyncio
 import re
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from dataclasses import replace
+from datetime import date, datetime, time, timedelta
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -102,10 +103,14 @@ ICA_DATE_TIME_RE = re.compile(
     r"(?:,\s*(?P<year>\d{4}))?\s+"
     r"(?P<times>\d{1,2}:\d{2}\s*[APap]\.?M\.?\s*[–—-]\s*\d{1,2}:\d{2}\s*[APap]\.?M\.?)"
 )
+# Event pages print "THURSDAY / OCTOBER 15 / 6:00PM - 8:00PM", "Friday / October 16
+# / 6pm - 8pm", or for a weekly series "Sundays / Sep 13 - Oct 25 / 10am - 1pm".
 MOCA_DATE_TIME_RE = re.compile(
-    r"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*/\s*"
-    r"(?P<month>[A-Za-z]{3,9})\s+(?P<day>\d{1,2})\s*/\s*"
-    r"(?P<times>\d{1,2}:\d{2}\s*[APap]M\s*-\s*\d{1,2}:\d{2}\s*[APap]M)"
+    r"(?P<weekday>(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day)(?P<plural>s)?\s*/\s*"
+    r"(?P<month>[A-Za-z]{3,9})\.?\s+(?P<day>\d{1,2})"
+    r"(?:\s*-\s*(?P<end_month>[A-Za-z]{3,9})\.?\s+(?P<end_day>\d{1,2}))?\s*/\s*"
+    r"(?P<times>\d{1,2}(?::\d{2})?\s*[ap]m\s*-\s*\d{1,2}(?::\d{2})?\s*[ap]m)",
+    re.IGNORECASE,
 )
 MUSCARELLE_LISTING_RE = re.compile(
     r"^(?P<title>.+?)\s+"
@@ -290,13 +295,17 @@ def parse_va_html_events(payload: dict, *, venue: VaHtmlVenueConfig) -> list[Ext
         row = _build_row(item, venue=venue)
         if row is None:
             continue
-        if row.start_at.date() < current_date:
-            continue
-        dedupe_key = (row.source_url, row.title, row.start_at)
-        if dedupe_key in seen:
-            continue
-        seen.add(dedupe_key)
-        rows.append(row)
+        # MoCA Arlington weekly series list every date on one page.
+        occurrences = (_parse_moca_item(item) or {}).get("occurrences") if venue.slug == "moca_arlington" else None
+        for start_at, end_at in occurrences or [(row.start_at, row.end_at)]:
+            occurrence = replace(row, start_at=start_at, end_at=end_at)
+            if occurrence.start_at.date() < current_date:
+                continue
+            dedupe_key = (occurrence.source_url, occurrence.title, occurrence.start_at)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            rows.append(occurrence)
 
     rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
     return rows
@@ -614,7 +623,18 @@ def _parse_moca_item(item: dict) -> dict | None:
 
     soup = BeautifulSoup(html, "html.parser")
     text = _normalize_space(soup.get_text(" ", strip=True))
-    match = MOCA_DATE_TIME_RE.search(text)
+    # A site-wide banner ("Saturday / October 3 / 5PM-8PM") also matches, so take
+    # the schedule only when it sits right under the event's own heading. Open-ended
+    # series ("Tuesdays / 10am-12pm") carry no dates and are skipped.
+    heading = _normalize_space(_node_text(soup.select_one("h1")))
+    heading_at = text.rfind(heading) if heading else -1
+    if heading_at >= 0:
+        schedule_from = heading_at + len(heading)
+        match = MOCA_DATE_TIME_RE.search(text, schedule_from)
+        if match and match.start() - schedule_from > 40:
+            match = None
+    else:
+        match = MOCA_DATE_TIME_RE.search(text)
     if not match:
         return None
     year = _extract_year_from_url(source_url)
@@ -624,9 +644,18 @@ def _parse_moca_item(item: dict) -> dict | None:
     dt = _parse_date_month_day(match.group("month"), match.group("day"), year)
     if dt is None:
         return None
-    start_time, end_time = _parse_time_range(match.group("times"))
+    times = re.sub(r"(?<![:\d])(\d{1,2})\s*([ap]m)\b", r"\1:00\2", match.group("times"), flags=re.IGNORECASE).upper()
+    start_time, end_time = _parse_time_range(times)
     if start_time is None:
         return None
+
+    # A weekly series ("Sundays / Sep 13 - Oct 25") runs every week through its end date.
+    last_date = dt
+    if match.group("end_month") and match.group("end_day"):
+        last_date = _parse_date_month_day(match.group("end_month"), match.group("end_day"), year) or dt
+    occurrence_dates = [dt]
+    while match.group("plural") and occurrence_dates[-1] + timedelta(days=7) <= last_date:
+        occurrence_dates.append(occurrence_dates[-1] + timedelta(days=7))
 
     title = _first_non_empty(
         _normalize_space(_node_text(soup.select_one("h1"))),
@@ -643,6 +672,10 @@ def _parse_moca_item(item: dict) -> dict | None:
         "signal_text": match.group(0),
         "start_at": _combine_date_time(dt, start_time),
         "end_at": _combine_date_time(dt, end_time) if end_time else None,
+        "occurrences": [
+            (_combine_date_time(day, start_time), _combine_date_time(day, end_time) if end_time else None)
+            for day in occurrence_dates
+        ],
     }
 
 
