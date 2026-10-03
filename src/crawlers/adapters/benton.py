@@ -27,6 +27,9 @@ BENTON_CITY = "Storrs"
 BENTON_STATE = "CT"
 BENTON_DEFAULT_LOCATION = "Storrs, CT"
 BENTON_GROUP_TITLE = "The Benton"
+# Each listed event costs two requests (detail page + events.uconn.edu search).
+# Firing them all at once drew ReadTimeouts from UConn, so cap the fan-out.
+BENTON_DETAIL_CONCURRENCY = 4
 
 DEFAULT_HEADERS = {
     "User-Agent": BROWSER_USER_AGENT,
@@ -153,14 +156,22 @@ async def load_benton_payload() -> dict:
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         listing_html = await fetch_benton_url(BENTON_CALENDAR_URL, client=client)
         entries = _extract_listing_entries(listing_html)
-        payload_entries = await asyncio.gather(
-            *(_load_benton_entry_payload(entry, client=client) for entry in entries)
-        )
+        semaphore = asyncio.Semaphore(BENTON_DETAIL_CONCURRENCY)
+
+        async def load_entry(entry: dict) -> dict | None:
+            async with semaphore:
+                try:
+                    return await _load_benton_entry_payload(entry, client=client)
+                except (RuntimeError, httpx.HTTPError) as exc:  # one slow event must not sink the venue
+                    print(f"[benton-fetch] skipping {entry.get('source_url')}: {exc}")
+                    return None
+
+        payload_entries = await asyncio.gather(*(load_entry(entry) for entry in entries))
 
     return {
         "listing_url": BENTON_CALENDAR_URL,
         "listing_html": listing_html,
-        "entries": payload_entries,
+        "entries": [entry for entry in payload_entries if entry is not None],
     }
 
 

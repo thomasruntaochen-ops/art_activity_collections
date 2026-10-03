@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
 from datetime import time
+from datetime import timedelta
 from urllib.parse import parse_qsl
 from urllib.parse import quote
 from urllib.parse import urlencode
@@ -153,6 +154,21 @@ DEFAULT_PAID_ADMISSION_SLUGS = {
     "art_institute_of_chicago",
     "mca_chicago",
 }
+DETAIL_FETCH_CONCURRENCY = 6
+MCA_MAX_LISTING_PAGES = 6
+SMART_MAX_LISTING_PAGES = 4
+ARTIC_API_URL = "https://api.artic.edu/api/v1"
+# The events-page facets the venue used to be read through: Families, General
+# Public (which carries Drop-In Art Making) and Teens. _should_keep_event drops
+# the adult gallery tours that ride along on General Public.
+ARTIC_AUDIENCE_IDS = {1, 3, 4}
+ARTIC_HORIZON_DAYS = 120
+ARTIC_OCCURRENCE_FIELDS = "id,title,event_id,start_at,end_at,location"
+ARTIC_EVENT_FIELDS = (
+    "id,title,slug,short_description,description,location,audience_id,alt_audience_ids,program_titles,"
+    "is_free,is_admission_required,is_registration_required,is_member_exclusive,is_private,"
+    "is_virtual_event,buy_button_caption"
+)
 ARTIC_REJECT_TITLE_MARKERS = (
     # Generic docent tours ride along on artic.edu's General Public facet, which
     # is crawled for its drop-in art making. They are adult-oriented and were
@@ -160,8 +176,10 @@ ARTIC_REJECT_TITLE_MARKERS = (
     "gallery tour",
 )
 SMART_REJECT_TITLE_MARKERS = (
+    "art to live with",  # art-loan program for UChicago students only
     "chicago expo: south side night",
     "study at the smart",
+    "yoga",
 )
 SMART_REJECT_TEXT_MARKERS = (
     " poetry ",
@@ -236,18 +254,7 @@ IL_VENUES: tuple[IlVenueConfig, ...] = (
         city="Chicago",
         state="IL",
         list_url="https://www.artic.edu/events",
-        discovery_mode="artic_html",
-        discovery_url="https://www.artic.edu/events?audience=1",
-        # audience=1 is the "Families" facet only, which hides teen programs
-        # (Summer Teen Hangs, Teen Open Studios) and general-public art making
-        # (Drop-In Art Making). Merge the three facets that carry kids/teens
-        # programming; _should_keep_event drops the adult gallery tours that
-        # ride along on the General Public facet.
-        discovery_urls=(
-            "https://www.artic.edu/events?audience=1",  # Families
-            "https://www.artic.edu/events?audience=4",  # Teens
-            "https://www.artic.edu/events?audience=3",  # General Public
-        ),
+        discovery_mode="artic_api",
         default_location="Art Institute of Chicago, Chicago, IL",
     ),
     IlVenueConfig(
@@ -296,7 +303,7 @@ IL_VENUES: tuple[IlVenueConfig, ...] = (
         venue_name="Museum of Contemporary Art Chicago",
         city="Chicago",
         state="IL",
-        list_url="https://visit.mcachicago.org/events/",
+        list_url="https://mcachicago.org/whats-on/events/",
         discovery_mode="mca_html",
         default_location="Museum of Contemporary Art Chicago, Chicago, IL",
     ),
@@ -327,7 +334,7 @@ IL_VENUES: tuple[IlVenueConfig, ...] = (
         venue_name="Smart Museum of Art",
         city="Chicago",
         state="IL",
-        list_url="https://smartmuseum.uchicago.edu/public-practice/calendar-of-events/",
+        list_url="https://smartmuseum.uchicago.edu/programs-events/calendar/",
         discovery_mode="smart_html",
         default_location="Smart Museum of Art, Chicago, IL",
     ),
@@ -429,7 +436,7 @@ async def load_il_bundle_payload(
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         for venue in selected:
             try:
-                if venue.discovery_mode == "artic_html":
+                if venue.discovery_mode == "artic_api":
                     payload_by_slug[venue.slug] = await _load_artic_payload(venue, client=client)
                 elif venue.discovery_mode == "block_html":
                     payload_by_slug[venue.slug] = await _load_block_payload(venue, client=client)
@@ -457,7 +464,7 @@ async def load_il_bundle_payload(
 
 
 def parse_il_events(payload: dict, *, venue: IlVenueConfig) -> list[ExtractedActivity]:
-    if venue.discovery_mode == "artic_html":
+    if venue.discovery_mode == "artic_api":
         rows = _parse_artic_events(payload, venue=venue)
     elif venue.discovery_mode == "block_html":
         rows = _parse_block_events(payload, venue=venue)
@@ -507,101 +514,44 @@ async def _load_artic_payload(
     *,
     client: httpx.AsyncClient,
 ) -> dict:
-    # artic.edu groups its calendar into one `li.m-date-listing` block per open
-    # day, and repeats a recurring program's card under every day it runs. The
-    # card's own `<time datetime>` is stale on repeats (it always echoes the
-    # first occurrence), so the date must come from the day header and only the
-    # clock time from the card. Days the museum is closed are simply absent,
-    # which is what keeps "Daily (Closed Tuesdays)" honest.
-    discovery_urls = venue.discovery_urls or (venue.discovery_url or venue.list_url,)
-    items: list[dict[str, str | None]] = []
-    seen: set[tuple[str, str]] = set()
+    """Read the calendar from the museum's public API (api.artic.edu).
 
-    for discovery_url in discovery_urls:
-        html = await fetch_html(discovery_url, client=client, use_playwright_fallback=True)
-        soup = BeautifulSoup(html, "html.parser")
-
-        for day_block in soup.select("li.m-date-listing"):
-            day_date = _parse_artic_day_header(day_block.select_one("h3.day"))
-            if day_date is None:
-                continue
-
-            for listing in day_block.select("li.m-listing"):
-                card = listing.select_one("a.m-listing__link[href]")
-                href = _normalize_url(card.get("href"), venue.list_url) if card else None
-                if not href:
-                    continue
-
-                start_time = _parse_artic_clock(listing.select_one("time[itemprop='startDate']"))
-                if start_time is None:
-                    continue
-                end_time = _parse_artic_clock(listing.select_one("time[itemprop='endDate']"))
-
-                start_at = datetime.combine(day_date, start_time)
-                key = (href, start_at.isoformat())
-                if key in seen:
-                    continue
-                seen.add(key)
-
-                end_at = datetime.combine(day_date, end_time) if end_time else None
-                if end_at is not None and end_at <= start_at:
-                    end_at = None
-
-                items.append(
-                    {
-                        "source_url": href,
-                        "card_text": _normalize_space(listing.get_text(" ", strip=True)),
-                        "start_at": start_at.isoformat(),
-                        "end_at": end_at.isoformat() if end_at else None,
-                    }
-                )
-
-    detail_urls = list(dict.fromkeys(item["source_url"] for item in items if item.get("source_url")))
-    detail_html_by_url = await _fetch_many_html(detail_urls, client=client)
-    return {"items": items, "detail_html_by_url": detail_html_by_url}
-
-
-def _parse_artic_day_header(header: object) -> date | None:
-    """Read a `26 / Jul / Sun` day header into a date.
-
-    The markup carries no year, so anchor on today (the calendar always starts
-    at the current day) and roll forward when the month wraps past December.
+    www.artic.edu answers automated clients with a Cloudflare challenge, so the
+    events pages had yielded nothing since 2026-08-05. The API serves the same
+    calendar: one record per occurrence (so recurring programs keep every date)
+    plus the event records carrying audience, price and registration flags.
     """
-    if header is None or not hasattr(header, "select_one"):
-        return None
-    day_text = _normalize_space(_node_text(header.select_one(".day__date")))
-    month_text = _normalize_space(_node_text(header.select_one(".day__month")))
-    if not day_text or not month_text:
-        return None
-    if not day_text.isdigit():
-        return None
-
-    month = MONTH_LOOKUP.get(month_text[:3].lower())
-    if month is None:
-        return None
-
     today = datetime.now(ZoneInfo(IL_TIMEZONE)).date()
-    year = today.year if month >= today.month else today.year + 1
-    try:
-        return date(year, month, int(day_text))
-    except ValueError:
-        return None
+    occurrences: list[dict] = []
+    page = 1
+    while True:
+        params = {
+            "query[range][start_at][gte]": today.isoformat(),
+            "query[range][start_at][lte]": (today + timedelta(days=ARTIC_HORIZON_DAYS)).isoformat(),
+            "sort": "start_at",
+            "limit": 100,
+            "page": page,
+            "fields": ARTIC_OCCURRENCE_FIELDS,
+        }
+        response = json.loads(
+            await fetch_html(f"{ARTIC_API_URL}/event-occurrences/search?{urlencode(params)}", client=client)
+        )
+        data = response.get("data") or []
+        occurrences.extend(data)
+        total_pages = int((response.get("pagination") or {}).get("total_pages") or 1)
+        if not data or page >= total_pages:
+            break
+        page += 1
 
+    event_ids = sorted({str(item["event_id"]) for item in occurrences if item.get("event_id")})
+    events_by_id: dict[str, dict] = {}
+    for start in range(0, len(event_ids), 100):
+        params = {"ids": ",".join(event_ids[start : start + 100]), "limit": 100, "fields": ARTIC_EVENT_FIELDS}
+        response = json.loads(await fetch_html(f"{ARTIC_API_URL}/events?{urlencode(params)}", client=client))
+        for event in response.get("data") or []:
+            events_by_id[str(event.get("id"))] = event
 
-def _parse_artic_clock(node: object) -> time | None:
-    """Take only the clock time from a listing's `<time datetime>` attribute.
-
-    The date half is unreliable on repeated occurrences, so it is discarded.
-    """
-    if node is None or not hasattr(node, "get"):
-        return None
-    raw = _normalize_space(node.get("datetime"))
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(raw).time()
-    except ValueError:
-        return None
+    return {"occurrences": occurrences, "events_by_id": events_by_id}
 
 
 async def _load_block_payload(
@@ -721,23 +671,32 @@ async def _load_mca_payload(
     *,
     client: httpx.AsyncClient,
 ) -> dict:
-    html = await fetch_html(venue.list_url, client=client, use_playwright_fallback=True)
-    soup = BeautifulSoup(html, "html.parser")
+    # The calendar moved from visit.mcachicago.org to /whats-on/events/ in 2026:
+    # 12 `o-list-card` cards a page, each recurring date its own card, paged
+    # through `/page/N/`.
     items: list[dict[str, str | None]] = []
     seen: set[str] = set()
+    page_url: str | None = venue.list_url
 
-    for card in soup.select("a.event-preview[href]"):
-        href = _normalize_url(card.get("href"), venue.list_url)
-        if not href or href in seen:
-            continue
-        seen.add(href)
-        items.append(
-            {
-                "source_url": href,
-                "program": _normalize_space(card.get("data-program")),
-                "card_text": _normalize_space(card.get_text(" ", strip=True)),
-            }
-        )
+    for _ in range(MCA_MAX_LISTING_PAGES):
+        if not page_url:
+            break
+        html = await fetch_html(page_url, client=client, use_playwright_fallback=True)
+        soup = BeautifulSoup(html, "html.parser")
+        for card in soup.select("a.o-list-card__link[href]"):
+            href = _normalize_url(card.get("href"), venue.list_url)
+            if not href or href in seen:
+                continue
+            seen.add(href)
+            items.append(
+                {
+                    "source_url": href,
+                    "program": None,
+                    "card_text": _normalize_space(card.get_text(" ", strip=True)),
+                }
+            )
+        next_link = soup.select_one("a.o-ajax-wrapper__pagination-next[href]")
+        page_url = _normalize_url(next_link.get("href"), venue.list_url) if next_link else None
 
     detail_html_by_url = await _fetch_many_html([item["source_url"] for item in items if item.get("source_url")], client=client)
     return {"items": items, "detail_html_by_url": detail_html_by_url}
@@ -810,26 +769,49 @@ async def _load_smart_payload(
     *,
     client: httpx.AsyncClient,
 ) -> dict:
-    html = await fetch_html(venue.list_url, client=client, use_playwright_fallback=True)
-    soup = BeautifulSoup(html, "html.parser")
+    # The 2026 Elementor rebuild moved the calendar to /programs-events/calendar/
+    # and stripped the structured fields from detail pages, but each loop card
+    # carries the tags, title, date line and summary, so read the cards.
     items: list[dict[str, str | None]] = []
     seen: set[str] = set()
+    page_url: str | None = venue.list_url
 
-    for card in soup.select("li.calendar-event"):
-        link = card.select_one("h2 a[href]")
-        href = _normalize_url(link.get("href") if link else None, venue.list_url)
-        if not href or href in seen:
-            continue
-        seen.add(href)
-        items.append(
-            {
-                "source_url": href,
-                "card_text": _normalize_space(card.get_text(" ", strip=True)),
-            }
-        )
+    for _ in range(SMART_MAX_LISTING_PAGES):
+        if not page_url:
+            break
+        html = await fetch_html(page_url, client=client, use_playwright_fallback=True)
+        soup = BeautifulSoup(html, "html.parser")
+        for card in soup.select("div.e-loop-item"):
+            link = card.select_one('[data-widget_type="theme-post-title.default"] a[href]')
+            href = _normalize_url(link.get("href") if link else None, venue.list_url)
+            if not href or href in seen:
+                continue
+            seen.add(href)
+            items.append(
+                {
+                    "source_url": href,
+                    "title": _normalize_space(_node_text(link)),
+                    "tags": _normalize_space(_node_text(card.select_one('[data-widget_type="heading.default"]'))),
+                    # The first shortcode widget is an empty image slot; the date is the next one.
+                    "date_text": next(
+                        (
+                            text
+                            for text in (
+                                _normalize_space(_node_text(node))
+                                for node in card.select('[data-widget_type="shortcode.default"]')
+                            )
+                            if text
+                        ),
+                        None,
+                    ),
+                    "summary": _normalize_space(_node_text(card.select_one('[data-widget_type="text-editor.default"]'))),
+                    "card_text": _normalize_space(card.get_text(" ", strip=True)),
+                }
+            )
+        next_link = soup.select_one("a.next.page-numbers[href]")
+        page_url = _normalize_url(next_link.get("href"), venue.list_url) if next_link else None
 
-    detail_html_by_url = await _fetch_many_html([item["source_url"] for item in items if item.get("source_url")], client=client)
-    return {"items": items, "detail_html_by_url": detail_html_by_url}
+    return {"items": items}
 
 
 async def _fetch_many_html(
@@ -837,68 +819,68 @@ async def _fetch_many_html(
     *,
     client: httpx.AsyncClient,
 ) -> dict[str, str]:
-    async def _fetch_one(url: str) -> tuple[str, str]:
-        html = await fetch_html(url, client=client, use_playwright_fallback=True)
-        return url, html
+    # Bounded, and one dead detail page is skipped rather than failing the venue.
+    semaphore = asyncio.Semaphore(DETAIL_FETCH_CONCURRENCY)
+
+    async def _fetch_one(url: str) -> tuple[str, str | None]:
+        async with semaphore:
+            try:
+                return url, await fetch_html(url, client=client, use_playwright_fallback=True)
+            except Exception as exc:
+                print(f"[il-bundle-fetch] detail skipped url={url}: {exc}")
+                return url, None
 
     if not urls:
         return {}
 
     results = await asyncio.gather(*[_fetch_one(url) for url in urls])
-    return {url: html for url, html in results}
+    return {url: html for url, html in results if html is not None}
 
 
 def _parse_artic_events(payload: dict, *, venue: IlVenueConfig) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
-    detail_html_by_url = payload.get("detail_html_by_url") or {}
+    events_by_id = payload.get("events_by_id") or {}
 
-    for item in payload.get("items") or []:
-        source_url = _normalize_space(item.get("source_url"))
-        detail_html = detail_html_by_url.get(source_url or "") or ""
-        if not source_url or not detail_html:
+    for occurrence in payload.get("occurrences") or []:
+        event = events_by_id.get(str(occurrence.get("event_id") or ""))
+        if not event:
+            continue
+        audience_ids = {event.get("audience_id"), *(event.get("alt_audience_ids") or [])}
+        if not audience_ids & ARTIC_AUDIENCE_IDS:
+            continue
+        if event.get("is_private") or event.get("is_member_exclusive") or event.get("is_virtual_event"):
             continue
 
-        soup = BeautifulSoup(detail_html, "html.parser")
-        title = _clean_artic_title(
-            _first_non_empty(
-                _normalize_space(_node_text(soup.select_one("h1"))),
-                _extract_meta_content(soup, "og:title"),
-                _normalize_space(soup.title.get_text(" ", strip=True) if soup.title else None),
-            )
-        )
+        title = _clean_artic_title(_normalize_space(occurrence.get("title") or event.get("title")))
         if not title or _should_reject_artic_event(title=title):
             continue
 
-        meta = _parse_json_object(_node_text(soup.select_one("#page-meta-data"))) or {}
-        # Prefer the per-occurrence datetime the listing supplied. The detail
-        # page's #page-meta-data only ever names a single date, so relying on it
-        # collapsed recurring programs to one row (always "today", which the
-        # API's upcoming filter then hid for the rest of the day).
-        start_at = _parse_iso_datetime(item.get("start_at"))
-        end_at = _parse_iso_datetime(item.get("end_at"))
+        start_at = _parse_iso_datetime(occurrence.get("start_at"))
         if start_at is None:
-            event_date = _parse_iso_date(meta.get("date"))
-            parsed_range = _parse_time_range_on_date(meta.get("time"), event_date) if event_date else None
-            if parsed_range is None:
-                parsed_range = _parse_explicit_datetime_range(_normalize_space(_node_text(soup.select_one("p.date"))))
-            if parsed_range is None:
-                continue
-            start_at, end_at = parsed_range
+            continue
+        end_at = _parse_iso_datetime(occurrence.get("end_at"))
+        if end_at is not None and end_at <= start_at:
+            end_at = None
 
-        description = _first_non_empty(
-            _normalize_space(_node_text(soup.select_one(".o-article__body"))),
-            _extract_meta_content(soup, "description"),
-            _extract_meta_content(soup, "og:description"),
-        )
-        type_text = _normalize_space(_node_text(soup.select_one("p.type")))
+        slug = _normalize_space(event.get("slug"))
+        source_url = f"https://www.artic.edu/events/{event.get('id')}/{slug}" if slug else f"https://www.artic.edu/events/{event.get('id')}"
+        description = _first_non_empty(_strip_html(event.get("description")), _strip_html(event.get("short_description")))
+        type_text = _normalize_space(", ".join(event.get("program_titles") or []))
         location_text = _first_non_empty(
-            _normalize_space(meta.get("location")),
-            _normalize_space(_node_text(soup.select_one("[itemprop='location']"))),
+            _normalize_space(occurrence.get("location")),
+            _normalize_space(event.get("location")),
             venue.default_location,
         )
-        full_text = join_non_empty([title, type_text, description, item.get("card_text"), location_text])
+        full_text = join_non_empty([title, type_text, description, location_text])
         if not _should_keep_event(full_text):
             continue
+
+        price_kwargs = _price_kwargs_for_il_venue(
+            venue,
+            join_non_empty([full_text, _strip_html(event.get("buy_button_caption"))]),
+        )
+        if event.get("is_free") is True and not event.get("is_admission_required"):
+            price_kwargs = {"is_free": True, "free_verification_status": "confirmed"}
 
         age_min, age_max = _parse_age_range(full_text)
         activity_type = _infer_activity_type(join_non_empty([type_text, title, description]))
@@ -925,11 +907,11 @@ def _parse_artic_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracte
                     activity_type=activity_type,
                 ),
                 drop_in=_contains_any(full_text, DROP_IN_PATTERNS),
-                registration_required=_parse_yes_no(meta.get("registration-required")) or _registration_required(full_text),
+                registration_required=bool(event.get("is_registration_required")) or _registration_required(full_text),
                 start_at=start_at,
                 end_at=end_at,
                 timezone=IL_TIMEZONE,
-                **_price_kwargs_for_il_venue(venue, full_text),
+                **price_kwargs,
             )
         )
 
@@ -1191,18 +1173,22 @@ def _parse_mca_events(payload: dict, *, venue: IlVenueConfig) -> list[ExtractedA
             continue
 
         soup = BeautifulSoup(detail_html, "html.parser")
-        title = _normalize_space(_node_text(soup.select_one("h1")))
-        spans = soup.select("h2 span")
-        date_text = _normalize_space(_node_text(spans[0] if len(spans) > 0 else None))
-        time_text = _normalize_space(_node_text(spans[1] if len(spans) > 1 else None))
-        event_date = _parse_month_day_year(date_text)
-        parsed_range = _parse_time_range_on_date(time_text, event_date) if event_date else None
-        if not title or parsed_range is None:
+        # 2026 redesign: the first h1 is a screen-reader "Site Search" label; the
+        # page header (`c-ph`) carries category, date and the admission note, and
+        # the schedule is in the schema.org Event.
+        title = _normalize_space(_node_text(soup.select_one("h1.f-page-title")))
+        schema = _extract_event_schema(soup)
+        start_at = _parse_iso_datetime(schema.get("start_date"))
+        end_at = _parse_iso_datetime(schema.get("end_date"))
+        if not title or start_at is None:
             continue
-        start_at, end_at = parsed_range
+        if end_at is not None and end_at <= start_at:
+            end_at = None
 
-        ticket_notice = _normalize_space(_node_text(soup.select_one(".ticket-notice")))
-        description = _normalize_space(_node_text(soup.select_one(".wysiwyg-section")))
+        ticket_notice = _normalize_space(_node_text(soup.select_one(".c-ph")))
+        description = _first_non_empty(
+            join_non_empty([_extract_meta_content(soup, "og:description"), _normalize_space(_node_text(soup.select_one(".c-body-content")))]),
+        )
         full_text = join_non_empty([title, item.get("program"), description, ticket_notice, item.get("card_text")])
         if not _should_keep_event(full_text):
             continue
@@ -1379,32 +1365,18 @@ def _parse_nmma_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracted
 
 def _parse_smart_events(payload: dict, *, venue: IlVenueConfig) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
-    detail_html_by_url = payload.get("detail_html_by_url") or {}
 
     for item in payload.get("items") or []:
         source_url = _normalize_space(item.get("source_url"))
-        detail_html = detail_html_by_url.get(source_url or "") or ""
-        if not source_url or not detail_html:
-            continue
-
-        soup = BeautifulSoup(detail_html, "html.parser")
-        title = _first_non_empty(
-            _normalize_space(_node_text(soup.select_one("h1.calendar-title"))),
-            _extract_meta_content(soup, "og:title"),
-        )
-        detail_date = _normalize_space(_node_text(soup.select_one("p.detail-date")))
-        parsed_range = _parse_smart_datetime(detail_date)
-        if not title or parsed_range is None:
+        title = _normalize_space(item.get("title"))
+        parsed_range = _parse_smart_datetime(item.get("date_text"))
+        if not source_url or not title or parsed_range is None:
             continue
         start_at, end_at = parsed_range
 
-        description = _normalize_space(_node_text(soup.select_one(".event-summary")))
-        location_text = _first_non_empty(
-            _normalize_space(_node_text(soup.select_one(".event-location"))),
-            venue.default_location,
-        )
-        free_text = _normalize_space(_node_text(soup.select_one(".free-open")))
-        full_text = join_non_empty([title, description, free_text, item.get("card_text"), location_text])
+        description = _normalize_space(item.get("summary"))
+        location_text = venue.default_location
+        full_text = join_non_empty([title, item.get("tags"), description, item.get("card_text")])
         if not _should_keep_event(full_text):
             continue
         if _should_reject_smart_event(title=title, text=full_text):
@@ -1439,7 +1411,7 @@ def _parse_smart_events(payload: dict, *, venue: IlVenueConfig) -> list[Extracte
                     age_max=age_max,
                     activity_type=activity_type,
                 ),
-                **_price_kwargs_for_il_venue(venue, join_non_empty([description, free_text])),
+                **_price_kwargs_for_il_venue(venue, join_non_empty([description, item.get("card_text")])),
             )
         )
 
@@ -1492,7 +1464,8 @@ def _parse_nmma_datetime(text: str | None) -> tuple[datetime, datetime | None] |
 
 
 def _parse_smart_datetime(text: str | None) -> tuple[datetime, datetime | None] | None:
-    normalized = _normalize_datetime_text(text)
+    # Cards read "Sat. October 17th, 2026 – 10:00 AM – 1:00 PM"; drop the ordinal.
+    normalized = _normalize_datetime_text(re.sub(r"(\d{1,2})(?:st|nd|rd|th)\b", r"\1", text or ""))
     if not normalized:
         return None
     parts = [part.strip() for part in normalized.split(" ") if part.strip()]
@@ -1827,7 +1800,9 @@ def _extract_event_schema(soup: BeautifulSoup) -> dict[str, str]:
             if candidate.get("@type") == "Event":
                 location = candidate.get("location") or {}
                 return {
-                    "location_name": _normalize_space(location.get("name")),
+                    "location_name": _normalize_space(location.get("name")) if isinstance(location, dict) else None,
+                    "start_date": _normalize_space(candidate.get("startDate")),
+                    "end_date": _normalize_space(candidate.get("endDate")),
                 }
     return {}
 

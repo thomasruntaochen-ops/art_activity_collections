@@ -879,16 +879,18 @@ async def _load_myrtle_beach_payload(
 
     detail_pages: list[dict] = []
     for detail_url in detail_urls:
-        detail_pages.append(
-            {
-                "url": detail_url,
-                "html": await fetch_html(
-                    detail_url,
-                    client=client,
-                    use_playwright_fallback=venue.use_playwright_fallback,
-                ),
-            }
-        )
+        # The curated page keeps links to retired pages (e.g. /discover-your-voice/
+        # 404s since late Sept 2026); one dead link must not sink the venue.
+        try:
+            html = await fetch_html(
+                detail_url,
+                client=client,
+                use_playwright_fallback=venue.use_playwright_fallback,
+            )
+        except httpx.HTTPError as exc:
+            print(f"[sc-myrtle-beach] skipping {detail_url}: {exc}")
+            continue
+        detail_pages.append({"url": detail_url, "html": html})
 
     return {
         "curated_url": curated_url,

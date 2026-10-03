@@ -14,8 +14,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.crawlers.adapters.bampfa import (  # noqa: E402
     BAMPFA_CALENDAR_URL,
+    bampfa_next_month_url,
     fetch_bampfa_calendar_page,
-    parse_bampfa_events_html,
+    parse_bampfa_calendar_pages,
 )
 from src.crawlers.pipeline.script_runner import TargetRunSpec  # noqa: E402
 from src.crawlers.pipeline.script_runner import run_targets  # noqa: E402
@@ -212,6 +213,16 @@ async def main() -> None:
         )
         print(f"Saved BAMPFA text dump to: {dump_path}")
 
+    # Late in a month the calendar page holds almost nothing upcoming, so also
+    # read next month's page. It is a bonus: failing to get it is not fatal.
+    month_htmls = [html]
+    if not args.input_html:
+        next_month_url = bampfa_next_month_url(base_url=args.url)
+        try:
+            month_htmls.append(await fetch_bampfa_calendar_page(next_month_url))
+        except Exception as exc:
+            print(f"Next-month fetch failed ({next_month_url}): {exc}")
+
     clear_completed = False
 
     def _clear_before_commit() -> None:
@@ -228,8 +239,8 @@ async def main() -> None:
         )
         clear_completed = True
 
-    async def _load_cached_html() -> str:
-        return html
+    async def _load_cached_html() -> list[str]:
+        return month_htmls
 
     summary = await run_targets(
         targets=[
@@ -237,7 +248,7 @@ async def main() -> None:
                 name="bampfa",
                 source_url=args.url,
                 load_payload=_load_cached_html,
-                parse_payload=lambda payload: parse_bampfa_events_html(html=payload, list_url=args.url),
+                parse_payload=lambda payload: parse_bampfa_calendar_pages(payload, list_url=args.url),
                 parser_name="bampfa",
                 adapter_type="bampfa_calendar",
                 parsed_label="rows",

@@ -260,6 +260,26 @@ def parse_bampfa_events_html(
     return rows
 
 
+def bampfa_next_month_url(today: datetime | None = None, *, base_url: str = BAMPFA_CALENDAR_URL) -> str:
+    """The calendar shows one month; late in it nearly everything listed is past."""
+    current = (today or datetime.now()).date()
+    year, month = (current.year + 1, 1) if current.month == 12 else (current.year, current.month + 1)
+    return f"{base_url}?date={year}-{month:02d}"
+
+
+def parse_bampfa_calendar_pages(htmls: list[str], *, list_url: str) -> list[ExtractedActivity]:
+    rows: list[ExtractedActivity] = []
+    seen: set[tuple[str, datetime]] = set()
+    for html in htmls:
+        for row in parse_bampfa_events_html(html, list_url=list_url):
+            key = (row.title.casefold(), row.start_at)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(row)
+    return rows
+
+
 def _should_exclude_event(*, title: str, summary: str | None, tags: list[str]) -> bool:
     blob = " ".join([title, summary or "", " ".join(tags)]).lower()
     if "clothing swap" in blob or "swap circle" in blob:
