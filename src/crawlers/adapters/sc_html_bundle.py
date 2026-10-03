@@ -7,6 +7,7 @@ from datetime import date
 from datetime import datetime
 from datetime import timedelta
 from urllib.parse import parse_qs
+from urllib.parse import urlencode
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 
@@ -30,6 +31,7 @@ from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.user_agent import BROWSER_USER_AGENT
 
+GIBBES_EVENTS_API_URL = "https://www.gibbesmuseum.org/wp-json/wp/v2/event"
 NY_TIMEZONE = "America/New_York"
 
 DEFAULT_HEADERS = {
@@ -569,59 +571,23 @@ async def _load_gibbes_payload(
     client: httpx.AsyncClient,
     page_limit: int | None,
 ) -> dict:
-    max_pages = page_limit or 10
-    cards: list[dict] = []
-    seen_urls: set[str] = set()
+    """Read the events REST route the 2026 site rebuild renders client-side.
 
-    for page_number in range(1, max_pages + 1):
-        page_url = venue.list_url if page_number == 1 else f"{venue.list_url}?page={page_number}"
-        html = await fetch_html(page_url, client=client)
-        soup = BeautifulSoup(html, "html.parser")
-        page_cards = _extract_gibbes_cards(soup, venue.list_url)
-        if not page_cards:
+    The listing page's `eventFeed()` Alpine component fetches
+    /wp-json/wp/v2/event; the static HTML carries no event cards, so the old
+    card scrape had found nothing. Each record has `event_dates` and, with
+    `_embed`, its audience and category terms.
+    """
+    events: list[dict] = []
+    today = datetime.now(ZoneInfo(NY_TIMEZONE)).date().isoformat()
+    for page_number in range(1, (page_limit or 10) + 1):
+        params = {"_embed": "", "per_page": 50, "page": page_number, "start_date": today}
+        response = await client.get(f"{GIBBES_EVENTS_API_URL}?{urlencode(params)}")
+        response.raise_for_status()
+        events.extend(response.json())
+        if page_number >= int(response.headers.get("X-WP-TotalPages") or 1):
             break
-        cards.extend(page_cards)
-        if len(page_cards) < 4:
-            break
-
-    candidate_cards: list[dict] = []
-    detail_html_by_url: dict[str, str] = {}
-    for card in cards:
-        if card["detail_url"] in seen_urls:
-            continue
-        seen_urls.add(card["detail_url"])
-        if not _should_fetch_card(card.get("title"), card.get("body"), card.get("category")):
-            continue
-        detail_html_by_url[card["detail_url"]] = await fetch_html(card["detail_url"], client=client)
-        candidate_cards.append(card)
-
-    return {
-        "cards": candidate_cards,
-        "detail_html_by_url": detail_html_by_url,
-    }
-
-
-def _extract_gibbes_cards(soup: BeautifulSoup, list_url: str) -> list[dict]:
-    cards: list[dict] = []
-    for post in soup.select("div.post.margin-40"):
-        anchor = post.select_one("a.button[href]")
-        title = normalize_space(post.select_one("h2").get_text(" ", strip=True) if post.select_one("h2") else "")
-        if anchor is None or not title:
-            continue
-        category = normalize_space(post.select_one("h4.category").get_text(" ", strip=True) if post.select_one("h4.category") else "")
-        date_text = normalize_space(post.select_one("h4.date").get_text(" ", strip=True) if post.select_one("h4.date") else "")
-        body = normalize_space(post.select_one("p").get_text(" ", strip=True) if post.select_one("p") else "")
-        cards.append(
-            {
-                "detail_url": urljoin(list_url, anchor.get("href") or ""),
-                "title": title,
-                "body": body,
-                "category": category,
-                "date_text": date_text,
-                "time_text": _extract_time_text(date_text),
-            }
-        )
-    return cards
+    return {"events": events}
 
 
 def _parse_gibbes_events(payload: dict, *, venue: ScHtmlVenueConfig) -> list[ExtractedActivity]:
@@ -629,11 +595,8 @@ def _parse_gibbes_events(payload: dict, *, venue: ScHtmlVenueConfig) -> list[Ext
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
 
-    for card in payload.get("cards") or []:
-        html = (payload.get("detail_html_by_url") or {}).get(card["detail_url"])
-        if not html:
-            continue
-        row = _parse_gibbes_detail(card=card, html=html, venue=venue)
+    for event in payload.get("events") or []:
+        row = _build_gibbes_row(event, venue=venue)
         if row is None or row.start_at.date() < today:
             continue
         key = (row.source_url, row.title, row.start_at)
@@ -646,65 +609,36 @@ def _parse_gibbes_events(payload: dict, *, venue: ScHtmlVenueConfig) -> list[Ext
     return rows
 
 
-def _parse_gibbes_detail(
-    *,
-    card: dict,
-    html: str,
-    venue: ScHtmlVenueConfig,
-) -> ExtractedActivity | None:
-    soup = BeautifulSoup(html, "html.parser")
-    title = normalize_space(soup.select_one("h1").get_text(" ", strip=True) if soup.select_one("h1") else card.get("title"))
-    details_root = soup.select_one(".exhibit-details")
-    date_line = normalize_space(
-        soup.select_one(".exhibit-details .red").get_text(" ", strip=True)
-        if soup.select_one(".exhibit-details .red")
-        else card.get("date_text")
+def _build_gibbes_row(event: dict, *, venue: ScHtmlVenueConfig) -> ExtractedActivity | None:
+    title = _html_text((event.get("title") or {}).get("rendered"))
+    source_url = normalize_space(event.get("link"))
+    dates = event.get("event_dates") or {}
+    start_at = _parse_gibbes_api_datetime(dates.get("start_date"))
+    if not title or not source_url or start_at is None:
+        return None
+    end_at = _parse_gibbes_api_datetime(dates.get("end_date"))
+    if end_at is not None and end_at <= start_at:
+        end_at = None
+
+    term_groups = (event.get("_embedded") or {}).get("wp:term") or []
+    category = ", ".join(
+        normalize_space(term.get("name"))
+        for group in term_groups
+        for term in (group or [])
+        if isinstance(term, dict) and normalize_space(term.get("name"))
     )
-    content_root = soup.select_one(".single__content-wrapper") or soup
-    content_paragraphs: list[str] = []
-    for paragraph in content_root.select("p"):
-        if details_root is not None and details_root in paragraph.parents:
-            continue
-        text = normalize_space(paragraph.get_text(" ", strip=True))
-        if text:
-            content_paragraphs.append(text)
-    content_paragraphs = _dedupe_texts(content_paragraphs)
-
-    description = normalize_space(join_non_empty(content_paragraphs) or card.get("body"))
-    location_parts: list[str] = []
-    if details_root is not None:
-        for paragraph in details_root.select("p"):
-            text = normalize_space(paragraph.get_text(" ", strip=True))
-            if not text or text == date_line:
-                continue
-            location_parts.append(text)
-    location_parts = _dedupe_texts(location_parts)
-    location_text = normalize_space(" ".join(location_parts))
-    category = card.get("category") or _category_from_title_tag(soup.title.string if soup.title else "")
-    if not title or not _should_keep_event(title=title, description=description, category=category):
-        return None
-
-    base_date = _parse_full_date_text(date_line) or _parse_inferred_date(date_line)
-    if base_date is None:
-        return None
-
-    time_text = _extract_time_text(date_line)
-    start_at, end_at = parse_time_range(base_date=base_date, time_text=time_text)
-    if start_at is None:
-        return None
-
-    full_description = join_non_empty(
-        [
-            _strip_gibbes_date_from_description(description, date_line),
-            location_text and f"Location: {location_text}",
-            category and f"Category: {category}",
-        ]
+    description = _html_text((event.get("content") or {}).get("rendered")) or _html_text(
+        (event.get("excerpt") or {}).get("rendered")
     )
+    if not _should_keep_event(title=title, description=description, category=category):
+        return None
+
+    full_description = join_non_empty([description, category and f"Category: {category}"])
     age_min, age_max = parse_age_range(" ".join(part for part in [title, full_description or ""] if part))
     token_blob = _searchable_blob(" ".join(part for part in [title, full_description or "", category] if part))
 
     return ExtractedActivity(
-        source_url=card["detail_url"],
+        source_url=source_url,
         title=title,
         description=full_description,
         venue_name=venue.venue_name,
@@ -714,13 +648,34 @@ def _parse_gibbes_detail(
         activity_type=infer_activity_type(title, full_description, category),
         age_min=age_min,
         age_max=age_max,
+        audience_segment=_infer_columbia_audience(
+            title=title,
+            description=full_description,
+            category=category,
+            age_min=age_min,
+            age_max=age_max,
+        ),
         drop_in=any(pattern in token_blob for pattern in DROP_IN_PATTERNS),
         registration_required=any(pattern in token_blob for pattern in REGISTER_PATTERNS),
         start_at=start_at,
         end_at=end_at,
         timezone=NY_TIMEZONE,
-        **_price_kwargs(title, date_line, full_description, category),
+        **_price_kwargs(title, full_description, category),
     )
+
+
+def _parse_gibbes_api_datetime(value: str | None) -> datetime | None:
+    text = normalize_space(value)
+    if not text:
+        return None
+    try:
+        return datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def _html_text(value: str | None) -> str:
+    return normalize_space(BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True))
 
 
 async def _load_greenville_payload(
@@ -1080,7 +1035,7 @@ def _infer_columbia_audience(
         return "teens_adults"
     if any(pattern in blob for pattern in (" gladys ", " preschool ", " toddler ", " kids on the wall ")):
         return "kids"
-    if any(pattern in title_category_blob for pattern in (" family event ", " family events ", " family ", " children ")):
+    if any(pattern in title_category_blob for pattern in (" family event ", " family events ", " family ", " children ", " kids ")):
         return "kids"
     if any(pattern in blob for pattern in (" art class ", " artist talk ", " conversation ", " discussion ", " lecture ", " talk ")):
         return "adults"
@@ -1197,23 +1152,6 @@ def _extract_time_text(value: str | None) -> str:
     if not match:
         return ""
     return normalize_space(match.group("time"))
-
-
-def _strip_gibbes_date_from_description(description: str, date_line: str) -> str:
-    normalized_description = normalize_space(description)
-    normalized_date_line = normalize_space(date_line)
-    if normalized_description.startswith(normalized_date_line):
-        return normalize_space(normalized_description[len(normalized_date_line) :])
-    return normalized_description
-
-
-def _category_from_title_tag(title_text: str | None) -> str:
-    text = normalize_space(title_text)
-    if "classes & workshops" in text.lower():
-        return "Classes & Workshops"
-    if "programs & lectures" in text.lower():
-        return "Programs & Lectures"
-    return ""
 
 
 def _first_matching_text(soup: BeautifulSoup, selector: str) -> str:
