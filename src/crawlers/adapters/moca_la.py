@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.extractors.filters import is_irrelevant_item_text
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.user_agent import BROWSER_USER_AGENT
@@ -53,6 +54,7 @@ EXCLUDED_PRIMARY_KEYWORDS = (
     "dj",
 )
 INCLUDED_KEYWORDS = (
+    "all ages",
     "talk",
     "lecture",
     "conversation",
@@ -183,9 +185,20 @@ def _build_row_from_card(
     if not title or is_irrelevant_item_text(title):
         return None
 
-    category_blob = None
+    # Card layout: date and time, a location label, the title, a category label
+    # ("Conversation", "All Ages", "Member Event") and sometimes a "Member Only"
+    # tag. The labels are what say who an event is for.
+    if any("member" in (_normalize_text(tag) or "").lower() for tag in card.select(".tag")):
+        return None
+    labels = [
+        _normalize_text(node)
+        for node in card.select(".c1")
+        if "tag" not in node.get("class", []) and not any("dateTime" in name for name in node.get("class", []))
+    ]
+    labels = [label for label in labels if label]
+    category_blob = ", ".join(labels[1:]) or None
     description = None
-    location_name = None
+    location_name = labels[0] if labels else None
     schedule_text = _normalize_text(card.select_one('[class*="dateTime"]'))
     if not schedule_text:
         return None
@@ -224,6 +237,7 @@ def _build_row_from_card(
         activity_type=_infer_activity_type(title=title, category_blob=category_blob, description=description),
         age_min=None,
         age_max=None,
+        audience_segment=infer_audience_segment(title=title, category=category_blob),
         drop_in=("drop-in" in text_blob or "drop in" in text_blob),
         registration_required=("registration" in text_blob and "not required" not in text_blob),
         start_at=start_at,
