@@ -207,20 +207,27 @@ async def load_wa_html_bundle_payload(
     *,
     venue_slugs: list[str] | None = None,
     max_links_per_venue: int = 120,
-) -> dict[str, dict]:
+) -> dict:
     selected = (
         [WA_HTML_VENUES_BY_SLUG[slug] for slug in venue_slugs]
         if venue_slugs
         else list(WA_HTML_VENUES)
     )
-    payload: dict[str, dict] = {}
+    payload_by_slug: dict[str, dict] = {}
+    errors_by_slug: dict[str, str] = {}
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         for venue in selected:
-            if venue.needs_playwright:
-                list_html = await fetch_html_playwright(venue.list_url)
-            else:
-                list_html = await fetch_html(venue.list_url, client=client)
+            # One venue's listing failing (e.g. Frye's intermittent 403) must not
+            # stop the rest of the bundle from refreshing.
+            try:
+                if venue.needs_playwright:
+                    list_html = await fetch_html_playwright(venue.list_url)
+                else:
+                    list_html = await fetch_html(venue.list_url, client=client)
+            except Exception as exc:
+                errors_by_slug[venue.slug] = str(exc)
+                continue
 
             detail_pages: dict[str, str] = {}
             link_candidates = _extract_listing_links(venue.slug, list_html, venue.list_url)[:max_links_per_venue]
@@ -233,12 +240,15 @@ async def load_wa_html_bundle_payload(
                     except Exception as exc:
                         print(f"[wa-html-fetch] detail failed slug={venue.slug} url={detail_url}: {exc}")
 
-            payload[venue.slug] = {
+            payload_by_slug[venue.slug] = {
                 "list_html": list_html,
                 "detail_pages": detail_pages,
             }
 
-    return payload
+    return {
+        "payload_by_slug": payload_by_slug,
+        "errors_by_slug": errors_by_slug,
+    }
 
 
 def parse_wa_html_events(payload: dict, *, venue: WaHtmlVenueConfig) -> list[ExtractedActivity]:

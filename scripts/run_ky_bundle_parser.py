@@ -132,6 +132,11 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
+        if errors_by_slug:
+            # The clear wipes every KY venue, so it would empty the skipped ones too.
+            print(f"Skipping KY clear: venues failed to load ({', '.join(sorted(errors_by_slug))}).")
+            clear_completed = True
+            return
         deleted = clear_ky_entries()
         print(
             "Deleted KY rows before repopulation: "
@@ -145,14 +150,18 @@ async def main() -> None:
     payload = await load_ky_bundle_payload(
         venue_slugs=[venue.slug for venue in selected_venues],
     )
+    payload_by_slug = payload["payload_by_slug"]
+    errors_by_slug = payload["errors_by_slug"]
 
     targets: list[TargetRunSpec] = []
     for venue in selected_venues:
+        if venue.slug in errors_by_slug:
+            continue
         targets.append(
             TargetRunSpec(
                 name=f"ky_{venue.slug}",
                 source_url=venue.list_urls[0],
-                load_payload=lambda slug=venue.slug: asyncio.sleep(0, result=payload.get(slug) or {}),
+                load_payload=lambda slug=venue.slug: asyncio.sleep(0, result=payload_by_slug.get(slug) or {}),
                 parse_payload=lambda venue_payload, selected_venue=venue: parse_ky_events(
                     venue_payload,
                     venue=selected_venue,
@@ -165,12 +174,20 @@ async def main() -> None:
             )
         )
 
+    if errors_by_slug:
+        for slug, message in sorted(errors_by_slug.items()):
+            print(f"[ky-bundle] skipped venue={slug}: {message}")
+
+    if not targets:
+        failed = ", ".join(f"{slug}: {message}" for slug, message in sorted(errors_by_slug.items()))
+        raise RuntimeError(f"Unable to fetch any KY bundle venues. Failures: {failed}")
+
     summary = await run_targets(
         targets=targets,
         commit=args.commit,
         empty_commit_guard=EmptyCommitGuard(
             parser_name="run_ky_bundle_parser",
-            details={"venues": [venue.slug for venue in selected_venues]},
+            details={"venues": [venue.slug for venue in selected_venues if venue.slug not in errors_by_slug]},
         ),
     )
 
@@ -182,6 +199,10 @@ async def main() -> None:
             f"updated={summary.total_updated} "
             f"unchanged={summary.total_unchanged}"
         )
+
+    if errors_by_slug:
+        failed = ", ".join(sorted(errors_by_slug))
+        raise SystemExit(f"Completed KY bundle with fetch failures: {failed}")
 
 
 if __name__ == "__main__":

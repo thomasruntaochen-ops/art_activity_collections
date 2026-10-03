@@ -324,29 +324,37 @@ async def load_ky_bundle_payload(
     *,
     venue_slugs: list[str] | None = None,
     max_speed_detail_pages: int = 60,
-) -> dict[str, dict]:
+) -> dict:
     selected = [KY_VENUES_BY_SLUG[slug] for slug in venue_slugs] if venue_slugs else list(KY_VENUES)
-    payload: dict[str, dict] = {}
+    payload_by_slug: dict[str, dict] = {}
+    errors_by_slug: dict[str, str] = {}
 
+    # One venue failing (artcenterky 403s) must not stop the rest of the bundle.
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as html_client:
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=JSON_HEADERS) as json_client:
             for venue in selected:
-                if venue.slug == "speed":
-                    payload[venue.slug] = await _load_speed_payload(
-                        venue=venue,
-                        client=html_client,
-                        max_detail_pages=max_speed_detail_pages,
-                    )
-                elif venue.slug == "uk_art_museum":
-                    payload[venue.slug] = await _load_uk_art_museum_payload(venue=venue, client=html_client)
-                elif venue.slug == "kmac":
-                    payload[venue.slug] = await _load_kmac_payload(venue=venue, client=html_client)
-                elif venue.slug == "artcenter":
-                    payload[venue.slug] = await _load_artcenter_payload(venue=venue, client=json_client)
-                else:
-                    payload[venue.slug] = {}
+                try:
+                    if venue.slug == "speed":
+                        payload_by_slug[venue.slug] = await _load_speed_payload(
+                            venue=venue,
+                            client=html_client,
+                            max_detail_pages=max_speed_detail_pages,
+                        )
+                    elif venue.slug == "uk_art_museum":
+                        payload_by_slug[venue.slug] = await _load_uk_art_museum_payload(venue=venue, client=html_client)
+                    elif venue.slug == "kmac":
+                        payload_by_slug[venue.slug] = await _load_kmac_payload(venue=venue, client=html_client)
+                    elif venue.slug == "artcenter":
+                        payload_by_slug[venue.slug] = await _load_artcenter_payload(venue=venue, client=json_client)
+                    else:
+                        payload_by_slug[venue.slug] = {}
+                except Exception as exc:
+                    errors_by_slug[venue.slug] = str(exc)
 
-    return payload
+    return {
+        "payload_by_slug": payload_by_slug,
+        "errors_by_slug": errors_by_slug,
+    }
 
 
 def parse_ky_events(payload: dict, *, venue: KyVenueConfig) -> list[ExtractedActivity]:

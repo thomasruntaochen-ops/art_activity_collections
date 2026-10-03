@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from datetime import date
 from datetime import datetime
 from datetime import time
 from urllib.parse import urljoin
@@ -20,6 +21,12 @@ MOCACT_EVENTS_PAGE_URL = "https://mocact.org/events/#calendar"
 # Calendar (MEC), whose monthly view is the only public listing with dates on it:
 # /mec/v1/events and /wp/v2/mec-events return the posts but not their schedules.
 MOCACT_CALENDAR_URL = "https://mocact.org/calendar/"
+# The page renders only the current month; MEC's own month navigator loads the
+# others through admin-ajax using the settings blob embedded in the page.
+MOCACT_AJAX_URL = "https://mocact.org/wp-admin/admin-ajax.php"
+MOCACT_MONTHS_AHEAD = 2
+MEC_ATTS_RE = re.compile(r'atts:\s*"([^"]+)"')
+MEC_SKIN_ID_RE = re.compile(r'id:\s*"(mec\d+)"')
 
 NY_TIMEZONE = "America/New_York"
 MOCACT_VENUE_NAME = "MoCA CT"
@@ -45,6 +52,7 @@ INCLUDED_KEYWORDS = (
     "activity",
     "lab",
     "gallery talk",
+    "family fun day",
 )
 TITLE_EXCLUDED_KEYWORDS = (
     "tour",
@@ -121,11 +129,13 @@ async def load_mocact_events_payload(*, detail_limit: int | None = None) -> dict
     """
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         calendar_html = await fetch_mocact_html(MOCACT_CALENDAR_URL, client=client)
+        month_htmls = await _load_following_months(calendar_html, client=client, today=datetime.now().date())
 
         detail_urls: list[str] = []
-        for occurrence in _extract_calendar_occurrences(calendar_html):
-            if occurrence["source_url"] not in detail_urls:
-                detail_urls.append(occurrence["source_url"])
+        for html in (calendar_html, *month_htmls):
+            for occurrence in _extract_calendar_occurrences(html):
+                if occurrence["source_url"] not in detail_urls:
+                    detail_urls.append(occurrence["source_url"])
         if detail_limit is not None:
             detail_urls = detail_urls[: max(detail_limit, 0)]
 
@@ -136,46 +146,120 @@ async def load_mocact_events_payload(*, detail_limit: int | None = None) -> dict
             except Exception as exc:  # a single dead detail page must not sink the run
                 print(f"[mocact-fetch] detail failed url={detail_url}: {exc}")
 
-    return {"calendar_html": calendar_html, "detail_pages": detail_pages}
+    return {"calendar_html": calendar_html, "month_htmls": month_htmls, "detail_pages": detail_pages}
+
+
+async def _load_following_months(calendar_html: str, *, client: httpx.AsyncClient, today: date) -> list[str]:
+    atts_match = MEC_ATTS_RE.search(calendar_html)
+    if atts_match is None:
+        print("[mocact-fetch] MEC calendar settings not found; reading the current month only")
+        return []
+    skin_match = MEC_SKIN_ID_RE.search(calendar_html)
+    skin_id = skin_match.group(1) if skin_match else "mec1"
+
+    month_htmls: list[str] = []
+    year, month = today.year, today.month
+    for _ in range(MOCACT_MONTHS_AHEAD):
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        body = (
+            f"action=mec_monthly_view_load_month&mec_year={year}&mec_month={month:02d}&{atts_match.group(1)}"
+            f"&apply_sf_date=0&sed=0&navigator_click=true&id={skin_id}"
+        )
+        try:
+            response = await client.post(
+                MOCACT_AJAX_URL,
+                content=body,
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Referer": MOCACT_CALENDAR_URL,
+                },
+            )
+            response.raise_for_status()
+            month_htmls.append(str(response.json().get("month") or ""))
+        except (httpx.HTTPError, ValueError) as exc:  # extra months are a bonus, not required
+            print(f"[mocact-fetch] month {year}-{month:02d} failed: {exc}")
+    return month_htmls
 
 
 def _extract_calendar_occurrences(calendar_html: str) -> list[dict]:
     """Dated events in the MEC monthly view, one entry per day cell.
 
     Ongoing exhibitions are repeated into every cell without a time; only real
-    scheduled activities carry `.mec-event-time`, so requiring one keeps the
-    three standing exhibitions out of the 35 day cells they appear in.
+    scheduled activities carry a time, so requiring one keeps the standing
+    exhibitions out of the day cells they appear in.
+
+    MEC renders two layouts: the classic skin (`.mec-calendar-events-sec`
+    sections of `article`s, still returned by the month navigator) and, on the
+    page itself since late Sept 2026, the simple skin, where each day cell holds
+    tooltip links whose hidden tooltip carries the time.
     """
     soup = BeautifulSoup(calendar_html, "html.parser")
     occurrences: list[dict] = []
 
     for section in soup.select(".mec-calendar-events-sec[data-mec-cell]"):
-        cell = _normalize_space(str(section.get("data-mec-cell") or ""))
-        try:
-            cell_date = datetime.strptime(cell, "%Y%m%d").date()
-        except ValueError:
+        cell_date = _parse_cell_date(section)
+        if cell_date is None:
             continue
-
         for article in section.select("article.mec-event-article"):
             time_el = article.select_one(".mec-event-time")
+            link = article.select_one("h4.mec-event-title a[href]")
+            if time_el is None or link is None:
+                continue
+            _append_occurrence(occurrences, cell_date=cell_date, time_el=time_el, title_el=link, href=link.get("href"))
+
+    for cell in soup.select("dt.mec-calendar-day[data-mec-cell]"):
+        cell_date = _parse_cell_date(cell)
+        if cell_date is None:
+            continue
+        for link in cell.select("a.mec-monthly-tooltip[href]"):
+            tooltip_id = str(link.get("data-tooltip-content") or "").lstrip("#")
+            tooltip = cell.find(id=tooltip_id) if tooltip_id else None
+            time_el = tooltip.select_one(".mec-tooltip-event-time") if tooltip else None
             if time_el is None:
                 continue
-            link = article.select_one("h4.mec-event-title a[href]")
-            if link is None:
-                continue
-            title = _normalize_space(link.get_text(" ", strip=True))
-            if not title:
-                continue
-            occurrences.append(
-                {
-                    "date": cell_date.isoformat(),
-                    "time_text": _normalize_space(time_el.get_text(" ", strip=True)),
-                    "title": title,
-                    "source_url": urljoin(MOCACT_CALENDAR_URL, str(link.get("href") or "").strip()),
-                }
+            title_el = link.select_one(".mec-event-title") or link
+            _append_occurrence(
+                occurrences,
+                cell_date=cell_date,
+                time_el=time_el,
+                title_el=title_el,
+                href=link.get("href"),
+                summary_el=tooltip.select_one(".mec-tooltip-event-desc"),
             )
 
     return occurrences
+
+
+def _parse_cell_date(node) -> date | None:
+    cell = _normalize_space(str(node.get("data-mec-cell") or ""))
+    try:
+        return datetime.strptime(cell, "%Y%m%d").date()
+    except ValueError:
+        return None
+
+
+def _append_occurrence(
+    occurrences: list[dict],
+    *,
+    cell_date: date,
+    time_el,
+    title_el,
+    href,
+    summary_el=None,
+) -> None:
+    title = _normalize_space(title_el.get_text(" ", strip=True))
+    if not title:
+        return
+    occurrences.append(
+        {
+            "date": cell_date.isoformat(),
+            "time_text": _normalize_space(time_el.get_text(" ", strip=True)),
+            "title": title,
+            "source_url": urljoin(MOCACT_CALENDAR_URL, str(href or "").strip()),
+            "summary": _normalize_space(summary_el.get_text(" ", strip=True)) if summary_el is not None else "",
+        }
+    )
 
 
 def parse_mocact_events_payload(payload: dict) -> list[ExtractedActivity]:
@@ -183,7 +267,8 @@ def parse_mocact_events_payload(payload: dict) -> list[ExtractedActivity]:
     seen: set[tuple[str, str, datetime]] = set()
     detail_pages = payload.get("detail_pages") or {}
 
-    for occurrence in _extract_calendar_occurrences(payload.get("calendar_html") or ""):
+    calendar_htmls = [payload.get("calendar_html") or "", *(payload.get("month_htmls") or [])]
+    for occurrence in (occ for html in calendar_htmls for occ in _extract_calendar_occurrences(html)):
         row = _build_row_from_occurrence(
             occurrence,
             detail_html=detail_pages.get(occurrence["source_url"]) or "",
@@ -217,7 +302,9 @@ def _build_row_from_occurrence(occurrence: dict, *, detail_html: str) -> Extract
     if not title or not source_url:
         return None
 
-    description = _extract_detail_description(detail_html)
+    # Some detail pages (e.g. Family Fun Day) carry no meta blurb; the calendar
+    # tooltip's summary is the next best description.
+    description = _extract_detail_description(detail_html) or _normalize_space(str(occurrence.get("summary") or ""))
     if not _should_include_event(title=title, description=description):
         return None
 

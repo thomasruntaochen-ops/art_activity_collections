@@ -149,7 +149,8 @@ async def main() -> None:
         nonlocal clear_completed
         if clear_completed or not args.clear:
             return
-        deleted = clear_mi_entries(selected_venues)
+        # Only clear venues that loaded; a skipped venue keeps its existing rows.
+        deleted = clear_mi_entries([venue for venue in selected_venues if venue.slug not in errors_by_slug])
         print(
             "Deleted MI bundle rows before repopulation: "
             f"activity_tags={deleted['activity_tags']}, "
@@ -162,14 +163,18 @@ async def main() -> None:
     payload = await load_mi_bundle_payload(
         venue_slugs=[venue.slug for venue in selected_venues],
     )
+    payload_by_slug = payload["payload_by_slug"]
+    errors_by_slug = payload["errors_by_slug"]
 
     targets: list[TargetRunSpec] = []
     for venue in selected_venues:
+        if venue.slug in errors_by_slug:
+            continue
         targets.append(
             TargetRunSpec(
                 name=f"mi_{venue.slug}",
                 source_url=venue.list_url,
-                load_payload=lambda slug=venue.slug: asyncio.sleep(0, result=payload.get(slug) or {}),
+                load_payload=lambda slug=venue.slug: asyncio.sleep(0, result=payload_by_slug.get(slug) or {}),
                 parse_payload=lambda venue_payload, selected_venue=venue: parse_mi_events(
                     venue_payload,
                     venue=selected_venue,
@@ -182,12 +187,20 @@ async def main() -> None:
             )
         )
 
+    if errors_by_slug:
+        for slug, message in sorted(errors_by_slug.items()):
+            print(f"[mi-bundle] skipped venue={slug}: {message}")
+
+    if not targets:
+        failed = ", ".join(f"{slug}: {message}" for slug, message in sorted(errors_by_slug.items()))
+        raise RuntimeError(f"Unable to fetch any MI bundle venues. Failures: {failed}")
+
     summary = await run_targets(
         targets=targets,
         commit=args.commit,
         empty_commit_guard=EmptyCommitGuard(
             parser_name="run_mi_bundle_parser",
-            details={"venues": [venue.slug for venue in selected_venues]},
+            details={"venues": [venue.slug for venue in selected_venues if venue.slug not in errors_by_slug]},
         ),
     )
 
@@ -199,6 +212,10 @@ async def main() -> None:
             f"updated={summary.total_updated} "
             f"unchanged={summary.total_unchanged}"
         )
+
+    if errors_by_slug:
+        failed = ", ".join(sorted(errors_by_slug))
+        raise SystemExit(f"Completed MI bundle with fetch failures: {failed}")
 
 
 if __name__ == "__main__":

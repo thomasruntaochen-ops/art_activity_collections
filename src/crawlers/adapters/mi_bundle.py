@@ -221,36 +221,45 @@ async def load_mi_bundle_payload(
     broad_max_pages: int = 8,
 ) -> dict[str, dict]:
     selected = [MI_VENUES_BY_SLUG[slug] for slug in venue_slugs] if venue_slugs else list(MI_VENUES)
-    payload: dict[str, dict] = {}
+    payload_by_slug: dict[str, dict] = {}
+    errors_by_slug: dict[str, str] = {}
 
+    # One blocked venue (UMMA sits behind a Cloudflare challenge) must not stop
+    # the rest of the bundle from refreshing, so collect failures per venue.
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         for venue in selected:
-            if venue.slug == "dia":
-                payload[venue.slug] = await _load_dia_payload(venue=venue)
-            elif venue.slug == "kalamazoo":
-                payload[venue.slug] = await _load_kalamazoo_payload(client=client)
-            elif venue.slug == "grand_rapids":
-                payload[venue.slug] = await _load_grand_rapids_payload(
-                    venue=venue,
-                    client=client,
-                    month_count=gram_month_count,
-                )
-            elif venue.slug == "msu_broad":
-                payload[venue.slug] = await _load_msu_broad_payload(
-                    venue=venue,
-                    client=client,
-                    max_pages=broad_max_pages,
-                )
-            elif venue.slug == "muskegon":
-                payload[venue.slug] = {
-                    "list_html": await fetch_html(venue.list_url, client=client),
-                }
-            elif venue.slug == "umma":
-                payload[venue.slug] = await _load_umma_payload(venue=venue, client=client)
-            else:
-                payload[venue.slug] = {}
+            try:
+                if venue.slug == "dia":
+                    payload_by_slug[venue.slug] = await _load_dia_payload(venue=venue)
+                elif venue.slug == "kalamazoo":
+                    payload_by_slug[venue.slug] = await _load_kalamazoo_payload(client=client)
+                elif venue.slug == "grand_rapids":
+                    payload_by_slug[venue.slug] = await _load_grand_rapids_payload(
+                        venue=venue,
+                        client=client,
+                        month_count=gram_month_count,
+                    )
+                elif venue.slug == "msu_broad":
+                    payload_by_slug[venue.slug] = await _load_msu_broad_payload(
+                        venue=venue,
+                        client=client,
+                        max_pages=broad_max_pages,
+                    )
+                elif venue.slug == "muskegon":
+                    payload_by_slug[venue.slug] = {
+                        "list_html": await fetch_html(venue.list_url, client=client),
+                    }
+                elif venue.slug == "umma":
+                    payload_by_slug[venue.slug] = await _load_umma_payload(venue=venue, client=client)
+                else:
+                    payload_by_slug[venue.slug] = {}
+            except Exception as exc:
+                errors_by_slug[venue.slug] = str(exc)
 
-    return payload
+    return {
+        "payload_by_slug": payload_by_slug,
+        "errors_by_slug": errors_by_slug,
+    }
 
 
 def parse_mi_events(payload: dict, *, venue: MiVenueConfig) -> list[ExtractedActivity]:

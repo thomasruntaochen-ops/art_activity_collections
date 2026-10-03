@@ -12,11 +12,13 @@ from zoneinfo import ZoneInfo
 try:
     from playwright.async_api import Browser
     from playwright.async_api import BrowserContext
+    from playwright.async_api import Error as PlaywrightError
     from playwright.async_api import Playwright
     from playwright.async_api import async_playwright
 except ImportError:  # pragma: no cover - optional dependency
     Browser = None
     BrowserContext = None
+    PlaywrightError = Exception
     Playwright = None
     async_playwright = None
 
@@ -145,13 +147,13 @@ async def fetch_elmuseo_page_playwright(
         try:
             print(f"[elmuseo-fetch] Playwright attempt {attempt}/{max_attempts}: {url}")
             response = await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-            html_text = await page.content()
+            html_text = await _read_settled_content(page)
 
             for wait_ms in (3000, 6000):
                 if not _looks_like_blocked_page(html_text):
                     return html_text
                 await page.wait_for_timeout(wait_ms)
-                html_text = await page.content()
+                html_text = await _read_settled_content(page)
 
             status = response.status if response is not None else None
             if (status is None or status < 400) and not _looks_like_blocked_page(html_text):
@@ -160,6 +162,19 @@ async def fetch_elmuseo_page_playwright(
             await page.close()
 
     raise RuntimeError(f"Unable to fetch El Museo del Barrio page via Playwright: {url}")
+
+
+async def _read_settled_content(page, *, max_reads: int = 3) -> str:
+    # The interstitial El Museo serves first reloads itself into the real page,
+    # and page.content() raises if it is called mid-navigation; wait it out.
+    for _ in range(max_reads - 1):
+        try:
+            return await page.content()
+        except PlaywrightError as exc:
+            if "navigating" not in str(exc):
+                raise
+            await page.wait_for_load_state("domcontentloaded")
+    return await page.content()
 
 
 async def load_elmuseo_payload(*, page_limit: int | None = None) -> dict:

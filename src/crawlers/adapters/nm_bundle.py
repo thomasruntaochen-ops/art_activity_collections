@@ -148,9 +148,14 @@ TIME_SINGLE_RE = re.compile(
 )
 AGE_RANGE_RE = re.compile(r"\bages?\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b", re.IGNORECASE)
 AGE_PLUS_RE = re.compile(r"\bages?\s*(\d{1,2})(?:\+|\s+and\s+up)\b", re.IGNORECASE)
+# Cards read "<title> 17 OCT 2026 , 1-2 PM <place> READ MORE". Since Oct 2026 the
+# place names a room or off-site venue (not always "SITE SANTA FE") or is absent,
+# and multi-day events show "05 NOV 2026 / 07 NOV 2026".
 SITE_FUTURE_CARD_RE = re.compile(
     r"^(?P<title>.+?)\s+(?P<day>\d{2})\s+(?P<month>[A-Z]{3})\s+(?P<year>\d{4})"
-    r"(?:\s*,\s*(?P<time>.+?))?\s+(?P<place>SITE SANTA FE.*?)(?:\s+READ MORE)?$"
+    r"(?:\s*/\s*\d{2}\s+[A-Z]{3}\s+\d{4})?"
+    r"(?:\s*,\s*(?P<time>[\d:]+(?:\s*-\s*[\d:]+)?\s*[AP]M))?"
+    r"(?:\s+(?!READ MORE$)(?P<place>.+?))?(?:\s+READ MORE)?$"
 )
 NMART_LOCATION_SPLIT_RE = re.compile(
     r"\b(?:Join|We invite|Celebrate|Come|When|Tickets|Reserve|Register|Admission is"
