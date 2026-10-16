@@ -54,7 +54,10 @@ INCLUDE_PATTERNS = (
     " workshop ",
     " workshops ",
 )
-HARD_EXCLUDE_PATTERNS = (
+# Event-type words, matched against the title and category labels only.
+# Descriptions and prices mention them in passing ("Free with admission", "in
+# the exhibition galleries"), which in Oct 2026 rejected every family workshop.
+TITLE_EXCLUDE_PATTERNS = (
     " admission ",
     " camp ",
     " camps ",
@@ -64,19 +67,23 @@ HARD_EXCLUDE_PATTERNS = (
     " film ",
     " fundraising ",
     " fundraiser ",
-    " meditation ",
-    " mindfulness ",
     " music ",
     " open house ",
     " performance ",
-    " poem ",
-    " poetry ",
     " reading ",
     " reception ",
     " storytime ",
-    " tai chi ",
     " tour ",
     " tours ",
+)
+# Activities that are not visual art however they are labelled; these still
+# reject an event when they appear anywhere in its text.
+HARD_EXCLUDE_PATTERNS = (
+    " meditation ",
+    " mindfulness ",
+    " poem ",
+    " poetry ",
+    " tai chi ",
     " writing ",
     " yoga ",
 )
@@ -247,6 +254,9 @@ def _build_row_from_card(
         ]
     ).lower()
     token_blob = _searchable_blob(text_blob)
+    label_blob = _searchable_blob(" ".join([title, *category_names]))
+    if any(pattern in label_blob for pattern in TITLE_EXCLUDE_PATTERNS):
+        return None
     if any(pattern in token_blob for pattern in HARD_EXCLUDE_PATTERNS):
         return None
     if not any(pattern in token_blob for pattern in INCLUDE_PATTERNS):

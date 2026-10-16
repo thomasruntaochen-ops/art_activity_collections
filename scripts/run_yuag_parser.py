@@ -100,8 +100,11 @@ async def main() -> None:
     parser.add_argument(
         "--page-limit",
         type=int,
-        default=1,
-        help="Cap on fetched calendar pages (default: 1).",
+        default=20,
+        help=(
+            "Cap on fetched calendar pages (default: 20). A page holds about five "
+            "days, so reading only the first one missed most family and teen events."
+        ),
     )
     parser.add_argument(
         "--input-dir",

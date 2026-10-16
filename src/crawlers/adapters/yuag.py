@@ -11,6 +11,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.user_agent import BROWSER_USER_AGENT
 
@@ -32,6 +33,10 @@ DEFAULT_HEADERS = {
 YOUTH_CATEGORIES = {
     "teen events",
     "family programs",
+}
+CATEGORY_AUDIENCE = {
+    "teen events": "teens",
+    "family programs": "kids",
 }
 EXCLUDED_KEYWORDS = (
     "tour",
@@ -89,7 +94,7 @@ async def load_yuag_calendar_payload(
     for list_url, html in page_payloads:
         cards.extend(_parse_listing_cards(html, list_url=list_url))
 
-    detail_urls = sorted({card["source_url"] for card in cards})
+    detail_urls = _detail_urls(cards)
     details_html = await asyncio.gather(*(fetch_yuag_page(url) for url in detail_urls))
 
     return {
@@ -106,6 +111,10 @@ def download_yuag_calendar_cache(
 ) -> dict[str, int]:
     directory = Path(input_dir)
     directory.mkdir(parents=True, exist_ok=True)
+    # The cache directory persists between runs, and the loader reads pages
+    # until one is missing, so drop pages a longer calendar left behind.
+    for stale_page in directory.glob("calendar_page_*.html"):
+        stale_page.unlink()
 
     first_url = build_yuag_calendar_url(start_date=start_date, page=0)
     first_path = directory / "calendar_page_0.html"
@@ -127,7 +136,7 @@ def download_yuag_calendar_cache(
     for list_url, html in page_payloads:
         cards.extend(_parse_listing_cards(html, list_url=list_url))
 
-    detail_urls = sorted({card["source_url"] for card in cards})
+    detail_urls = _detail_urls(cards)
     for detail_url in detail_urls:
         detail_path = directory / f"detail_{_detail_cache_slug(detail_url)}.html"
         _download_yuag_page_with_curl(detail_url, detail_path)
@@ -166,7 +175,7 @@ def load_yuag_calendar_payload_from_dir(
         cards.extend(_parse_listing_cards(html, list_url=list_url))
 
     detail_pages: dict[str, str] = {}
-    for detail_url in sorted({card["source_url"] for card in cards}):
+    for detail_url in _detail_urls(cards):
         detail_path = directory / f"detail_{_detail_cache_slug(detail_url)}.html"
         if not detail_path.exists():
             raise FileNotFoundError(f"Missing cached detail page for {detail_url}: {detail_path}")
@@ -225,6 +234,12 @@ def parse_yuag_calendar_payload(payload: dict) -> list[ExtractedActivity]:
                 start_at=start_at,
                 end_at=end_at,
                 timezone=NY_TIMEZONE,
+                audience_segment=infer_audience_segment(
+                    title=title,
+                    age_min=age_min,
+                    age_max=age_max,
+                    default=CATEGORY_AUDIENCE.get(category.strip().lower()),
+                ),
                 free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
             )
         )
@@ -316,6 +331,17 @@ def _download_yuag_page_with_curl(url: str, output_path: str | Path) -> None:
         raise RuntimeError(
             f"curl download failed for Yale Art Gallery page ({url}): {result.stderr.strip() or result.returncode}"
         )
+
+
+def _detail_urls(cards: list[dict]) -> list[str]:
+    """Detail pages worth fetching: only youth categories can pass the filter.
+
+    The calendar runs to about a dozen pages, mostly tours and films, so
+    fetching every detail page would cost well over a hundred requests a day.
+    """
+    return sorted(
+        {card["source_url"] for card in cards if card["category"].strip().lower() in YOUTH_CATEGORIES}
+    )
 
 
 def _parse_listing_cards(html: str, *, list_url: str) -> list[dict]:

@@ -266,9 +266,15 @@ def _extract_date_line(card) -> tuple[str, str | None] | None:
 
 
 def _parse_datetimes(date_text: str, time_text: str | None) -> tuple[datetime | None, datetime | None]:
-    try:
-        base = datetime.strptime(date_text, "%B %d, %Y")
-    except ValueError:
+    # Since Oct 2026 the calendar prefixes the weekday ("Saturday, October 17, 2026").
+    base = None
+    for fmt in ("%A, %B %d, %Y", "%B %d, %Y"):
+        try:
+            base = datetime.strptime(date_text, fmt)
+            break
+        except ValueError:
+            continue
+    if base is None:
         return None, None
 
     base = base.replace(hour=0, minute=0, second=0, microsecond=0)

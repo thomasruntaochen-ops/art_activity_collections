@@ -232,20 +232,23 @@ def _build_row_from_entry(
 def _should_reject_rose_event(*, title: str, source_url: str, text_blob: str) -> bool:
     if "/exhibitions/" in source_url:
         return True
+    # Event-type words count only in the title: gallery programs describe
+    # themselves as taking place "in the exhibition", which in Oct 2026
+    # rejected every drawing session and talk on the calendar.
+    title_blob = f" {' '.join(re.sub(r'[^a-z0-9]+', ' ', title.lower()).split())} "
     if any(
-        marker in text_blob
+        marker in title_blob
         for marker in (
-            " yoga ",
             " exhibition ",
             " film ",
             " performance ",
             " reading ",
             " reception ",
             " tour ",
-            " meditation ",
-            " mindfulness ",
         )
     ):
+        return True
+    if any(marker in text_blob for marker in (" yoga ", " meditation ", " mindfulness ")):
         return True
     return False
 

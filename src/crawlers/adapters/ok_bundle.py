@@ -570,6 +570,10 @@ def _parse_mgmoa(
     match = MGMOA_CLASS_RE.search(text)
     if not match:
         return []
+    # The page lists one class series per term. Once its first session has
+    # passed there is nothing to keep until the next term is posted, which is a
+    # quiet calendar rather than a broken parser.
+    record_candidate_count(1)
 
     event_date = parse_date_text(
         f"{match.group('month')} {match.group('day')}, {match.group('year')}"

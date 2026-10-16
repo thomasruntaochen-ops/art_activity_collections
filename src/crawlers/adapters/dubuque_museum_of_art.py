@@ -14,6 +14,7 @@ from src.crawlers.adapters.oh_common import join_non_empty
 from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -82,6 +83,9 @@ class DubuqueMuseumOfArtAdapter(BaseSourceAdapter):
 def parse_dubuque_museum_of_art_payload(payload: dict) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
+    # The experiences list can hold only receptions and fundraisers for weeks
+    # at a time; report what was listed so that reads as a quiet calendar.
+    record_candidate_count(len(payload.get("events", [])))
 
     for item in payload.get("events", []):
         row = _build_row(item)

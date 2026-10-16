@@ -155,16 +155,6 @@ MIDDLEBURY_RANGE_RE = re.compile(
     r"(?P<month2>[A-Za-z]+)\s+(?P<day2>\d{1,2})(?:,\s*(?P<year>\d{4}))?",
     re.IGNORECASE,
 )
-BRATTLEBORO_DATE_RE = re.compile(
-    r"^(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2})"
-    r"(?:-\d{1,2})?"
-    r",\s*(?P<weekday>[A-Za-z]+)[\.,]?\s*(?P<time>.+)?$",
-    re.IGNORECASE,
-)
-BRATTLEBORO_YEAR_RE = re.compile(
-    r"^(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2})-\d{1,2},\s*(?P<year>\d{4})$",
-    re.IGNORECASE,
-)
 LOCALIST_INNER_HTML_RE = re.compile(
     r'innerHTML=(?P<html>"(?:\\.|[^"])*")',
     re.DOTALL,
@@ -205,9 +195,12 @@ VT_VENUES: tuple[VtVenueConfig, ...] = (
         venue_name="Brattleboro Museum & Art Center",
         city="Brattleboro",
         state="VT",
-        list_url="https://www.brattleboromuseum.org/calendar/",
+        # /calendar/ became a 404 in Oct 2026; the site moved to The Events
+        # Calendar, whose REST feed carries the same events.
+        list_url="https://www.brattleboromuseum.org/events/",
         default_location="Brattleboro Museum & Art Center, Brattleboro, VT",
-        mode="brattleboro_html",
+        mode="tribe_json",
+        api_url="https://www.brattleboromuseum.org/wp-json/tribe/events/v1/events",
         source_prefixes=("https://www.brattleboromuseum.org/",),
     ),
     VtVenueConfig(
@@ -324,8 +317,6 @@ def parse_vt_events(
 
     if venue.mode == "tribe_json":
         rows = _parse_tribe_events(payload, venue=venue, start_day=start_day)
-    elif venue.mode == "brattleboro_html":
-        rows = _parse_brattleboro_events(payload, venue=venue, start_day=start_day)
     elif venue.mode == "fleming_localist":
         rows = _parse_fleming_events(payload, venue=venue, start_day=start_day)
     elif venue.mode == "middlebury_html":
@@ -359,12 +350,6 @@ async def _load_venue_payload(
         }
         data = await _fetch_json(venue.api_url, client=client, params=params)
         return {"events_json": data}
-
-    if venue.mode == "brattleboro_html":
-        list_html = await fetch_html(venue.list_url, client=client)
-        detail_urls = _extract_brattleboro_detail_urls(list_html, venue.list_url)
-        details = await _fetch_detail_pages(detail_urls, client=client, referer=venue.list_url)
-        return {"list_html": list_html, "details": details}
 
     if venue.mode == "fleming_localist":
         if venue.widget_url is None:
@@ -482,75 +467,6 @@ def _parse_tribe_events(payload: dict[str, object], *, venue: VtVenueConfig, sta
     return rows
 
 
-def _parse_brattleboro_events(
-    payload: dict[str, object],
-    *,
-    venue: VtVenueConfig,
-    start_day: date,
-) -> list[ExtractedActivity]:
-    list_html = payload.get("list_html") or ""
-    detail_map = {
-        normalize_space(item.get("url")): item.get("html") or ""
-        for item in payload.get("details") or []
-    }
-    soup = BeautifulSoup(list_html, "html.parser")
-    rows: list[ExtractedActivity] = []
-
-    for card in soup.select("div.kutu"):
-        title_anchor = card.select_one("h2 a[href]")
-        date_tag = card.select_one("div.event_date")
-        if title_anchor is None or date_tag is None:
-            continue
-
-        source_url = absolute_url(venue.list_url, title_anchor.get("href"))
-        if "brattleboromuseum.org" not in httpx.URL(source_url).host:
-            continue
-
-        title = normalize_space(title_anchor.get_text(" ", strip=True))
-        excerpt = normalize_space(
-            card.select_one("div.events_excerpt").get_text(" ", strip=True)
-            if card.select_one("div.events_excerpt")
-            else ""
-        )
-        detail_html = detail_map.get(source_url, "")
-        detail_description = _extract_brattleboro_detail_description(detail_html)
-        description = join_non_empty([detail_description, excerpt])
-
-        if not _should_keep_event(title=title, description=description, category=None):
-            continue
-
-        start_at, end_at = _parse_brattleboro_start_end(
-            normalize_space(date_tag.get_text(" ", strip=True)),
-            start_day=start_day,
-        )
-        if start_at is None or start_at.date() < start_day:
-            continue
-
-        text_blob = join_non_empty([title, description])
-        rows.append(
-            ExtractedActivity(
-                source_url=source_url,
-                title=title,
-                description=description,
-                venue_name=venue.venue_name,
-                location_text=venue.default_location,
-                city=venue.city,
-                state=venue.state,
-                activity_type=_infer_vt_activity_type(title=title, description=description, category=None),
-                age_min=parse_age_range(text_blob)[0],
-                age_max=parse_age_range(text_blob)[1],
-                drop_in=_infer_drop_in(text_blob),
-                registration_required=_infer_registration_required(text_blob),
-                start_at=start_at,
-                end_at=end_at,
-                timezone=NY_TIMEZONE,
-                **price_classification_kwargs(text_blob, default_is_free=None),
-            )
-        )
-
-    return rows
-
-
 def _parse_fleming_events(payload: dict[str, object], *, venue: VtVenueConfig, start_day: date) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
 
@@ -646,34 +562,6 @@ def _parse_middlebury_events(payload: dict[str, object], *, venue: VtVenueConfig
     return rows
 
 
-def _extract_brattleboro_detail_urls(list_html: str, list_url: str) -> list[str]:
-    soup = BeautifulSoup(list_html, "html.parser")
-    urls: list[str] = []
-    for anchor in soup.select("h2 a[href]"):
-        href = normalize_space(anchor.get("href"))
-        if not href:
-            continue
-        url = absolute_url(list_url, href)
-        if "brattleboromuseum.org" not in httpx.URL(url).host:
-            continue
-        urls.append(url)
-    return urls
-
-
-def _extract_brattleboro_detail_description(html: str) -> str | None:
-    if not html:
-        return None
-    soup = BeautifulSoup(html, "html.parser")
-    parts: list[str] = []
-    for selector in (".entry p", ".post p", "article p"):
-        for tag in soup.select(selector):
-            text = normalize_space(tag.get_text(" ", strip=True))
-            if not text:
-                continue
-            parts.append(text)
-    return join_non_empty(parts)
-
-
 def _extract_fleming_detail_urls(widget_js: str, *, venue: VtVenueConfig) -> list[str]:
     html = _decode_localist_widget_html(widget_js)
     soup = BeautifulSoup(html, "html.parser")
@@ -761,36 +649,6 @@ def _parse_middlebury_start_end(date_text: str, *, now: datetime) -> tuple[datet
     base_date = parse_date_text(f"{match.group('month')} {match.group('day')}, {year}")
     if base_date is None:
         return None, None
-
-    return parse_time_range(base_date=base_date, time_text=match.group("time"))
-
-
-def _parse_brattleboro_start_end(date_text: str, *, start_day: date) -> tuple[datetime | None, datetime | None]:
-    blob = normalize_space(unescape(date_text)).replace("\xa0", " ")
-    year_match = BRATTLEBORO_YEAR_RE.match(blob)
-    if year_match is not None:
-        base_date = parse_date_text(
-            f"{year_match.group('month')} {year_match.group('day')}, {year_match.group('year')}"
-        )
-        if base_date is None:
-            return None, None
-        return parse_time_range(base_date=base_date, time_text=None)
-
-    match = BRATTLEBORO_DATE_RE.match(blob)
-    if match is None:
-        return None, None
-
-    base_date = parse_date_text(
-        f"{match.group('month')} {match.group('day')}, {start_day.year}"
-    )
-    if base_date is None:
-        return None, None
-    if base_date < start_day:
-        next_candidate = parse_date_text(
-            f"{match.group('month')} {match.group('day')}, {start_day.year + 1}"
-        )
-        if next_candidate is not None:
-            base_date = next_candidate
 
     return parse_time_range(base_date=base_date, time_text=match.group("time"))
 
@@ -894,6 +752,12 @@ def _infer_vt_audience(
             return "all_ages"
         if any(marker in blob for marker in (" talk ", " lecture ", " conversation ", " presentation ")):
             return "adults"
+    if venue.slug == "brattleboro":
+        # BMAC's feed descriptions are long speaker bios ("helped him better see
+        # and love his own father") that the shared inference reads as family
+        # events. Judge by the title; what is left is talks and readings.
+        inferred = infer_audience_segment(title=title, category=category, age_min=age_min, age_max=age_max)
+        return inferred if inferred != "unknown" else "adults"
 
     inferred = infer_audience_segment(
         title=title,
