@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.pricing import infer_price_classification
 from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.user_agent import BROWSER_USER_AGENT
@@ -141,7 +142,11 @@ def parse_crow_payload(
     seen: set[tuple[str, str, datetime]] = set()
     reference_now = now or datetime.now()
 
-    for card in _iter_crow_cards(listing_html, list_url=CROW_EVENTS_URL):
+    cards = _iter_crow_cards(listing_html, list_url=CROW_EVENTS_URL)
+    # Crow's calendar is often all receptions, meditations and performances;
+    # report the cards found so that reads as a quiet calendar, not a dead parser.
+    record_candidate_count(len(cards))
+    for card in cards:
         combined_text = " ".join(
             [
                 card["title"],

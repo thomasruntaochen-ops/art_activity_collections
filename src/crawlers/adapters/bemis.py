@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 
 from src.crawlers.adapters.base import BaseSourceAdapter
 from src.crawlers.pipeline.audience import infer_audience_segment
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.user_agent import BROWSER_USER_AGENT
@@ -138,8 +139,12 @@ def parse_bemis_payload(payload: dict) -> list[ExtractedActivity]:
     detail_pages = payload.get("detail_pages") or {}
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
+    cards = _iter_event_cards(soup)
+    # Bemis lists residency open houses, auctions and concerts for weeks at a
+    # time; report the cards found so that reads as a quiet calendar.
+    record_candidate_count(len(cards))
 
-    for card in _iter_event_cards(soup):
+    for card in cards:
         category = _normalize_space(
             card.select_one("div.text-smallCaps.uppercase.mb-4").get_text(" ", strip=True)
             if card.select_one("div.text-smallCaps.uppercase.mb-4")

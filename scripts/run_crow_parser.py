@@ -18,6 +18,7 @@ from src.crawlers.adapters.crow import (  # noqa: E402
     parse_crow_payload,
 )
 from src.crawlers.pipeline.alerts import abort_commit_on_empty_parse  # noqa: E402
+from src.crawlers.pipeline.candidates import get_candidate_count  # noqa: E402
 from src.crawlers.pipeline.runner import upsert_extracted_activities_with_stats  # noqa: E402
 
 
@@ -130,13 +131,16 @@ async def main() -> None:
         print(json.dumps(row_payload, ensure_ascii=True))
 
     if args.commit:
-        abort_commit_on_empty_parse(
+        may_commit = abort_commit_on_empty_parse(
             parser_name="crow",
             commit_requested=True,
             parsed_count=len(parsed),
             source_url=args.url,
             details={"cache_dir": str(args.cache_dir)},
+            candidates_found=get_candidate_count(),
         )
+        if not may_commit:
+            return
         _, stats = upsert_extracted_activities_with_stats(
             source_url=args.url,
             extracted=parsed,
