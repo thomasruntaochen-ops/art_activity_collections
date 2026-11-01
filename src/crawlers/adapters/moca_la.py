@@ -150,10 +150,18 @@ def parse_moca_programs_html(
     seen: set[tuple[str, str, datetime]] = set()
     page_year = _infer_page_year(soup=soup, list_url=list_url, fallback_year=current.year)
 
-    # MOCA rebuilt on Next.js/CSS-modules: class names carry a per-build hash
-    # (EventSquare-module-scss-module__<hash>__root), so match the stable
-    # component-name prefix rather than the full class.
-    candidate_blocks = soup.select('a[class*="EventSquare"]')
+    # MOCA rebuilt on Next.js/CSS-modules: class names carry a per-build prefix
+    # (EventSquare-module-scss-module__<hash>__root, then cM_neq_root once the
+    # build started minifying them), so find each card through its dateTime
+    # node and walk up to the anchor that wraps it.
+    candidate_blocks = []
+    seen_cards: set[int] = set()
+    for node in soup.find_all(lambda tag: _has_class_part(tag, "dateTime")):
+        card = node.find_parent("a")
+        if card is None or id(card) in seen_cards:
+            continue
+        seen_cards.add(id(card))
+        candidate_blocks.append(card)
     record_candidate_count(len(candidate_blocks))
     for card in candidate_blocks:
         row = _build_row_from_card(card=card, list_url=list_url, current_date=current_date, page_year=page_year)
@@ -181,25 +189,26 @@ def _build_row_from_card(
     if link is None:
         return None
 
-    title = _normalize_text(card.select_one('[class*="__title"]')) or _normalize_text(link)
+    title = _normalize_text(card.find(lambda tag: _has_class_part(tag, "title"))) or _normalize_text(link)
     if not title or is_irrelevant_item_text(title):
         return None
 
     # Card layout: date and time, a location label, the title, a category label
     # ("Conversation", "All Ages", "Member Event") and sometimes a "Member Only"
     # tag. The labels are what say who an event is for.
-    if any("member" in (_normalize_text(tag) or "").lower() for tag in card.select(".tag")):
+    tags = card.find_all(lambda tag: _has_class_part(tag, "tag"))
+    if any("member" in (_normalize_text(tag) or "").lower() for tag in tags):
         return None
     labels = [
         _normalize_text(node)
         for node in card.select(".c1")
-        if "tag" not in node.get("class", []) and not any("dateTime" in name for name in node.get("class", []))
+        if not _has_class_part(node, "tag") and not _has_class_part(node, "dateTime")
     ]
     labels = [label for label in labels if label]
     category_blob = ", ".join(labels[1:]) or None
     description = None
     location_name = labels[0] if labels else None
-    schedule_text = _normalize_text(card.select_one('[class*="dateTime"]'))
+    schedule_text = _normalize_text(card.find(lambda tag: _has_class_part(tag, "dateTime")))
     if not schedule_text:
         return None
 
@@ -245,6 +254,12 @@ def _build_row_from_card(
         timezone=LA_TIMEZONE,
         free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
     )
+
+
+def _has_class_part(node, name: str) -> bool:
+    # Only the trailing local name ("dateTime", "title", "tag") survives a
+    # rebuild; the module prefix in front of it does not.
+    return any(cls == name or cls.endswith(f"_{name}") for cls in node.get("class", []))
 
 
 def _infer_page_year(*, soup: BeautifulSoup, list_url: str, fallback_year: int) -> int:

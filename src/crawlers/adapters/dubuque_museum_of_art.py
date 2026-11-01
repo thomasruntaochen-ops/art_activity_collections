@@ -15,6 +15,7 @@ from src.crawlers.adapters.oh_common import normalize_space
 from src.crawlers.adapters.oh_common import parse_date_text
 from src.crawlers.pipeline.audience import infer_audience_segment
 from src.crawlers.pipeline.candidates import record_candidate_count
+from src.crawlers.pipeline.candidates import record_listing_recognized
 from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 
@@ -182,6 +183,9 @@ def _extract_events(script_text: str) -> list[dict]:
     match = DATA_ARRAY_RE.search(script_text)
     if match is None:
         return []
+    # The Vue app's data array is intact even when it is empty: between seasons
+    # the museum ships `data: []` and the page says "Check back soon".
+    record_listing_recognized()
 
     json_like = UNQUOTED_KEY_RE.sub(lambda matched: f' "{matched.group(1)}":', match.group(1))
     json_like = re.sub(r",\s*([}\]])", r"\1", json_like)
