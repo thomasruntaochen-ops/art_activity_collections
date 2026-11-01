@@ -15,6 +15,7 @@ from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.user_agent import BROWSER_USER_AGENT
 
 BMOA_EVENTS_URL = "https://www.bmoa.org/events"
+BMOA_SATURDAY_STUDIO_URL = "https://www.bmoa.org/saturday-studio"
 
 LA_TIMEZONE = "America/Los_Angeles"
 BMOA_VENUE_NAME = "Bakersfield Museum of Art"
@@ -153,14 +154,22 @@ def parse_bmoa_events_html(
     *,
     list_url: str,
     now: datetime | None = None,
+    studio_html: str | None = None,
 ) -> list[ExtractedActivity]:
     soup = BeautifulSoup(html, "html.parser")
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
     current_date = (now or datetime.now()).date()
 
+    # Saturday Studio's own page gives each class its title, time and project,
+    # where the events calendar only says "Saturday Studio", so it wins.
+    if studio_html:
+        rows.extend(_parse_studio_sessions(studio_html, current_date=current_date))
+    studio_days = {(row.source_url, row.start_at.date()) for row in rows}
+
     candidate_blocks = soup.select("div.sqs-html-content p")
     record_candidate_count(len(candidate_blocks))
+    feature_paragraphs: list[Tag] = []
     for paragraph in candidate_blocks:
         strong = paragraph.find("strong")
         if strong is None:
@@ -172,6 +181,7 @@ def parse_bmoa_events_html(
 
         parsed_dates = _parse_date_text(date_text, current_date=current_date)
         if parsed_dates is None:
+            feature_paragraphs.append(paragraph)
             continue
         start_date, end_date = parsed_dates
         if (end_date or start_date) < current_date:
@@ -179,74 +189,199 @@ def parse_bmoa_events_html(
 
         for entry in _extract_paragraph_entries(paragraph):
             source_url = urljoin(list_url, entry["href"])
-            title = entry["title"]
-            detail_text = entry["detail_text"]
-            if not title or is_irrelevant_item_text(title):
+            if (source_url, start_date) in studio_days:
                 continue
-
-            if _should_exclude_event(title=title, description=detail_text):
-                continue
-            if not _should_include_event(title=title, description=detail_text):
-                continue
-
-            start_at, end_at, schedule_text = _build_datetimes(
+            row = _build_row(
+                source_url=source_url,
+                title=entry["title"],
+                detail_text=entry["detail_text"],
                 start_date=start_date,
                 end_date=end_date,
                 date_text=date_text,
-                detail_text=detail_text,
             )
-            if start_at is None:
+            if row is None:
                 continue
-
-            description_parts: list[str] = []
-            cleaned_detail = _clean_description(detail_text)
-            if cleaned_detail:
-                description_parts.append(cleaned_detail)
-            if schedule_text:
-                description_parts.append(f"Schedule: {schedule_text}")
-            description = " | ".join(description_parts) if description_parts else None
 
             if _is_near_duplicate(
                 rows=rows,
-                source_url=source_url,
-                title=title,
-                description=description,
-                start_at=start_at,
+                source_url=row.source_url,
+                title=row.title,
+                description=row.description,
+                start_at=row.start_at,
             ):
                 continue
 
-            age_min, age_max = _parse_age_range(title=title, description=description)
-            text_blob = " ".join([title, description or ""]).lower()
-            key = (source_url, title, start_at)
+            key = (row.source_url, row.title, row.start_at)
             if key in seen:
                 continue
             seen.add(key)
+            rows.append(row)
 
-            rows.append(
-                ExtractedActivity(
-                    source_url=source_url,
-                    title=title,
-                    description=description,
-                    venue_name=BMOA_VENUE_NAME,
-                    location_text=BMOA_DEFAULT_LOCATION,
-                    city=BMOA_CITY,
-                    state=BMOA_STATE,
-                    activity_type=_infer_activity_type(title=title, description=description),
-                    age_min=age_min,
-                    age_max=age_max,
-                    drop_in=("drop-in" in text_blob or "drop in" in text_blob or "all-ages art project" in text_blob),
-                    registration_required=(
-                        ("registration" in text_blob or "register" in text_blob)
-                        and "closed" not in text_blob
-                        and "no registration" not in text_blob
-                    ),
-                    start_at=start_at,
-                    end_at=end_at,
-                    timezone=LA_TIMEZONE,
-                    free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
-                )
-            )
+    # The feature blocks at the top of the page put the title first and the
+    # date last. The dated calendar below them can lag by weeks (in Nov 2026 it
+    # still ended on Oct 19 while the blocks announced November's Family Day),
+    # so read the blocks too, unless a fuller entry already covers that day.
+    for paragraph in feature_paragraphs:
+        for row in _feature_rows(paragraph, list_url=list_url, current_date=current_date):
+            if any(
+                existing.source_url == row.source_url and existing.start_at.date() == row.start_at.date()
+                for existing in rows
+            ):
+                continue
+            rows.append(row)
 
+    return rows
+
+
+def _build_row(
+    *,
+    source_url: str,
+    title: str,
+    detail_text: str,
+    start_date: date,
+    end_date: date | None,
+    date_text: str,
+) -> ExtractedActivity | None:
+    if not title or is_irrelevant_item_text(title):
+        return None
+
+    if _should_exclude_event(title=title, description=detail_text):
+        return None
+    if not _should_include_event(title=title, description=detail_text):
+        return None
+
+    start_at, end_at, schedule_text = _build_datetimes(
+        start_date=start_date,
+        end_date=end_date,
+        date_text=date_text,
+        detail_text=detail_text,
+    )
+    if start_at is None:
+        return None
+
+    description_parts: list[str] = []
+    cleaned_detail = _clean_description(detail_text)
+    if cleaned_detail:
+        description_parts.append(cleaned_detail)
+    if schedule_text:
+        description_parts.append(f"Schedule: {schedule_text}")
+    description = " | ".join(description_parts) if description_parts else None
+
+    age_min, age_max = _parse_age_range(title=title, description=description)
+    text_blob = " ".join([title, description or ""]).lower()
+
+    return ExtractedActivity(
+        source_url=source_url,
+        title=title,
+        description=description,
+        venue_name=BMOA_VENUE_NAME,
+        location_text=BMOA_DEFAULT_LOCATION,
+        city=BMOA_CITY,
+        state=BMOA_STATE,
+        activity_type=_infer_activity_type(title=title, description=description),
+        age_min=age_min,
+        age_max=age_max,
+        drop_in=("drop-in" in text_blob or "drop in" in text_blob or "all-ages art project" in text_blob),
+        registration_required=(
+            ("registration" in text_blob or "register" in text_blob)
+            and "closed" not in text_blob
+            and "no registration" not in text_blob
+        ),
+        start_at=start_at,
+        end_at=end_at,
+        timezone=LA_TIMEZONE,
+        free_verification_status=("confirmed" if "free" in text_blob else "inferred"),
+    )
+
+
+def _feature_rows(paragraph: Tag, *, list_url: str, current_date: date) -> list[ExtractedActivity]:
+    # <strong>Title</strong><br><em>Subtitle</em><br>Saturday, November 7<br>Sunday, November 8
+    lines = [_normalize_space(line) for line in paragraph.get_text("\n").split("\n")]
+    lines = [line for line in lines if line]
+    if len(lines) < 2:
+        return []
+
+    title = lines[0]
+    dated = [(line, _parse_date_text(line, current_date=current_date)) for line in lines[1:]]
+    detail_text = " | ".join(line for line, parsed in dated if parsed is None)
+
+    # The block's link is a button elsewhere in the same layout column.
+    column = paragraph.find_parent("div", class_="col")
+    link = column.find("a", href=True) if column is not None else None
+    source_url = urljoin(list_url, link["href"]) if link is not None else list_url
+
+    rows: list[ExtractedActivity] = []
+    for line, parsed in dated:
+        if parsed is None:
+            continue
+        start_date, end_date = parsed
+        if (end_date or start_date) < current_date:
+            continue
+        row = _build_row(
+            source_url=source_url,
+            title=title,
+            detail_text=detail_text,
+            start_date=start_date,
+            end_date=end_date,
+            date_text=line,
+        )
+        if row is not None:
+            rows.append(row)
+    return rows
+
+
+def _parse_studio_sessions(html: str, *, current_date: date) -> list[ExtractedActivity]:
+    # Each class is an <h2> theme, then <p>Saturday, November 7<br>11:30 AM - 1:30 PM</p>,
+    # then paragraphs describing the project until the next <h2>.
+    soup = BeautifulSoup(html, "html.parser")
+    headings = soup.select("div.sqs-html-content h2")
+
+    # The page's banner heading carries the age range and is followed by prices.
+    page_notes: list[str] = []
+    for heading in headings:
+        age_match = AGE_RANGE_RE.search(heading.get_text(" ", strip=True))
+        if age_match is None:
+            continue
+        page_notes.append(f"Ages {age_match.group(1)}-{age_match.group(2)}")
+        prices = heading.find_next_sibling("p")
+        if prices is not None and "$" in prices.get_text():
+            page_notes.append("; ".join(_normalize_space(line) for line in prices.get_text("\n").split("\n") if line.strip()))
+        break
+
+    rows: list[ExtractedActivity] = []
+    for heading in headings:
+        schedule = heading.find_next_sibling("p")
+        if schedule is None:
+            continue
+        lines = [_normalize_space(line) for line in schedule.get_text("\n").split("\n")]
+        lines = [line for line in lines if line]
+        if not lines:
+            continue
+        parsed_dates = _parse_date_text(lines[0], current_date=current_date)
+        if parsed_dates is None:
+            continue
+        start_date, end_date = parsed_dates
+        if (end_date or start_date) < current_date:
+            continue
+
+        details: list[str] = []
+        for sibling in schedule.find_next_siblings():
+            if sibling.name == "h2":
+                break
+            text = _normalize_text(sibling.get_text(" ", strip=True))
+            if text:
+                details.append(text)
+
+        row = _build_row(
+            source_url=BMOA_SATURDAY_STUDIO_URL,
+            title=f"Saturday Studio: {_normalize_space(heading.get_text(' ', strip=True))}",
+            detail_text=" | ".join([*lines[1:], *details, *page_notes]),
+            start_date=start_date,
+            end_date=end_date,
+            date_text=lines[0],
+        )
+        if row is not None:
+            rows.append(row)
     return rows
 
 

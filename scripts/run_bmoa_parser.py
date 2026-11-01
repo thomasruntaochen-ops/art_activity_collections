@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.crawlers.adapters.bmoa import (  # noqa: E402
     BMOA_EVENTS_URL,
+    BMOA_SATURDAY_STUDIO_URL,
     fetch_bmoa_events_page,
     parse_bmoa_events_html,
 )
@@ -154,6 +155,11 @@ async def main() -> None:
     parser.add_argument("--url", default=BMOA_EVENTS_URL)
     parser.add_argument("--input-html", default=None)
     parser.add_argument(
+        "--studio-input-html",
+        default=None,
+        help="Saved Saturday Studio page to parse alongside --input-html (fetched live otherwise).",
+    )
+    parser.add_argument(
         "--save-html",
         action="store_true",
         help="Save fetched raw HTML to cache directory for debugging.",
@@ -213,6 +219,17 @@ async def main() -> None:
         )
         print(f"Saved BMoA text dump to: {dump_path}")
 
+    # The Saturday Studio page lists each kids' class with its own date and time.
+    # It only adds rows, so a failed fetch falls back to the events page alone.
+    studio_html: str | None = None
+    if args.studio_input_html:
+        studio_html = Path(args.studio_input_html).read_text(encoding="utf-8")
+    elif not args.input_html:
+        try:
+            studio_html = await fetch_bmoa_events_page(BMOA_SATURDAY_STUDIO_URL)
+        except Exception as exc:
+            print(f"Saturday Studio fetch failed ({BMOA_SATURDAY_STUDIO_URL}): {exc}; using the events page only.")
+
     clear_completed = False
 
     def _clear_before_commit() -> None:
@@ -238,7 +255,9 @@ async def main() -> None:
                 name="bmoa",
                 source_url=args.url,
                 load_payload=_load_cached_html,
-                parse_payload=lambda payload: parse_bmoa_events_html(html=payload, list_url=args.url),
+                parse_payload=lambda payload: parse_bmoa_events_html(
+                    html=payload, list_url=args.url, studio_html=studio_html
+                ),
                 parser_name="bmoa",
                 adapter_type="bmoa_events",
                 parsed_label="rows",

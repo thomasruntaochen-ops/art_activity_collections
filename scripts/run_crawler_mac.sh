@@ -54,18 +54,38 @@ fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 TIMESTAMP="$(date '+%Y-%m-%dT%H:%M:%S')"
+
+# Under launchd, stdout is logs/launchd_daily.log, and teeing the whole run into
+# it kept a second, never-rotated copy of every crawl (376 MB by Nov 2026). Only
+# echo the run to stdout when a terminal is watching; launchd's log still gets
+# the "Starting" line and anything that fails before the run begins.
+log_run() {
+  if [[ -t 1 ]]; then
+    tee -a "$LOG_FILE"
+  else
+    cat >> "$LOG_FILE"
+  fi
+}
+
+# The batch exits 1 whenever any venue fails, which is most days. Capture that
+# instead of letting `set -e` end the script here, or the log rotation below
+# never runs (224 logs had piled up by Nov 2026).
+run_status=0
 if [[ -n "$BATCH_ID" ]]; then
   LOG_FILE="$LOG_DIR/crawler_${BATCH_ID}_${TIMESTAMP}.log"
   echo "[$TIMESTAMP] Starting batch: $BATCH_ID → Railway MySQL ($MYSQL_HOST:$MYSQL_PORT)" | tee "$LOG_FILE"
   python scripts/run_crawler_batch.py \
     --config "$CRAWLER_CONFIG_PATH" \
-    --batch-id "$BATCH_ID" 2>&1 | tee -a "$LOG_FILE"
+    --batch-id "$BATCH_ID" 2>&1 | log_run || run_status=$?
 else
   LOG_FILE="$LOG_DIR/crawler_all_${TIMESTAMP}.log"
   echo "[$TIMESTAMP] Starting all batches → Railway MySQL ($MYSQL_HOST:$MYSQL_PORT)" | tee "$LOG_FILE"
   python scripts/run_crawler_batch.py \
-    --config "$CRAWLER_CONFIG_PATH" 2>&1 | tee -a "$LOG_FILE"
+    --config "$CRAWLER_CONFIG_PATH" 2>&1 | log_run || run_status=$?
 fi
+grep -h "^\[crawler-batch\] Completed" "$LOG_FILE" || true
 
 # Keep only last 30 log files
 ls -t "$LOG_DIR"/crawler_*.log 2>/dev/null | tail -n +31 | xargs rm -f || true
+
+exit "$run_status"

@@ -158,6 +158,16 @@ DETAIL_FETCH_CONCURRENCY = 6
 MCA_MAX_LISTING_PAGES = 6
 SMART_MAX_LISTING_PAGES = 4
 ARTIC_API_URL = "https://api.artic.edu/api/v1"
+# The API docs ask clients to name themselves in an AIC-User-Agent header, and
+# AIC's own apps send it so their Cloudflare rules can tell them from bots.
+# Posing as Chrome from a script (a browser UA asking an API for text/html) is
+# what drew 403s from 2026-10-21, so API calls identify the project honestly.
+ARTIC_CLIENT_ID = "Art Museum Activities (https://www.artmuseumactivities.com)"
+ARTIC_API_HEADERS = {
+    "User-Agent": "ArtMuseumActivities/1.0 (+https://www.artmuseumactivities.com)",
+    "AIC-User-Agent": ARTIC_CLIENT_ID,
+    "Accept": "application/json",
+}
 # The events-page facets the venue used to be read through: Families, General
 # Public (which carries Drop-In Art Making) and Teens. _should_keep_event drops
 # the adult gallery tours that ride along on General Public.
@@ -358,6 +368,7 @@ async def fetch_html(
     url: str,
     *,
     client: httpx.AsyncClient | None = None,
+    headers: dict[str, str] | None = None,
     use_playwright_fallback: bool = False,
     max_attempts: int = 5,
     base_backoff_seconds: float = 2.0,
@@ -370,7 +381,7 @@ async def fetch_html(
     try:
         for attempt in range(1, max_attempts + 1):
             try:
-                response = await client.get(url)
+                response = await client.get(url, headers=headers)
             except httpx.HTTPError as exc:
                 last_exception = exc
                 if attempt < max_attempts:
@@ -534,7 +545,11 @@ async def _load_artic_payload(
             "fields": ARTIC_OCCURRENCE_FIELDS,
         }
         response = json.loads(
-            await fetch_html(f"{ARTIC_API_URL}/event-occurrences/search?{urlencode(params)}", client=client)
+            await fetch_html(
+                f"{ARTIC_API_URL}/event-occurrences/search?{urlencode(params)}",
+                client=client,
+                headers=ARTIC_API_HEADERS,
+            )
         )
         data = response.get("data") or []
         occurrences.extend(data)
@@ -547,7 +562,9 @@ async def _load_artic_payload(
     events_by_id: dict[str, dict] = {}
     for start in range(0, len(event_ids), 100):
         params = {"ids": ",".join(event_ids[start : start + 100]), "limit": 100, "fields": ARTIC_EVENT_FIELDS}
-        response = json.loads(await fetch_html(f"{ARTIC_API_URL}/events?{urlencode(params)}", client=client))
+        response = json.loads(
+            await fetch_html(f"{ARTIC_API_URL}/events?{urlencode(params)}", client=client, headers=ARTIC_API_HEADERS)
+        )
         for event in response.get("data") or []:
             events_by_id[str(event.get("id"))] = event
 
