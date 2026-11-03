@@ -316,10 +316,11 @@ def _expand_occurrence_datetimes(
         return []
 
     results: list[tuple[datetime, datetime | None]] = []
-    today = datetime.now(ZoneInfo(DAHL_ARTS_CENTER_TIMEZONE)).date()
 
+    # The cutoff is today on live runs; anchoring the year guess to it keeps a
+    # parse with an explicit start_date from shifting dates as the clock moves.
     for day_value in days:
-        event_date = _infer_event_date(month=month, day_value=day_value, today=today)
+        event_date = _infer_event_date(month=month, day_value=day_value, today=cutoff)
         if event_date is None or event_date < cutoff:
             continue
         start_at = datetime.combine(

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 import re
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
+from datetime import timedelta
 from xml.etree import ElementTree as ET
 from zoneinfo import ZoneInfo
 
@@ -152,17 +152,17 @@ OK_HARD_REJECT_PATTERNS = (
 
 GILCREASE_ICC_TITLE = "Indigenous Collections Care (ICC) Speaker Series"
 GILCREASE_UNCREASE_TITLE = "Uncrease"
-GILCREASE_OCCURRENCE_RE = re.compile(
-    r"(?P<date>[A-Za-z]+\s+\d{1,2},\s+\d{4})\s*,\s*"
-    r"(?P<time>\d{1,2}:\d{2}\s*[APap][.]?M[.]?)\s*,\s*"
-    r"(?P<subtitle>.*?)\s*,\s*(?:Register|Purchase)",
-    re.IGNORECASE,
-)
-GILCREASE_UNCREASE_OCCURRENCE_RE = re.compile(
-    r"(?P<date>[A-Za-z]+\s+\d{1,2},\s+\d{4})\s*,\s*"
-    r"(?P<time>\d{1,2}:\d{2}\s*[APap][.]?M[.]?)\s*,\s*,\s*Register",
-    re.IGNORECASE,
-)
+# The events page renders from this Tessitura endpoint. Since 2026-10-31 the
+# page never finishes loading for the crawler's browser, but the endpoint
+# answers a plain, self-identified JSON request.
+GILCREASE_API_URL = "https://my.gilcrease.org/api/products/productionseasons"
+GILCREASE_API_HEADERS = {
+    "User-Agent": "ArtMuseumActivities/1.0 (+https://www.artmuseumactivities.com)",
+    "Accept": "application/json",
+}
+GILCREASE_API_KEYWORDS = ["public events"]
+# The page itself asks for the next six months.
+GILCREASE_API_WINDOW_DAYS = 182
 # Season, year and the exact class name all change each term ("2026 Spring /
 # After School Art Ceramic Class" became "2026 Fall / After School Art Class"),
 # so capture them instead of hardcoding one term's wording.
@@ -232,7 +232,7 @@ OK_VENUES: tuple[OkVenueConfig, ...] = (
         state="OK",
         list_url="https://my.gilcrease.org/events?view=list&span=month&k=public%20events",
         default_location="Gilcrease Museum, Tulsa, OK",
-        mode="gilcrease_playwright",
+        mode="gilcrease_api",
         source_prefixes=("https://my.gilcrease.org/events",),
     ),
     OkVenueConfig(
@@ -292,25 +292,25 @@ def get_ok_source_prefixes() -> tuple[str, ...]:
     )
 
 
-async def fetch_playwright_body_text(url: str, *, timeout_ms: int = 90000) -> str:
-    if async_playwright is None:
-        raise RuntimeError(
-            "Playwright is not installed. Install crawler extras and Chromium with "
-            "`pip install -e .[crawler]` then `playwright install chromium`."
-        )
-
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True, args=list(PLAYWRIGHT_LAUNCH_ARGS))
-        page = await browser.new_page(
-            user_agent=DEFAULT_HEADERS["User-Agent"],
-            locale="en-US",
-            timezone_id=OK_TIMEZONE,
-        )
-        await page.goto(url, wait_until="networkidle", timeout=timeout_ms)
-        await page.wait_for_timeout(5000)
-        body_text = await page.locator("body").inner_text()
-        await browser.close()
-        return body_text
+async def fetch_gilcrease_productions(client: httpx.AsyncClient) -> list[dict[str, object]]:
+    today = datetime.now(OK_TZ).date()
+    end = today + timedelta(days=GILCREASE_API_WINDOW_DAYS)
+    response = await client.post(
+        GILCREASE_API_URL,
+        json={
+            "productionSeasonIdFilter": [],
+            "keywordIds": None,
+            "startDate": f"{today.isoformat()}T00:00",
+            "endDate": f"{end.isoformat()}T23:59",
+            "keywords": GILCREASE_API_KEYWORDS,
+        },
+        headers=GILCREASE_API_HEADERS,
+    )
+    response.raise_for_status()
+    productions = response.json().get("productions")
+    if not isinstance(productions, list):
+        raise RuntimeError(f"Gilcrease API returned no productions list: {response.text[:200]}")
+    return productions
 
 
 async def fetch_html(
@@ -383,9 +383,9 @@ async def load_ok_bundle_payload(
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
         for venue in venues_to_load:
             try:
-                if venue.mode == "gilcrease_playwright":
+                if venue.mode == "gilcrease_api":
                     payload_by_slug[venue.slug] = {
-                        "body_text": await fetch_playwright_body_text(venue.list_url),
+                        "productions": await fetch_gilcrease_productions(client),
                     }
                     continue
 
@@ -437,7 +437,7 @@ def parse_ok_events(
 ) -> list[ExtractedActivity]:
     current_date = _resolve_start_date(start_date)
 
-    if venue.mode == "gilcrease_playwright":
+    if venue.mode == "gilcrease_api":
         return _parse_gilcrease(payload, venue=venue, current_date=current_date)
     if venue.mode == "mgmoa_html":
         return _parse_mgmoa(payload, venue=venue, current_date=current_date)
@@ -465,30 +465,43 @@ def _parse_gilcrease(
     venue: OkVenueConfig,
     current_date: date,
 ) -> list[ExtractedActivity]:
-    body_text = normalize_space(str(payload.get("body_text") or ""))
-    if not body_text:
+    productions = payload.get("productions")
+    if not isinstance(productions, list):
         return []
 
-    # Count every dated occurrence on the calendar, not just the two named
-    # programmes sliced out below: those come and go each season, so the whole
-    # calendar is the right "did the page render" signal.
-    record_candidate_count(len(GILCREASE_OCCURRENCE_RE.findall(body_text)))
+    performances = [
+        (production, performance)
+        for production in productions
+        if isinstance(production, dict)
+        for performance in production.get("performances") or []
+        if isinstance(performance, dict) and performance.get("isPerformanceVisible", True)
+    ]
+    # Count every performance on the calendar, not just the two named
+    # programmes kept below: those come and go each season, so the whole
+    # calendar is the right "did the feed answer" signal.
+    record_candidate_count(len(performances))
 
     rows: list[ExtractedActivity] = []
     seen: set[tuple[str, str, datetime]] = set()
+    for production, performance in performances:
+        production_title = _gilcrease_text(production.get("productionTitle"))
+        if production_title.casefold().startswith(GILCREASE_ICC_TITLE.casefold()):
+            subtitle = _gilcrease_text(performance.get("performanceTitle"))
+            if subtitle == production_title:
+                subtitle = ""
+            title = f"{GILCREASE_ICC_TITLE}: {subtitle}" if subtitle else GILCREASE_ICC_TITLE
+            description = subtitle or GILCREASE_ICC_TITLE
+            activity_type = "talk"
+        elif production_title.casefold().startswith(GILCREASE_UNCREASE_TITLE.casefold()):
+            title = GILCREASE_UNCREASE_TITLE
+            description = _gilcrease_text(production.get("description")) or GILCREASE_UNCREASE_TITLE
+            activity_type = "activity"
+        else:
+            continue
 
-    icc_section = _slice_text(body_text, GILCREASE_ICC_TITLE, GILCREASE_UNCREASE_TITLE)
-    for match in GILCREASE_OCCURRENCE_RE.finditer(icc_section):
-        start_date_text = match.group("date")
-        base_date = parse_date_text(start_date_text)
-        if base_date is None or base_date < current_date:
+        start_at = _parse_gilcrease_start(performance.get("performanceDate"))
+        if start_at is None or start_at.date() < current_date:
             continue
-        start_at, end_at = parse_time_range(base_date=base_date, time_text=match.group("time"))
-        if start_at is None:
-            continue
-        subtitle = normalize_space(match.group("subtitle"))
-        title = f"{GILCREASE_ICC_TITLE}: {subtitle}" if subtitle else GILCREASE_ICC_TITLE
-        description = subtitle or GILCREASE_ICC_TITLE
         key = (venue.list_url, title, start_at)
         if key in seen:
             continue
@@ -502,54 +515,14 @@ def _parse_gilcrease(
                 location_text=venue.default_location,
                 city=venue.city,
                 state=venue.state,
-                activity_type="talk",
+                activity_type=activity_type,
                 age_min=None,
                 age_max=None,
                 audience_segment="adults",
                 drop_in=False,
                 registration_required=True,
                 start_at=start_at,
-                end_at=end_at,
-                timezone=OK_TIMEZONE,
-                **price_classification_kwargs(description, default_is_free=True),
-            )
-        )
-
-    uncrease_section = _slice_text(body_text, GILCREASE_UNCREASE_TITLE, "Thomas Gilcrease Institute of American History and Art")
-    description = _slice_text(
-        uncrease_section,
-        GILCREASE_UNCREASE_TITLE,
-        "April 11, 2026",
-    ).replace(GILCREASE_UNCREASE_TITLE, "", 1)
-    description = normalize_space(description)
-    for match in GILCREASE_UNCREASE_OCCURRENCE_RE.finditer(uncrease_section):
-        base_date = parse_date_text(match.group("date"))
-        if base_date is None or base_date < current_date:
-            continue
-        start_at, end_at = parse_time_range(base_date=base_date, time_text=match.group("time"))
-        if start_at is None:
-            continue
-        key = (venue.list_url, GILCREASE_UNCREASE_TITLE, start_at)
-        if key in seen:
-            continue
-        seen.add(key)
-        rows.append(
-            ExtractedActivity(
-                source_url=venue.list_url,
-                title=GILCREASE_UNCREASE_TITLE,
-                description=description,
-                venue_name=venue.venue_name,
-                location_text=venue.default_location,
-                city=venue.city,
-                state=venue.state,
-                activity_type="activity",
-                age_min=None,
-                age_max=None,
-                audience_segment="adults",
-                drop_in=False,
-                registration_required=True,
-                start_at=start_at,
-                end_at=end_at,
+                end_at=None,
                 timezone=OK_TIMEZONE,
                 **price_classification_kwargs(description, default_is_free=True),
             )
@@ -557,6 +530,26 @@ def _parse_gilcrease(
 
     rows.sort(key=lambda row: (row.start_at, row.title, row.source_url))
     return rows
+
+
+def _gilcrease_text(value: object) -> str:
+    # Titles and descriptions come back as HTML fragments ("<strong>...</strong>").
+    if not isinstance(value, str):
+        return ""
+    text = normalize_space(BeautifulSoup(value, "html.parser").get_text(" "))
+    return re.sub(r"\s+([.,;:!?])", r"\1", text)
+
+
+def _parse_gilcrease_start(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed
+    return parsed.astimezone(OK_TZ).replace(tzinfo=None)
 
 
 def _parse_mgmoa(
@@ -866,16 +859,6 @@ def _infer_ok_audience(
         return segment
 
     return "adults"
-
-
-def _slice_text(text: str, start_marker: str, end_marker: str) -> str:
-    start_index = text.find(start_marker)
-    if start_index == -1:
-        return ""
-    end_index = text.find(end_marker, start_index + len(start_marker))
-    if end_index == -1:
-        return text[start_index:]
-    return text[start_index:end_index]
 
 
 def _extract_okcmoa_title(soup: BeautifulSoup) -> str:

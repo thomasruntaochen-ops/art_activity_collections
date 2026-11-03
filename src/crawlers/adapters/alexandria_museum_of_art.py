@@ -1,4 +1,3 @@
-import asyncio
 import json
 import re
 from datetime import datetime
@@ -78,7 +77,13 @@ async def load_alexandria_museum_of_art_payload(
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         page = await browser.new_page()
-        await page.goto(url, wait_until="networkidle", timeout=120000)
+        # Analytics and a script from a dead domain keep the network busy, so
+        # "networkidle" never fires. EventON fills the calendar by AJAX ~20 s in.
+        await page.goto(url, wait_until="domcontentloaded", timeout=120000)
+        try:
+            await page.wait_for_selector(".ajde_evcal_calendar .eventon_list_event", timeout=60000)
+        except Exception:
+            await page.wait_for_timeout(3000)
 
         cards = await page.eval_on_selector_all(
             ".ajde_evcal_calendar .eventon_list_event",

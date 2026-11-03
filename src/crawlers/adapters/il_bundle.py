@@ -1488,7 +1488,6 @@ def _parse_smart_datetime(text: str | None) -> tuple[datetime, datetime | None] 
     parts = [part.strip() for part in normalized.split(" ") if part.strip()]
     if not parts:
         return None
-    lines = [part.strip() for part in normalized.split(" ") if part.strip()]
     match = re.search(r"([A-Za-z]{3,9}\s+\d{1,2},\s*20\d{2})\s+(.+)$", normalized)
     if match is None:
         return None

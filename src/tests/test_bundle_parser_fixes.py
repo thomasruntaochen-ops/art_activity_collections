@@ -1,15 +1,16 @@
 """Regressions for three bundle parsers that had drifted from their live pages."""
 
-from datetime import date
+from datetime import date, datetime
 
 from src.crawlers.adapters.nm_bundle import _extract_sitesf_future_cards
 from src.crawlers.adapters.ok_bundle import (
-    GILCREASE_OCCURRENCE_RE,
     MGMOA_CLASS_RE,
     OK_VENUES_BY_SLUG,
+    _parse_gilcrease,
     _parse_mgmoa,
 )
 from src.crawlers.adapters.wv_bundle import WV_VENUES_BY_SLUG, _parse_stifel_events
+from src.crawlers.pipeline.candidates import get_candidate_count, reset_candidate_count
 
 
 def test_sitesf_cards_survive_css_module_hash() -> None:
@@ -30,11 +31,52 @@ def test_sitesf_cards_survive_css_module_hash() -> None:
     assert cards[0]["title"] == "Member Morning"
 
 
-def test_gilcrease_occurrence_accepts_purchase_cta() -> None:
-    """The calendar renamed its call to action from "Register" to "Purchase"."""
-    for cta in ("Register", "Purchase"):
-        text = f"September 3, 2099 , 2:00PM , Indigenous Independence Tours , {cta}"
-        assert GILCREASE_OCCURRENCE_RE.search(text) is not None, cta
+def test_gilcrease_reads_the_tessitura_api() -> None:
+    """Rows come from the productionseasons JSON the events page renders from."""
+
+    def performance(utc: str, title: str, *, visible: bool = True) -> dict:
+        return {"performanceDate": utc, "performanceTitle": title, "isPerformanceVisible": visible}
+
+    payload = {
+        "productions": [
+            {
+                "productionTitle": "Indigenous Independence Tours",
+                "description": "",
+                "performances": [performance("2099-01-08T20:00:00+00:00", "Indigenous Independence Tours")],
+            },
+            {
+                "productionTitle": "Indigenous Collections Care (ICC) Speaker Series",
+                "description": "<p>Monthly talks.</p>",
+                "performances": [
+                    performance("2098-12-15T00:00:00+00:00", "Past Talk"),
+                    performance("2099-01-14T00:00:00+00:00", "<strong>Caring for Beadwork</strong>"),
+                    performance("2099-01-15T00:00:00+00:00", "Hidden Talk", visible=False),
+                ],
+            },
+            {
+                "productionTitle": "Uncrease",
+                "description": "<p>A monthly paper-folding <em>meetup</em>.</p>",
+                "performances": [performance("2099-01-17T18:00:00+00:00", "Uncrease")],
+            },
+        ]
+    }
+
+    reset_candidate_count()
+    rows = _parse_gilcrease(
+        payload, venue=OK_VENUES_BY_SLUG["gilcrease"], current_date=date(2099, 1, 1)
+    )
+
+    # Every visible performance counts as a candidate, kept or not.
+    assert get_candidate_count() == 4
+    assert [row.title for row in rows] == [
+        "Indigenous Collections Care (ICC) Speaker Series: Caring for Beadwork",
+        "Uncrease",
+    ]
+    # 00:00 UTC on Jan 14 is 6 PM Central (CST) the evening before.
+    assert rows[0].start_at == datetime(2099, 1, 13, 18, 0)
+    assert rows[0].activity_type == "talk"
+    assert rows[1].start_at == datetime(2099, 1, 17, 12, 0)
+    assert rows[1].description == "A monthly paper-folding meetup."
 
 
 def test_mgmoa_regex_is_not_pinned_to_one_term() -> None:
