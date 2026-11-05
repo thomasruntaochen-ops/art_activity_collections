@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Privacy Policy — Art Museum Activities",
   description:
-    "Privacy policy for the Art Museum Activities app and website: no accounts, no tracking, and no personal data collected.",
+    "Privacy policy for the Art Museum Activities app and website: no accounts, no tracking cookies, and no personal data collected.",
 };
 
 export default function PrivacyPage() {
@@ -13,13 +13,14 @@ export default function PrivacyPage() {
       <div className="legal-page__inner">
         <p className="legal-page__eyebrow">Art Museum Activities</p>
         <h1 className="legal-page__title">Privacy Policy</h1>
-        <p className="legal-page__updated">Effective July 15, 2026</p>
+        <p className="legal-page__updated">Effective November 4, 2026</p>
 
         <p className="legal-page__lede">
           Art Museum Activities — the iPhone app and this website — is a free guide to art
           activities at museums. The short version: <strong>we don&rsquo;t collect, store, sell,
-          or share your personal information.</strong> There are no accounts, no ads, no
-          trackers, and no analytics.
+          or share your personal information.</strong> There are no accounts, no ads, and no tracking
+          cookies. The website counts visits with privacy-friendly analytics (see below); the app
+          has no analytics at all.
         </p>
 
         <section className="legal-page__section">
@@ -55,6 +56,21 @@ export default function PrivacyPage() {
           <p>
             Museums you save and filters you choose are stored only on your device. They never
             leave it, and deleting the app deletes them.
+          </p>
+        </section>
+
+        <section className="legal-page__section">
+          <h2>Website analytics</h2>
+          <p>
+            This website uses{" "}
+            <a className="legal-page__link" href="https://umami.is/privacy">
+              Umami
+            </a>
+            , a privacy-focused analytics service, to count visitors and page views. Umami
+            doesn&rsquo;t use cookies, doesn&rsquo;t follow you to other sites, and doesn&rsquo;t
+            collect personal information. It records anonymous details such as the page viewed,
+            the site that linked here, browser and device type, and country. The iPhone app
+            doesn&rsquo;t use Umami or any other analytics.
           </p>
         </section>
 

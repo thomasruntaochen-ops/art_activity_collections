@@ -163,6 +163,13 @@ build time.
   - Serve one canonical host and 301 the other: with `www` canonical, redirect
     `artmuseumactivities.com` to `www.artmuseumactivities.com`, or search
     engines index two copies of every page.
+- `NEXT_PUBLIC_UMAMI_WEBSITE_ID=<website id>` (optional)
+  - Turns on cookieless visitor analytics through Umami Cloud. Copy the
+    Website ID (a UUID) from the site's settings in cloud.umami.is. Leave it
+    unset and no analytics script is loaded.
+  - Inlined at build time, so redeploy the frontend after setting or changing
+    it. Only visits to the `NEXT_PUBLIC_SITE_URL` host (and its www/apex twin)
+    are counted, so the `*.up.railway.app` domain stays out of the numbers.
 
 ## Required One-Time DB Setup
 

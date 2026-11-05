@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
+import { Analytics } from "../components/analytics";
 import { JsonLd } from "../components/json-ld";
 import { APP_STORE_ID, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
 import { buildSiteLd } from "../lib/structured-data";
@@ -61,6 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <JsonLd data={buildSiteLd()} />
         {children}
+        <Analytics />
       </body>
     </html>
   );
