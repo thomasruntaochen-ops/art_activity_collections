@@ -1,8 +1,10 @@
 import re
 import asyncio
 import json
+import math
 import html as html_lib
 from datetime import datetime
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 from bs4 import BeautifulSoup
@@ -12,6 +14,7 @@ except ImportError:  # pragma: no cover - optional dependency
     async_playwright = None
 
 from src.crawlers.adapters.base import BaseSourceAdapter
+from src.crawlers.pipeline.candidates import record_candidate_count
 from src.crawlers.pipeline.datetime_utils import parse_iso_datetime
 from src.crawlers.extractors.filters import is_irrelevant_item_text
 from src.crawlers.pipeline.audience import infer_audience_segment
@@ -19,8 +22,10 @@ from src.crawlers.pipeline.pricing import price_classification_kwargs
 from src.crawlers.pipeline.types import ExtractedActivity
 from src.crawlers.user_agent import BROWSER_USER_AGENT
 
+# By 2026-10 /events?type=workshopsClasses had become a curated landing page
+# that ignores the filter; the searchable listing moved to /events/calendar.
 MET_WORKSHOPS_CLASSES_URL = (
-    "https://www.metmuseum.org/events?type=workshopsClasses"
+    "https://www.metmuseum.org/events/calendar?type=workshopsClasses"
 )
 MET_TEENS_FREE_WORKSHOPS_URL = MET_WORKSHOPS_CLASSES_URL
 MET_LEGACY_TEENS_FREE_WORKSHOPS_URL = (
@@ -36,7 +41,12 @@ DATE_HEADING_RE = re.compile(
 )
 TIME_LOCATION_RE = re.compile(r"^(\d{1,2}:\d{2}\s*[AP]M)\s*(.*)$", re.IGNORECASE)
 AGE_RE = re.compile(r"Ages?\s*(\d{1,2})\s*[\-\u2013]\s*(\d{1,2})", re.IGNORECASE)
-EMBEDDED_SOURCE_RE = re.compile(r'\\"_source\\":(\{.*?\})\\?,\\"highlight\\"', re.DOTALL)
+# Each search hit's _source used to be followed by "highlight"; on the calendar
+# page it is followed by "sort".
+EMBEDDED_SOURCE_RE = re.compile(r'\\"_source\\":(\{.*?\})\\?,\\"(?:highlight|sort)\\"', re.DOTALL)
+RESULTS_COUNT_RE = re.compile(r"(\d+) of (\d+) results")
+# The calendar shows 20 hits a page; ~180 workshops and classes span 9 pages.
+MET_MAX_PAGES = 12
 DEFAULT_HEADERS = {
     "User-Agent": BROWSER_USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -122,6 +132,7 @@ async def fetch_met_events_page_playwright(
     *,
     timeout_ms: int = 45000,
     checkpoint_wait_ms: int = 10000,
+    max_pages: int = MET_MAX_PAGES,
 ) -> str:
     if async_playwright is None:
         raise RuntimeError(
@@ -152,9 +163,39 @@ async def fetch_met_events_page_playwright(
             print("[met-fetch] Playwright: still on checkpoint, waiting longer")
             await page.wait_for_timeout(checkpoint_wait_ms)
             html = await page.content()
+
+        pages = [html]
+        for page_number in range(2, _calendar_page_count(html, max_pages=max_pages) + 1):
+            await page.goto(_with_page_number(url, page_number), wait_until="domcontentloaded", timeout=timeout_ms)
+            page_html = await page.content()
+            if "Security Checkpoint" in page_html:
+                await page.wait_for_timeout(checkpoint_wait_ms)
+                page_html = await page.content()
+            if not EMBEDDED_SOURCE_RE.search(page_html):
+                break
+            pages.append(page_html)
+        print(f"[met-fetch] Playwright: read {len(pages)} page(s)")
+
         await context.close()
         await browser.close()
-        return html
+        return "\n".join(pages)
+
+
+def _calendar_page_count(html: str, *, max_pages: int) -> int:
+    match = RESULTS_COUNT_RE.search(html)
+    if match is None:
+        return 1
+    per_page, total = int(match.group(1)), int(match.group(2))
+    if per_page <= 0:
+        return 1
+    return max(1, min(max_pages, math.ceil(total / per_page)))
+
+
+def _with_page_number(url: str, page_number: int) -> str:
+    parts = urlsplit(url)
+    query = [(key, value) for key, value in parse_qsl(parts.query) if key != "page"]
+    query.append(("page", str(page_number)))
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 class MetEventsAdapter(BaseSourceAdapter):
@@ -178,9 +219,8 @@ def parse_met_events_html(
     now: datetime | None = None,
 ) -> list[ExtractedActivity]:
     # Primary parsing path: Met's page includes embedded event JSON in script payloads.
-    embedded_rows = _parse_embedded_event_sources(html)
-    if embedded_rows:
-        return embedded_rows
+    if EMBEDDED_SOURCE_RE.search(html):
+        return _parse_embedded_event_sources(html)
 
     # Fallback path for legacy/static snapshots where script payload is absent.
     # It can only recover a time when one sits adjacent to the title, so rows land at
@@ -221,7 +261,9 @@ def parse_met_events_html(
             continue
 
         title = line
-        if is_irrelevant_item_text(title):
+        # Without a "Thursday, November 5" heading above it the event's date is
+        # unknown. Guessing today stamped every MET row with the crawl date.
+        if cursor_date is None or is_irrelevant_item_text(title):
             i += 1
             continue
         source_url = title_to_links[title][0]
@@ -295,12 +337,15 @@ def _parse_embedded_event_sources(html: str) -> list[ExtractedActivity]:
     rows: list[ExtractedActivity] = []
     seen_keys: set[tuple[str, str, datetime]] = set()
 
-    for match in EMBEDDED_SOURCE_RE.finditer(html):
-        source_obj = _decode_embedded_source(match.group(1))
-        if source_obj is None:
-            continue
+    source_objs = [
+        source_obj
+        for match in EMBEDDED_SOURCE_RE.finditer(html)
+        if (source_obj := _decode_embedded_source(match.group(1))) is not None
+    ]
+    record_candidate_count(len(source_objs))
 
-        paid = str(source_obj.get("paid", "")).lower()
+    for source_obj in source_objs:
+        paid =str(source_obj.get("paid", "")).lower()
         is_paid = bool(source_obj.get("isPaid"))
         audiences = [str(v).lower() for v in source_obj.get("audiences", [])]
 
