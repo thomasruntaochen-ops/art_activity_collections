@@ -1,0 +1,11 @@
+{
+  "Vancouver Art Gallery": {
+    "city": "Vancouver",
+    "country": "CA",
+    "event_links": [
+      "https://www.vanartgallery.bc.ca/events/",
+      "https://www.vanartgallery.bc.ca/wp-json/wp/v2/events"
+    ],
+    "parser_script": "scripts/run_vancouver_art_gallery_parser.py"
+  }
+}

@@ -6,7 +6,7 @@ import { AppCallout } from "../components/seo-sections";
 import { JsonLd } from "../components/json-ld";
 import { getAllVenues } from "../lib/seo-data";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
-import { stateName, stateSlug } from "../lib/states";
+import { regionCoverageLabel, stateName, stateSlug } from "../lib/states";
 import { buildFaqLd } from "../lib/structured-data";
 
 // The explorer's data is refetched in the browser on every visit, so this only
@@ -55,7 +55,7 @@ export default async function HomePage() {
     },
     {
       question: "Which museums are covered?",
-      answer: `${museumCount} art museums across ${byState.size} US states and territories, including major institutions and regional and university art museums.`,
+      answer: `${museumCount} art museums across ${regionCoverageLabel(byState.keys())}, including major institutions and regional and university art museums.`,
     },
   ];
 
@@ -91,7 +91,7 @@ export default async function HomePage() {
               Browse art museum activities by state
             </h2>
             <p className="seo-directory__lede">
-              {museumCount} art museums across {byState.size} states and territories publish free
+              {museumCount} art museums across {regionCoverageLabel(byState.keys())} publish free
               and low-cost workshops, drop-in studios and family programs. Pick a state to see
               what&rsquo;s coming up near you.
             </p>

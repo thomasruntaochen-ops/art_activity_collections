@@ -29,3 +29,17 @@ def test_build_geocode_queries_deduplicates_duplicate_parts() -> None:
 
     assert queries[0] == "Boston Museum, Boston, MA, USA"
     assert len(queries) == len(set(queries))
+
+
+def test_build_geocode_queries_uses_canada_for_province_codes() -> None:
+    venue = Venue(
+        name="Vancouver Art Gallery",
+        address="750 Hornby Street",
+        city="Vancouver",
+        state="BC",
+    )
+
+    queries = build_geocode_queries(venue)
+
+    assert queries[0] == "Vancouver Art Gallery, 750 Hornby Street, Vancouver, BC, Canada"
+    assert all(query.endswith(", Canada") for query in queries)

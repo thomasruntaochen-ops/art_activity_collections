@@ -6,7 +6,7 @@
 // making them infer meaning from layout.
 import { getVenueMedia } from "./venue-media";
 import { absoluteUrl, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "./site";
-import { stateName } from "./states";
+import { countryCode, stateName } from "./states";
 import type { Activity, AudienceSegment, VenueSummary } from "./types";
 
 type Json = Record<string, unknown>;
@@ -105,7 +105,7 @@ function placeLd(
       addressLocality: city ?? undefined,
       addressRegion: state ?? undefined,
       postalCode: venue?.venue_zip ?? undefined,
-      addressCountry: "US",
+      addressCountry: countryCode(state),
     }),
     geo:
       venue?.venue_lat != null && venue?.venue_lng != null
@@ -185,7 +185,7 @@ export function buildMuseumLd(venue: VenueSummary, path: string): Json {
       addressLocality: venue.venue_city ?? undefined,
       addressRegion: venue.venue_state ?? undefined,
       postalCode: venue.venue_zip ?? undefined,
-      addressCountry: "US",
+      addressCountry: countryCode(venue.venue_state),
     }),
     geo:
       venue.venue_lat != null && venue.venue_lng != null

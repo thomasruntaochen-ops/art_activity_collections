@@ -1109,3 +1109,8 @@ sources:
     adapter_type: university_of_wyoming_art_museum_events
     crawl_frequency: daily
     active: false
+  - name: vancouver_art_gallery_events
+    base_url: https://www.vanartgallery.bc.ca/events/
+    adapter_type: vancouver_art_gallery_events
+    crawl_frequency: daily
+    active: false

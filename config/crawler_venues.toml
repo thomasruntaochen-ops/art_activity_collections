@@ -1609,3 +1609,15 @@ parser_script_name = "scripts/run_university_of_wyoming_art_museum_parser.py"
 batch_id = "batch_e"
 use_base_url = false
 args = ["--commit"]
+
+[[venues]]
+# Added 2026-11-06: first Canadian venue (state = province code "BC").
+# Enabled the same day once frontend/lib/states.ts and mobile/src/lib/states.ts
+# learned the province codes (BC -> "British Columbia", /british-columbia).
+venue = "vancouver_art_gallery"
+state = "BC"
+enabled = true
+parser_script_name = "scripts/run_vancouver_art_gallery_parser.py"
+batch_id = "batch_d"
+use_base_url = false
+args = ["--commit", "--clear"]

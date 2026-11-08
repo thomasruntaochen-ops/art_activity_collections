@@ -134,8 +134,8 @@ export default async function StatePage({ params }: Props) {
           <p className="seo-page__eyebrow">{SITE_NAME}</p>
           <h1 className="seo-page__title">Art Activities for Kids &amp; Families in {label}</h1>
           <p className="seo-page__lede">
-            {venues.length} {plural(venues.length, "art museum")} in {label} publish
-            workshops, drop-in studios, and family programs
+            {venues.length} {plural(venues.length, "art museum")} in {label}{" "}
+            {venues.length === 1 ? "publishes" : "publish"} workshops, drop-in studios, and family programs
             {allActivities.length > 0 && (
               <>
                 {" "}

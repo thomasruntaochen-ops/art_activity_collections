@@ -1,6 +1,6 @@
 import { getAllVenues } from "../../lib/seo-data";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../../lib/site";
-import { stateName, stateSlug } from "../../lib/states";
+import { isCanadianProvince, regionCoverageLabel, stateName, stateSlug } from "../../lib/states";
 
 // /llms.txt — an emerging convention (llmstxt.org) that gives language models a
 // plain-text map of a site instead of making them infer one from HTML. Cheap to
@@ -16,6 +16,7 @@ export async function GET(): Promise<Response> {
     byState.set(venue.venue_state, (byState.get(venue.venue_state) ?? 0) + 1);
   }
 
+  const coversCanada = [...byState.keys()].some((code) => isCanadianProvince(code));
   const stateLines = [...byState.entries()]
     .sort((a, b) => stateName(a[0]).localeCompare(stateName(b[0])))
     .map(
@@ -29,11 +30,11 @@ export async function GET(): Promise<Response> {
 
 ${SITE_NAME} tracks free and low-cost art programming — drop-in studios, family
 workshops, teen studios and gallery activities — published by art museums across
-the United States. Listings are gathered directly from each museum's own events
+the United States${coversCanada ? " and Canada" : ""}. Listings are gathered directly from each museum's own events
 calendar and refreshed daily. Every listing links back to the museum's page as
 the authoritative source.
 
-Coverage: ${venues.length} museums across ${byState.size} states and territories.
+Coverage: ${venues.length} museums across ${regionCoverageLabel(byState.keys())}.
 
 ## How the data is organized
 

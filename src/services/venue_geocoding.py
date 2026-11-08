@@ -10,6 +10,12 @@ from src.models.activity import Venue
 
 _COORDINATE_QUANTIZE = Decimal("0.0000001")
 _DEFAULT_COUNTRY = "USA"
+_DEFAULT_COUNTRY_CODE = "us"
+# Canadian venues store their province/territory code in `state`; none of these
+# collide with a USPS state or territory code.
+_CANADIAN_PROVINCE_CODES = frozenset(
+    {"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"}
+)
 
 
 @dataclass(frozen=True)
@@ -50,18 +56,26 @@ def _dedupe_query_parts(parts: Sequence[str | None]) -> list[str]:
     return deduped
 
 
+def _country_for_state(state: str | None) -> tuple[str, str]:
+    """Return the (query country name, Nominatim country code) for a venue state."""
+    if state and state.strip().upper() in _CANADIAN_PROVINCE_CODES:
+        return "Canada", "ca"
+    return _DEFAULT_COUNTRY, _DEFAULT_COUNTRY_CODE
+
+
 def build_geocode_queries(venue: Venue) -> list[str]:
     name = _normalize_optional_text(venue.name)
     address = _normalize_optional_text(venue.address)
     city = _normalize_optional_text(venue.city)
     state = _normalize_optional_text(venue.state)
+    country, _ = _country_for_state(state)
 
     query_variants = [
-        _dedupe_query_parts([name, address, city, state, _DEFAULT_COUNTRY]),
-        _dedupe_query_parts([address, city, state, _DEFAULT_COUNTRY]),
-        _dedupe_query_parts([name, city, state, _DEFAULT_COUNTRY]),
-        _dedupe_query_parts([name, state, _DEFAULT_COUNTRY]),
-        _dedupe_query_parts([city, state, _DEFAULT_COUNTRY]),
+        _dedupe_query_parts([name, address, city, state, country]),
+        _dedupe_query_parts([address, city, state, country]),
+        _dedupe_query_parts([name, city, state, country]),
+        _dedupe_query_parts([name, state, country]),
+        _dedupe_query_parts([city, state, country]),
     ]
 
     queries: list[str] = []
@@ -144,7 +158,7 @@ class NominatimVenueGeocoder:
                     "q": query,
                     "format": "jsonv2",
                     "limit": 5,
-                    "countrycodes": "us",
+                    "countrycodes": _country_for_state(venue.state)[1],
                 },
             )
             self._last_request_at = monotonic()
